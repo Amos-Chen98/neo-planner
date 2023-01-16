@@ -1,6 +1,7 @@
-devel/
+git@github.com:Amos-Chen98/drone_ws.gitdevel/
 logs/
 build/
+devel/
 bin/
 lib/
 msg_gen/
@@ -49,3 +50,7 @@ qtcreator-*
 
 # Catkin custom files
 CATKIN_IGNORE
+.catkin_tools
+
+# Editor
+.vscode
