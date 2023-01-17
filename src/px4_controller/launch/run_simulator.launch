@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<launch>
+	<!-- Include the MAVROS node with SITL and Gazebo -->
+	<include file="$(find px4)/launch/mavros_posix_sitl.launch">
+	</include>
+
+    <node pkg="rviz" type="rviz" name="rivz" args="-d $(find px4_controller)/rviz/rviz_config.rviz" />
+</launch>

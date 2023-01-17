@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<launch>
+	<!-- Include the MAVROS node with SITL and Gazebo -->
+	<include file="$(find px4)/launch/mavros_posix_sitl.launch">
+	</include>
+
+	<!-- Our node to control the drone -->
+	<node pkg="px4_controller" type="my_offb_node.py" name="my_offb_node_py" required="true" output="screen" />
+</launch>
