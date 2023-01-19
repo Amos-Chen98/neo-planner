@@ -1,8 +1,11 @@
 <?xml version="1.0"?>
 <launch>
-	<!-- Include the MAVROS node with SITL and Gazebo -->
-	<include file="$(find px4)/launch/mavros_posix_sitl.launch">
-	</include>
+    <!-- Include the MAVROS node with SITL and Gazebo -->
+    <include file="$(find px4_controller)/launch/mavros_posix_sitl.launch" />
 
-    <node pkg="rviz" type="rviz" name="rivz" args="-d $(find px4_controller)/rviz/rviz_config.rviz" />
+    <!-- The following models still have unsolved problems -->
+    <!-- <param name="robot_description" textfile="$(find px4_controller)/models/iris.urdf" /> -->
+    <!-- <param name="robot_description" command="$(find xacro)/xacro $(find px4_controller)/models/iris.xacro" /> -->
+
+    <node pkg="rviz" type="rviz" name="rivz" args="-d $(find simulator)/rviz/rviz_config.rviz" />
 </launch>

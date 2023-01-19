@@ -1,6 +1,6 @@
 <launch>
 
-    <node pkg="rviz" type="rviz" name="rivz" args="-d $(find planner)/config/rviz_config.rviz" />
+    <node pkg="rviz" type="rviz" name="rivz" args="-d $(find simulator)/rviz/planner_rviz_config.rviz" />
 
     <node pkg="tf" type="static_transform_publisher" name="map_to_world" args="0 0 0 0 0 0 1 map world 50" />
 
