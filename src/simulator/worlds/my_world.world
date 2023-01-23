@@ -1577,5 +1577,6 @@
       <allow_auto_disable>1</allow_auto_disable>
       <pose>20.8211 0.024851 0.5 0 -0 0</pose>
     </model>
+    <plugin name='gazebo_octomap' filename='libBuildOctomapPlugin.so'/>
   </world>
 </sdf>

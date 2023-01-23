@@ -55,7 +55,7 @@ class State():
 
 
 if __name__ == "__main__":
-    rospy.init_node("controller_test")
+    rospy.init_node("traj_tracking")
 
     cmd_publisher = rospy.Publisher(
         "/mavros/setpoint_raw/local", PositionTarget, queue_size=10)
