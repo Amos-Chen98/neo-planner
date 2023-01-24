@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+
+    <node pkg="simulator" type="publish_pointcloud" name="publish_pointcloud" >
+        <param name="path" type="str" value="$(find simulator)/worlds/my_world.pcd" />
+        <param name="frame_id" type="str" value="camera" />
+        <param name="topic" type="str" value="/pointcloud/output" />
+        <param name="hz" type="int" value="2" />
+    </node>
+
+    <!-- Load ocotmap launch -->
+    <include file="$(find simulator)/launch/octomaptransform.launch" />
+
+    <!-- RViz -->
+    <node pkg="rviz" type="rviz" name="$(anon rviz)" respawn="false" output="screen" args="-d $(find simulator)/rviz/OctomapShow.rviz"/>
+
+</launch>

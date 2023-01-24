@@ -13,7 +13,7 @@
     <arg name="est" default="ekf2"/>
     <arg name="vehicle" default="iris"/>
     <!-- <arg name="world" default="$(find forest_gen)/worlds/forest0.world"/> -->
-    <arg name="world" default="$(find simulator)/worlds/my_forest.world"/>
+    resolutionresolution<arg name="world" default="$(find simulator)/worlds/my_forest.world"/>
     <arg name="sdf" default="$(find mavlink_sitl_gazebo)/models/$(arg vehicle)/$(arg vehicle).sdf"/>
 
     <!-- gazebo configs -->

@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+    <xacro:arg name="world_frame" default="world"/>
+    <xacro:arg name="base_link_frame" default="base_link"/>
+
+</robot>
