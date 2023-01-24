@@ -1,17 +1,37 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <launch>
+    <arg name="frame_id" default="map"/>
+    <arg name="pcl_topic" default="/pointcloud/output"/>
 
-    <node pkg="simulator" type="publish_pointcloud" name="publish_pointcloud" >
+    <node pkg="simulator" type="publish_pointcloud" name="publish_pointcloud">
         <param name="path" type="str" value="$(find simulator)/worlds/my_world.pcd" />
-        <param name="frame_id" type="str" value="camera" />
-        <param name="topic" type="str" value="/pointcloud/output" />
+        <param name="frame_id" type="str" value="$(arg frame_id)" />
+        <param name="topic" type="str" value="$(arg pcl_topic)" />
         <param name="hz" type="int" value="2" />
     </node>
 
-    <!-- Load ocotmap launch -->
-    <include file="$(find simulator)/launch/octomaptransform.launch" />
+    <!-- <node pkg="tf2_ros" type="static_transform_publisher" name="map_to_camera" args="0 0 0.0 0.0 0.0 0.0 /map /camera" /> -->
 
-    <!-- RViz -->
-    <node pkg="rviz" type="rviz" name="$(anon rviz)" respawn="false" output="screen" args="-d $(find simulator)/rviz/OctomapShow.rviz"/>
+    <!-- Load ocotmap launch -->
+    <node pkg="octomap_server" type="octomap_server_node" name="octomap_server">
+
+        <!-- resolution in meters per pixel -->
+        <param name="resolution" value="0.1" />
+
+        <!-- name of the fixed frame, needs to be "/map" for SLAM -->
+        <param name="frame_id" type="string" value="$(arg frame_id)" />
+
+        <!-- max range / depth resolution of the kinect in meter -->
+        <param name="sensor_model/max_range" value="100.0" />
+        <param name="latch" value="true" />
+
+        <!-- max/min height for occupancy map, should be in meters -->
+        <param name="pointcloud_max_z" value="1000" />
+        <param name="pointcloud_min_z" value="0" />
+
+        <!-- topic from where pointcloud2 messages are subscribed -->
+        <remap from="/cloud_in" to="$(arg pcl_topic)" />
+
+    </node>
 
 </launch>

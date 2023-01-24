@@ -3,8 +3,8 @@
     <!-- MAVROS posix SITL environment launch script -->
     <!-- launches MAVROS, PX4 SITL, Gazebo environment, and spawns vehicle -->
     <!-- vehicle pose -->
-    <arg name="x" default="-10"/>
-    <arg name="y" default="-10"/>
+    <arg name="x" default="0"/>
+    <arg name="y" default="0"/>
     <arg name="z" default="0"/>
     <arg name="R" default="0"/>
     <arg name="P" default="0"/>
@@ -12,8 +12,7 @@
     <!-- vehicle model and world -->
     <arg name="est" default="ekf2"/>
     <arg name="vehicle" default="iris"/>
-    <!-- <arg name="world" default="$(find forest_gen)/worlds/forest0.world"/> -->
-    resolutionresolution<arg name="world" default="$(find simulator)/worlds/my_forest.world"/>
+    <arg name="world" default="$(find simulator)/worlds/my_world.world"/>
     <arg name="sdf" default="$(find mavlink_sitl_gazebo)/models/$(arg vehicle)/$(arg vehicle).sdf"/>
 
     <!-- gazebo configs -->
