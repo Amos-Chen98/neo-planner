@@ -1,6 +1,6 @@
 /*
  * @Author: Yicheng Chen (yicheng-chen@outlook.com)
- * @LastEditTime: 2023-01-24 11:22:52
+ * @LastEditTime: 2023-01-25 17:15:23
  * @Modified from: https://github.com/RuPingCen/publish_pointcloud/blob/master/src/publish_pointcloud.cpp
  */
 
@@ -22,7 +22,7 @@ int main(int argc, char **argv)
 {
 
     std::string topic, path, frame_id;
-    int hz = 5;
+    int hz;
 
     ros::init(argc, argv, "publish_pointcloud");
     ros::NodeHandle nh;

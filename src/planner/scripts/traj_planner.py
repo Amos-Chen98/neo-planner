@@ -1,11 +1,10 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-01-09 11:46:10
+LastEditTime: 2023-01-27 22:08:14
 '''
 import math
 import pprint
 import time
-
 import numpy as np
 import scipy
 
@@ -197,19 +196,9 @@ class MinJerkPlanner():
     If you don't fill up the bounded conditions, the default will be zero.
     '''
 
-    def __init__(self, head_state, tail_state, int_wpts, ts, config):
+    def __init__(self, config):
         # Mission conditions
         self.s = 3
-        self.D = head_state.shape[1]
-        self.M = ts.shape[0]
-        self.head_state = np.zeros((self.s, self.D))
-        self.tail_state = np.zeros((self.s, self.D))
-        for i in range(self.s):
-            self.head_state[i] = head_state[i]
-            self.tail_state[i] = tail_state[i]
-        self.int_wpts = int_wpts.T  # 'int' for 'intermediate'
-        self.ts = ts
-        
         self.get_cost_times = 0
         self.get_grad_times = 0
 
@@ -222,8 +211,7 @@ class MinJerkPlanner():
         self.kappa = config.kappa
         self.weights = np.array(config.weights)
 
-        self.tau = self.map_T2tau(ts)  # agent for ts
-        self.get_coeffs(self.int_wpts, self.ts)
+        # self.get_coeffs(self.int_wpts, self.ts)
 
     def get_coeffs(self, int_wpts, ts):
         '''
@@ -397,6 +385,23 @@ class MinJerkPlanner():
         beta = np.array([0, 0, 0, 6, 24*T, 60*T**2])
 
         return np.dot(c_block.T, np.array([beta]).T).T
+
+    def get_full_state_cmd(self, hz=100):
+        if self.coeffs == []:
+            self.get_coeffs(self.int_wpts, self.ts)
+            
+        total_time = sum(self.ts)
+        t_samples = np.arange(0, total_time, 1/hz)
+        sample_num = t_samples.shape[0]
+        state_cmd = np.zeros((sample_num, 3, self.D))
+
+        for i in range(sample_num):
+            t = t_samples[i]
+            state_cmd[i][0] = self.get_pos(t)
+            state_cmd[i][1] = self.get_vel(t)
+            state_cmd[i][2] = self.get_acc(t)
+
+        return state_cmd, total_time, hz
 
     def get_pos_array(self):
         '''
@@ -707,7 +712,18 @@ class MinJerkPlanner():
 
         return grad
 
-    def optimize(self):
+    def plan(self, head_state, tail_state, int_wpts, ts):
+        self.D = head_state.shape[1]
+        self.M = ts.shape[0]
+        self.head_state = np.zeros((self.s, self.D))
+        self.tail_state = np.zeros((self.s, self.D))
+        for i in range(self.s):
+            self.head_state[i] = head_state[i]
+            self.tail_state[i] = tail_state[i]
+        self.int_wpts = int_wpts.T  # 'int' for 'intermediate'
+        self.ts = ts
+        self.tau = self.map_T2tau(ts)  # agent for ts
+
         x0 = np.concatenate(
             (np.reshape(self.int_wpts, (self.D*(self.M - 1),)), self.tau), axis=0)
 

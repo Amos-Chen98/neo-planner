@@ -72,14 +72,14 @@ if __name__ == "__main__":
 
     rate = rospy.Rate(300)
 
-    last_req = rospy.Time.now().to_sec()
+    last_req = rospy.get_time()CMakeLists
 
     # Send a few setpoints before starting
     for _ in range(300):
         if (rospy.is_shutdown()):
             break
 
-        t = rospy.Time.now().to_sec() - last_req
+        t = rospy.get_time() - last_req
         state.get_state(t)
         des_state.position.x = state.p_x
         des_state.position.y = state.p_y
@@ -102,10 +102,10 @@ if __name__ == "__main__":
     # OFFBOARD mode
     set_mode_client.call(offb_set_mode)
 
-    last_req = rospy.Time.now().to_sec()
+    last_req = rospy.get_time()
 
     while (not rospy.is_shutdown()):
-        t = rospy.Time.now().to_sec() - last_req
+        t = rospy.get_time() - last_req
         state.get_state(t)
         des_state.position.x = state.p_x
         des_state.position.y = state.p_y

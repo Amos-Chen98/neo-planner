@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-01-16 20:38:47
+LastEditTime: 2023-01-27 21:49:02
 '''
 
 import matplotlib.pyplot as plt
@@ -11,7 +11,7 @@ from traj_planner import MinJerkPlanner
 
 class Config():
     def __init__(self):
-        f = open('src/my_planner/config/planner_params.yaml', 'r')
+        f = open('src/planner/config/planner_params.yaml', 'r')
         config = yaml.load(f, Loader=yaml.FullLoader)
         self.v_max = config['v_max']
         self.T_min = config['T_min']
@@ -43,23 +43,23 @@ if __name__ == "__main__":
                            [0, 0, 0],
                            [0, 0, 0],
                            [0, 0, 0]])
-    tail_state = np.array([[100.0, 100, 5],
+    tail_state = np.array([[10.0, 10, 5],
                            [0, 0, 0],
                            [0, 0, 0],
                            [0, 0, 0]])
 
-    wpts = np.array([[40.0, 0, 10],
-                     [100, 30, 10],
-                     [100, 50, 10],
-                     [20, 60, 10],
-                     [70, 90, 10],
-                     [10, 120, 10]])
+    wpts = np.array([[10, 0, 10],
+                    [10, 30, 15],
+                    [5, 35, 10]])
 
     ts = 10 * np.ones((len(wpts)+1,))
 
     planner = MinJerkPlanner(head_state, tail_state, wpts, ts, config)
 
     planner.optimize()
+
+    state_cmd = planner.get_full_state_cmd()
+    print(state_cmd.shape)
 
     print("Times of getting cost: %d  Times of getting grad: %d" %
           (planner.get_cost_times, planner.get_grad_times))
@@ -87,7 +87,7 @@ if __name__ == "__main__":
         pos_value[i] = np.linalg.norm(pos[i])
         vel_value[i] = np.linalg.norm(vel[i])
         acc_value[i] = np.linalg.norm(acc[i])
-        jer_value[i] = np.linalg.norm(jer[i])
+        jer_value[i] = np.linalg.norm(jer[i])rospy.get_time()
 
     # Plot results
     plt.figure()

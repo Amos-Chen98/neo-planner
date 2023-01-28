@@ -23,7 +23,7 @@
 
         <!-- max range / depth resolution of the kinect in meter -->
         <param name="sensor_model/max_range" value="100.0" />
-        <param name="latch" value="true" />
+        <param name="latch" value="false" />
 
         <!-- max/min height for occupancy map, should be in meters -->
         <param name="pointcloud_max_z" value="1000" />

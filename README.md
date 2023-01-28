@@ -25,11 +25,15 @@ make px4_sitl gazebo
 * Mavros: https://docs.px4.io/main/en/ros/mavros_installation.html
 * QGC: https://docs.qgroundcontrol.com/master/en/getting_started/download_and_install.html
 
-2. Install required ROS packages
+2. Install required packages
 
 ```bash
 sudo apt-get install ros-noetic-octomap*
 sudo apt-get install ros-noetic-octovis
+```
+
+```
+pip install octomap-python
 ```
 
 3. Download all Gazebo models (optional)
@@ -80,7 +84,7 @@ Step2: use the `take off` command in QGC to make the drone take off.
 Step3: start trajecory tracking.
 
 ```
-rosrun px4_controller traj_tracking.py
+rosrun planner global_planner_node.py
 ```
 
 ### Generate octomap from Gazebo world
