@@ -1,15 +1,15 @@
 <?xml version="1.0"?>
 <launch>
     <!-- PX4 SITL, Gazebo, and MAVROS -->
-    <include file="$(find simulator)/launch/mavros_posix_sitl.launch" />
-
-    <!-- The following models still have unsolved problems -->
-    <!-- <param name="robot_description" textfile="$(find px4_controller)/models/iris.urdf" /> -->
-    <!-- <param name="robot_description" command="$(find xacro)/xacro $(find px4_controller)/models/iris.xacro" /> -->
+    <include file="$(find simulator)/launch/px4_utils.launch" />
 
     <!-- Publish map -->
-
     <include file="$(find simulator)/launch/load_map.launch" />
 
+    <!-- Visualizer -->
+    <node pkg="planner" type="visualizer_node.py" name="visualizer" />
+
+    <!-- Rviz -->
     <node pkg="rviz" type="rviz" name="rviz" args="-d $(find simulator)/rviz/rviz_config.rviz" />
+
 </launch>

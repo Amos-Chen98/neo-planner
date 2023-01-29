@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-01-28 22:26:09
+LastEditTime: 2023-01-29 16:58:18
 '''
 import os
 import sys
@@ -20,7 +20,7 @@ from nav_msgs.msg import Path
 from octomap_msgs.msg import Octomap
 from traj_planner import MinJerkPlanner
 from pyquaternion import Quaternion
-
+import time
 
 
 class Config():
@@ -45,6 +45,9 @@ class GlobalPlanner():
         self.planner = MinJerkPlanner(planner_config)
         self.state_cmd = PositionTarget()
         self.state_cmd.coordinate_frame = 1
+        self.ODOM_RECEIVED = False
+        self.des_path = Path()
+        self.real_path = Path()
 
         # Subscribers
         self.octomap_sub = rospy.Subscriber('/octomap_binary', Octomap, self.octomap_cb)
@@ -53,15 +56,16 @@ class GlobalPlanner():
         # Publishers
         self.local_pos_cmd_pub = rospy.Publisher("/mavros/setpoint_raw/local", PositionTarget, queue_size=10)
         self.marker_pub = rospy.Publisher('/robotMarker', MarkerArray, queue_size=10)
+        self.des_path_pub = rospy.Publisher('/des_path', Path, queue_size=10)
 
     def octomap_cb(self, data):
-        rospy.loginfo('Octomap updated !')
         self.octomap = data
 
     def odom_cb(self, data):
         '''
         Local velocity conversion to global frame
         '''
+        self.ODOM_RECEIVED = True
         self.odom = data
         local_pos = np.array([data.pose.pose.position.x,
                               data.pose.pose.position.y,
@@ -79,16 +83,12 @@ class GlobalPlanner():
         self.drone_state[0] = global_pos
         self.drone_state[1] = global_vel
 
-    def plan(self, head_state, tail_state, int_wpts, ts):
-        '''
-        Input: 
-        current drone state: np.ndarray of (3,3)
-        target state: np.ndarray of (3,3)
-        octomap: tuple, for obstacle avoidance
+    def plan(self, tail_state):
+        while not self.ODOM_RECEIVED:
+            time.sleep(0.01)
 
-        Store traj in self.planner
-        '''
-        self.planner.plan(head_state, tail_state, int_wpts, ts)
+        self.planner.plan(self.drone_state, tail_state)
+
         rospy.loginfo("Trajectory planning finished!")
 
     def warm_up(self):
@@ -97,11 +97,11 @@ class GlobalPlanner():
         self.state_cmd.position.y = self.drone_state[0][1]
         self.state_cmd.position.z = self.drone_state[0][2]
         rate = rospy.Rate(100)
-        for _ in range(5):
+        for _ in range(5):  # set 5 points
             if (rospy.is_shutdown()):
                 break
             self.local_pos_cmd_pub.publish(self.state_cmd)
-            rate.sleep()        
+            rate.sleep()
 
     def publish_state_cmd(self):
         '''
@@ -136,9 +136,21 @@ class GlobalPlanner():
             # self.timer.shutdown()
 
     def visualize_traj(self):
-        pos = self.planner.get_pos_array()
-        pos_z = np.array([5.0*np.ones(len(pos))]).T
-        pos_array = np.concatenate((pos, pos_z), axis=1)
+        pos_array = self.planner.get_pos_array()
         markerArray = get_marker_array(pos_array)
         self.marker_pub.publish(markerArray)
         rospy.loginfo("markerArray published!!!")
+
+    def publish_des_path(self):
+        pos_array = self.planner.get_pos_array()
+        des_path = Path()
+        des_path.header.frame_id = "map"
+        for i in range(len(pos_array)):
+            pose_stamped = PoseStamped()
+            pose_stamped.pose.position.x = pos_array[i][0]
+            pose_stamped.pose.position.y = pos_array[i][1]
+            pose_stamped.pose.position.z = pos_array[i][2]
+            des_path.poses.append(pose_stamped)
+
+        self.des_path_pub.publish(des_path)
+        rospy.loginfo("Des path published!!!")

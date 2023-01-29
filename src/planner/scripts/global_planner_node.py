@@ -9,36 +9,34 @@ import rospy
 from global_planner import GlobalPlanner
 
 
+if __name__ == "__main__":
+    rospy.wait_for_service("/mavros/set_mode")
+    set_mode_client = rospy.ServiceProxy("mavros/set_mode", SetMode)
+    offb_set_mode = SetModeRequest()
+    offb_set_mode.custom_mode = 'OFFBOARD'
 
-tail_state = np.array([[10.0, 10, 5],
-                       [0, 0, 0],
-                       [0, 0, 0],
-                       [0, 0, 0]])
+    global_planner = GlobalPlanner()
 
-int_wpts = np.array([[10, 0, 10],
-                     [10, 30, 15],
-                     [5, 35, 10]])
+    tail_state = np.array([[50, 0, 10],
+                           [0, 0, 0],
+                           [0, 0, 0],
+                           [0, 0, 0]])
 
-ts = 10 * np.ones((len(int_wpts)+1,))
+    # int_wpts = np.array([[10, 0, 10],
+    #                     [10, 30, 15],
+    #                     [5, 35, 10]])
 
-global_planner = GlobalPlanner()
+    # int_wpts = get_int_wpts(head_state, tail_state)
 
-rospy.wait_for_service("/mavros/set_mode")
-set_mode_client = rospy.ServiceProxy("mavros/set_mode", SetMode)
-offb_set_mode = SetModeRequest()
-offb_set_mode.custom_mode = 'OFFBOARD'
+    global_planner.plan(tail_state)
 
-head_state = global_planner.drone_state
+    global_planner.warm_up()
 
-global_planner.plan(head_state, tail_state, int_wpts, ts)
+    if (set_mode_client.call(offb_set_mode).mode_sent == True):
+        rospy.loginfo("OFFBOARD enabled")
 
-global_planner.warm_up()
+    global_planner.publish_state_cmd()
+    
+    global_planner.publish_des_path()
 
-if (set_mode_client.call(offb_set_mode).mode_sent == True):
-    rospy.loginfo("OFFBOARD enabled")
-
-global_planner.publish_state_cmd()
-
-# global_planner.visualize_traj()
-
-rospy.spin()
+    rospy.spin()

@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-01-27 22:08:14
+LastEditTime: 2023-01-29 16:58:50
 '''
 import math
 import pprint
@@ -386,10 +386,10 @@ class MinJerkPlanner():
 
         return np.dot(c_block.T, np.array([beta]).T).T
 
-    def get_full_state_cmd(self, hz=100):
+    def get_full_state_cmd(self, hz=300):
         if self.coeffs == []:
             self.get_coeffs(self.int_wpts, self.ts)
-            
+
         total_time = sum(self.ts)
         t_samples = np.arange(0, total_time, 1/hz)
         sample_num = t_samples.shape[0]
@@ -712,7 +712,21 @@ class MinJerkPlanner():
 
         return grad
 
-    def plan(self, head_state, tail_state, int_wpts, ts):
+    def get_int_wpts(self, head_state, tail_state, int_wpts_num=3):
+        start_pos = head_state[0]
+        target_pos = tail_state[0]
+        dim = len(start_pos)
+        int_wpts = np.zeros((int_wpts_num, dim))
+        for i in range(dim):
+            step_length = (target_pos[i] - start_pos[i])/(int_wpts_num + 1)
+            int_wpts[:, i] = np.linspace(start_pos[i] + step_length, target_pos[i], int_wpts_num, endpoint=False)
+
+        return int_wpts
+
+    def plan(self, head_state, tail_state):
+        int_wpts = self.get_int_wpts(head_state, tail_state)
+        ts = 10 * np.ones((len(int_wpts)+1,))
+
         self.D = head_state.shape[1]
         self.M = ts.shape[0]
         self.head_state = np.zeros((self.s, self.D))
@@ -743,16 +757,15 @@ class MinJerkPlanner():
                                                'maxls': 20})
         time_end = time.time()
 
-        self.int_wpts = np.reshape(
-            res.x[:self.D*(self.M - 1)], (self.D, self.M - 1))
+        self.int_wpts = np.reshape(res.x[:self.D*(self.M - 1)], (self.D, self.M - 1))
         self.tau = res.x[self.D*(self.M - 1):]
         self.ts = self.map_tau2T(self.tau)
 
         self.get_coeffs(self.int_wpts, self.ts)
 
-        print("-----------------------Final q-----------------------")
-        pprint.pprint(self.int_wpts)
-        print("-----------------------Final T-----------------------")
+        print("-----------------------Final intermediate waypoints-----------------------")
+        pprint.pprint(self.int_wpts.T)
+        print("-----------------------Final T--------------------------------------------")
         pprint.pprint(self.ts)
 
         print("Otimization running time: %f" % (time_end - time_start))

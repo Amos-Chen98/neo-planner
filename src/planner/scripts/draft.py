@@ -1,4 +1,3 @@
-#! /usr/bin/env python
 import numpy as np
 import rospy
 from pyquaternion import Quaternion
@@ -31,45 +30,29 @@ import time
 # print(r)
 # print(Rm)
 
-t_start = time.time()
 
 # using pyquaternion
-# q = Quaternion(1, 1, 4, 0)
-# q_inv = q.inverse
-# v1 = [1, 0, 0]
-# v2 = q.rotate(v1)
-# v3 = q_inv.rotate(v2)
-# print(v2)
-# print(np.linalg.norm(v2))
+# q1 = Quaternion(0.35, 0.2, 0.3, 0.1)
+# q2 = Quaternion(-0.5, 0.4, -0.1, 0.2)
+# t1 = np.array([0.3, 0.1, 0.1])
+# t2 = np.array([-0.1, 0.5, 0.3])
 
-q1 = Quaternion(0.35, 0.2, 0.3, 0.1)
-q2 = Quaternion(-0.5, 0.4, -0.1, 0.2)
-t1 = np.array([0.3, 0.1, 0.1])
-t2 = np.array([-0.1, 0.5, 0.3])
+# p1 = np.array([0.5, 0, 0.2])
+# p1_w = q1.inverse.rotate(p1 - t1)
 
-p1 = np.array([0.5, 0, 0.2])
-p1_w = q1.inverse.rotate(p1 - t1)
-
-p1_2 = q2.rotate(p1_w) + t2
-print(p1_2)
+# p1_2 = q2.rotate(p1_w) + t2
+# print(p1_2)
 
 
-# using scipy.spatial.transform
-# q = [1, 1, 4, 0]
-# Rt = Rotation.from_quat(q).as_matrix()
-# print(Rt)
-# v1 = np.array([1, 0, 0])
-# v1 = [1, 0, 0]
-# v2 = np.dot(Rt, v1)
-# print(v2)
-# print(np.linalg.norm(v2))
+# t_end = time.time()
+# print("time cost: %f" % (t_end - t_start))
+start_pos = np.array([0, 10, 0])
+target_pos = np.array([8, 8, 8])
+num = 3
+dim = len(start_pos)
+int_wpts = np.zeros((num, dim))
+for i in range(dim):
+    step_length = (target_pos[i] - start_pos[i])/(num + 1)
+    int_wpts[:, i] = np.linspace(start_pos[i] + step_length, target_pos[i], num, endpoint=False)
 
-# q1 = np.array([0.35, 0.2, 0.3, 0.1])
-# q2 = np.array([-0.5, 0.4, -0.1, 0.2])
-# R1 = Rotation.from_quat(q1).as_matrix()
-# R2 = Rotation.from_quat(q2).as_matrix()
-# t1 = np.array([[0.3, 0.1, 0.1]])
-# t2 = np.array([[0.3, 0.1, 0.1]])
-
-t_end = time.time()
-print("time cost: %f" % (t_end - t_start))
+print(int_wpts)

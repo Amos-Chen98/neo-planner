@@ -165,8 +165,8 @@ catkin_install_python(PROGRAMS
     scripts/global_planner.py
     scripts/global_planner_node.py
     scripts/traj_planner.py
+    scripts/visualizer_node.py
     scripts/visualizer.py
-    scripts/init_drone.py
     DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

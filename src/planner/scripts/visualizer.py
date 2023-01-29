@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-01-19 20:20:31
+LastEditTime: 2023-01-29 16:26:49
 '''
 
 import rospy
@@ -17,7 +17,7 @@ def get_marker_array(pos_array):
 
     for i in range(0,len(pos_array),2):
         robotMarker = Marker()
-        robotMarker.header.frame_id = "world"
+        robotMarker.header.frame_id = "map"
         robotMarker.header.seq = i
         robotMarker.header.stamp = rospy.get_rostime()
         robotMarker.ns = "robot"
@@ -45,8 +45,8 @@ def get_marker_array(pos_array):
 
         color = cm.jet(int(((i*1.0)/len(pos_array)*256)))
         robotMarker.color = ColorRGBA(color[0], color[1], color[2], color[3])
-        # robotMarker.mesh_resource = "package://planner/models/quad.stl"
-        robotMarker.mesh_resource = "package://simulator/models/meshes/quad.stl"
+        robotMarker.mesh_resource = "package://simulator/models/meshes/iris.stl"
+        # robotMarker.mesh_resource = "package://simulator/models/meshes/quad.stl"
 
         markerArray.markers.append(robotMarker)
 

@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-01-27 21:49:02
+LastEditTime: 2023-01-29 17:05:09
 '''
 
 import matplotlib.pyplot as plt
@@ -87,7 +87,7 @@ if __name__ == "__main__":
         pos_value[i] = np.linalg.norm(pos[i])
         vel_value[i] = np.linalg.norm(vel[i])
         acc_value[i] = np.linalg.norm(acc[i])
-        jer_value[i] = np.linalg.norm(jer[i])rospy.get_time()
+        jer_value[i] = np.linalg.norm(jer[i])
 
     # Plot results
     plt.figure()
