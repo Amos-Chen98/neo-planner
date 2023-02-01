@@ -28,7 +28,6 @@ class OctomapNode():
         self.generateEDT = True
         self.updateOctomap = True
         
-
         # Subscriber
         # self.octomap_sub = rospy.Subscriber('/octomap_binary', Octomap, self.octomap_cb)
         self.occupancy_map_sub = rospy.Subscriber('/projected_map', OccupancyGrid, self.occupancy_map_cb)

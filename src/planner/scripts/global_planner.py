@@ -7,18 +7,16 @@ from nav_msgs.msg import Odometry
 from visualizer import get_marker_array
 from visualization_msgs.msg import MarkerArray
 import rospy
-import math
 import numpy as np
 from geometry_msgs.msg import PoseStamped, TwistStamped, Point, Vector3
 from mavros_msgs.msg import Altitude, ExtendedState, HomePosition, State, WaypointList, PositionTarget
 from mavros_msgs.srv import CommandBool, ParamGet, SetMode, WaypointClear, WaypointPush
 from sensor_msgs.msg import NavSatFix, Imu
-from nav_msgs.msg import Path
 from octomap_msgs.msg import Octomap
 from traj_planner import MinJerkPlanner
 from pyquaternion import Quaternion
 import time
-import octomap
+from nav_msgs.msg import Path, OccupancyGrid
 
 
 class Config():
@@ -48,7 +46,7 @@ class GlobalPlanner():
         self.real_path = Path()
 
         # Subscribers
-        self.octomap_sub = rospy.Subscriber('/octomap_binary', Octomap, self.octomap_cb)
+        self.occupancy_map_sub = rospy.Subscriber('/projected_map', OccupancyGrid, self.occupancy_map_cb)
         self.odom_sub = rospy.Subscriber('/mavros/local_position/odom', Odometry, self.odom_cb)
 
         # Publishers
@@ -56,39 +54,9 @@ class GlobalPlanner():
         self.marker_pub = rospy.Publisher('/robotMarker', MarkerArray, queue_size=10)
         self.des_path_pub = rospy.Publisher('/des_path', Path, queue_size=10)
 
-    # def octomap_cb(self, data):
-    #     self.octomap = data
-
-    def octomap_cb(self, data):
-        rospy.loginfo('Octomap updated !')
-        self.octomap = data
-
-        # Read the octomap binary data and load it in the octomap wrapper class
-        data = np.array(self.octomap.data, dtype=np.int8).tostring()
-        s = '# Octomap OcTree binary file\nid {}\n'.format(self.octomap.id)
-        s += 'size 42\nres {}\ndata\n'.format(self.octomap.resolution)
-        s += data
-
-        # An error is triggered because a wrong tree size has been specified in the
-        # header. We did not find a way to extract the tree size from the octomap msg
-        tree = octomap.OcTree(self.octomap.resolution)
-        tree.readBinary(s)
-        self.octree = tree
-
-        # Euclidean Distance Transform generation
-        if self.generateEDT:
-            print('Generating EDT...')
-            # bbmin = self.octree.getMetricMin() - 2
-            # bbmax = self.octree.getMetricMax() + 2
-            bbmin = np.array([rospy.get_param('/world/x/min', -20) - 5, rospy.get_param(
-                '/world/y/min', -20) - 5, rospy.get_param('/world/z/min', 0)], dtype=np.double)
-            bbmax = np.array([rospy.get_param('/world/x/max', 20) + 5, rospy.get_param(
-                '/world/y/max', 20) + 5, rospy.get_param('/world/z/max', 4)], dtype=np.double)
-            self.octree.dynamicEDT_generate(50, bbmin, bbmax)
-            # The update computes distances in real unit (with sqrt)
-            # This step can be faster if we use squared distances instead
-            self.octree.dynamicEDT_update(True)
-        print('Done octomap processing !')
+    def occupancy_map_cb(self, data):
+        rospy.loginfo('Got occupancy map!')
+        self.occupancy_map = data
 
     def odom_cb(self, data):
         '''

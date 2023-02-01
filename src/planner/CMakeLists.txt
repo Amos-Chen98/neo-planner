@@ -161,7 +161,7 @@ include_directories(
 # # Mark executable scripts (Python etc.) for installation
 # # in contrast to setup.py, you can choose the destination
 catkin_install_python(PROGRAMS
-    scripts/drafts.py
+    scripts/draft.py
     scripts/drone.py
     scripts/global_planner.py
     scripts/global_planner_node.py
