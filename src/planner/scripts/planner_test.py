@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-01-29 17:05:09
+LastEditTime: 2023-02-01 11:39:02
 '''
 
 import matplotlib.pyplot as plt
@@ -11,34 +11,18 @@ from traj_planner import MinJerkPlanner
 
 class Config():
     def __init__(self):
-        f = open('src/planner/config/planner_params.yaml', 'r')
-        config = yaml.load(f, Loader=yaml.FullLoader)
-        self.v_max = config['v_max']
-        self.T_min = config['T_min']
-        self.T_max = config['T_max']
-        self.kappa = config['kappa']
-        self.weights = config['weights']
+        self.v_max = 5.0
+        self.T_min = 2.0  # The minimum T of each piece
+        self.T_max = 20.0
+        self.kappa = 50  # the sample number on every piece
+        self.weights = [1.0, 1.0, 0.001]  # the weights of different costs: [energy cost, time cost, feasibility cost]
 
 
 if __name__ == "__main__":
+    '''
+    input variables
+    '''
     config = Config()
-
-    # head_state = np.array([[0.0, 0],
-    #                        [0, 0],
-    #                        [0, 0],
-    #                        [0, 0]])
-    # tail_state = np.array([[100.0, 100],
-    #                        [0, 0],
-    #                        [0, 0],
-    #                        [0, 0]])
-
-    # wpts = np.array([[40.0, 0],
-    #                  [100, 30],
-    #                  [100, 50],
-    #                  [20, 60],
-    #                  [70, 90],
-    #                  [10, 120]])
-
     head_state = np.array([[0.0, 0, 5],
                            [0, 0, 0],
                            [0, 0, 0],
@@ -47,29 +31,24 @@ if __name__ == "__main__":
                            [0, 0, 0],
                            [0, 0, 0],
                            [0, 0, 0]])
-
     wpts = np.array([[10, 0, 10],
                     [10, 30, 15],
                     [5, 35, 10]])
 
-    ts = 10 * np.ones((len(wpts)+1,))
+    '''
+    Run planner
+    '''
+    planner = MinJerkPlanner(config)
+    planner.plan(head_state, tail_state)
 
-    planner = MinJerkPlanner(head_state, tail_state, wpts, ts, config)
-
-    planner.optimize()
-
-    state_cmd = planner.get_full_state_cmd()
-    print(state_cmd.shape)
-
-    print("Times of getting cost: %d  Times of getting grad: %d" %
-          (planner.get_cost_times, planner.get_grad_times))
-
+    '''
+    Evaluate results
+    '''
+    print("Times of getting cost: %d  Times of getting grad: %d" % (planner.get_cost_times, planner.get_grad_times))
     final_wpts = planner.int_wpts.T
     final_ts = planner.ts
 
-    cost = planner.get_cost(np.concatenate(
-        (np.reshape(planner.int_wpts, (planner.D*(planner.M - 1),)), planner.tau), axis=0))
-
+    cost = planner.get_cost(np.concatenate((np.reshape(planner.int_wpts, (planner.D*(planner.M - 1),)), planner.tau), axis=0))
     print("Trajectory cost: %f" % cost)
 
     t_samples = np.arange(0, sum(final_ts), 0.1)

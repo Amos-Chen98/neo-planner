@@ -1,58 +1,97 @@
-import numpy as np
+#! /usr/bin/env python
+from nav_msgs.msg import Odometry
+from visualizer import get_marker_array
+from visualization_msgs.msg import MarkerArray
 import rospy
+import math
+import numpy as np
+from geometry_msgs.msg import PoseStamped, TwistStamped, Point, Vector3
+from mavros_msgs.msg import Altitude, ExtendedState, HomePosition, State, WaypointList, PositionTarget
+from mavros_msgs.srv import CommandBool, ParamGet, SetMode, WaypointClear, WaypointPush
+from sensor_msgs.msg import NavSatFix, Imu
+from nav_msgs.msg import Path, OccupancyGrid
+from octomap_msgs.msg import Octomap
+from traj_planner import MinJerkPlanner
 from pyquaternion import Quaternion
-from scipy.spatial.transform import Rotation
 import time
-
-# class Puber():
-#     def __init__(self):
-#         rospy.init_node("tes_node")
-#         self.timer = None
-
-#     def my_callback(self, event):
-#         print('Timer called at ' + str(event.current_real.to_sec()))
-#         if rospy.get_time() - self.start_time > 5:
-#             print("time to STOP!!")
-#             self.timer.shutdown()
-
-#     def pub(self):
-#         self.start_time = rospy.get_time()
-#         self.timer = rospy.Timer(rospy.Duration(1), self.my_callback)
+import octomap
 
 
-# puber = Puber()
-# puber.pub()
-# rospy.spin()
+class OctomapNode():
+    def __init__(self, node_name="octomap_node"):
+        # Node
+        rospy.init_node(node_name, anonymous=False)
 
-# q = [-0.71934025092983234, 1.876085535681999e-06, 3.274841213980097e-08, 0.69465790385533299]
-# r = Rotation.from_quat(q)
-# Rm = r.as_matrix()
-# print(r)
-# print(Rm)
+        # Member
+        self.octomap = Octomap()
+        self.octree = octomap.OcTree(0.1)
+        self.generateEDT = True
+        self.updateOctomap = True
+        
 
+        # Subscriber
+        # self.octomap_sub = rospy.Subscriber('/octomap_binary', Octomap, self.octomap_cb)
+        self.occupancy_map_sub = rospy.Subscriber('/projected_map', OccupancyGrid, self.occupancy_map_cb)
 
-# using pyquaternion
-# q1 = Quaternion(0.35, 0.2, 0.3, 0.1)
-# q2 = Quaternion(-0.5, 0.4, -0.1, 0.2)
-# t1 = np.array([0.3, 0.1, 0.1])
-# t2 = np.array([-0.1, 0.5, 0.3])
+    def octomap_cb(self, octomap_in):
+        rospy.loginfo('Octomap updated !')
+        time0 = time.time()
+        self.octomap = octomap_in
 
-# p1 = np.array([0.5, 0, 0.2])
-# p1_w = q1.inverse.rotate(p1 - t1)
+        octree_header = f'# Octomap OcTree binary file\nid {self.octomap.id}\n'
+        octree_header += f'size 252291\nres {self.octomap.resolution}\ndata\n'
+        octree_file = str.encode(octree_header)  # type: bytes
 
-# p1_2 = q2.rotate(p1_w) + t2
-# print(p1_2)
+        # Read the octomap binary data and load it in the octomap wrapper class
+        octree_data = np.array(self.octomap.data, dtype=np.int8).tobytes()  # type: bytes
+        octree_file += octree_data
+        # data_size = np.array(self.octomap.data, dtype=np.int8).shape
+        # print(data_size)
 
+        # An error is triggered because a wrong tree size has been specified in the
+        # header. We did not find a way to extract the tree size from the octomap_in msg
+        tree = octomap.OcTree(self.octomap.resolution)
+        tree.readBinary(octree_file)
+        self.octree = tree
 
-# t_end = time.time()
-# print("time cost: %f" % (t_end - t_start))
-start_pos = np.array([0, 10, 0])
-target_pos = np.array([8, 8, 8])
-num = 3
-dim = len(start_pos)
-int_wpts = np.zeros((num, dim))
-for i in range(dim):
-    step_length = (target_pos[i] - start_pos[i])/(num + 1)
-    int_wpts[:, i] = np.linspace(start_pos[i] + step_length, target_pos[i], num, endpoint=False)
+        time1 = time.time()
+        print("Time of building tree: %f" %(time1 - time0))
 
-print(int_wpts)
+        test_point = np.array([0, 2, 1])
+        node = tree.search(test_point)
+
+        try:
+            occupancy = tree.isNodeOccupied(node)
+        except(octomap.NullPointerException):
+            occupancy = False
+
+        print(occupancy)
+
+        time2 = time.time()
+        print("Time of collision check: %f" %(time2 - time1))
+
+        # Euclidean Distance Transform generation
+        if self.generateEDT:
+            print('Generating EDT...')
+            bbmin = self.octree.getMetricMin()
+            bbmax = self.octree.getMetricMax()
+            # print(bbmin)
+            # print(bbmax)
+            maxdist = 50
+            self.octree.dynamicEDT_generate(maxdist, bbmin, bbmax)
+            # # The update computes distances in real unit (with sqrt)
+            # # This step can be faster if we use squared distances instead
+            self.octree.dynamicEDT_update(True)
+
+        time3 = time.time()
+        print("Time of building EDT: %f" %(time3 - time2))
+
+    def occupancy_map_cb(self, data):
+        rospy.loginfo('Got occupancy map!')
+        self.occupancy_map = data
+        
+
+if __name__ == "__main__":
+    octomap_node = OctomapNode()
+
+    rospy.spin()

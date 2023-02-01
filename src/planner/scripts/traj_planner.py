@@ -1,12 +1,21 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-01-29 16:58:50
+LastEditTime: 2023-02-01 11:52:13
 '''
 import math
 import pprint
 import time
 import numpy as np
 import scipy
+
+
+class DefaultConfig():
+    def __init__(self):
+        self.v_max = 5.0
+        self.T_min = 2.0  # The minimum T of each piece
+        self.T_max = 20.0
+        self.kappa = 50  # the sample number on every piece
+        self.weights = [1.0, 1.0, 0.001]  # the weights of different costs: [energy cost, time cost, feasibility cost]
 
 
 class MinAccPlanner():
@@ -176,27 +185,10 @@ class MinAccPlanner():
 
 class MinJerkPlanner():
     '''
-    Trajectory planner using MINCO class
-
-    Input:
-    s: the degree of trajectory to be optimized, e.g. s=4: minimum snap
-    head_state: (s,D) array, where s=2(acc)/3(jerk)/4(snap), D is the dimension
-    tail_state: the same as head_state
-    initial waypoints: (M-1,D) array, where M is the piece num of trajectory
-    initial time allocation: (M,) array
-
-    Output:
-    D-dimensional polynomial trajectory of (2s-1)-degree
-
-    Note:
-    If you want a trajecory of minimum p^(s), only the 0~(s-1) degree
-    bounded contitions and valid.
-    e.g. for minimum jerk(s=3) trajectory, we can specify
-    pos(s=0), vel(s=1), and acc(s=2) in head_state and tail_state both.
-    If you don't fill up the bounded conditions, the default will be zero.
+    Minimum-jerk trajectory planner using MINCO class
     '''
 
-    def __init__(self, config):
+    def __init__(self, config=DefaultConfig()):
         # Mission conditions
         self.s = 3
         self.get_cost_times = 0
@@ -211,7 +203,80 @@ class MinJerkPlanner():
         self.kappa = config.kappa
         self.weights = np.array(config.weights)
 
-        # self.get_coeffs(self.int_wpts, self.ts)
+    def plan(self, head_state, tail_state, int_wpts=None):
+        '''
+        Input:
+        head_state: (s,D) array, where s=2(acc)/3(jerk)/4(snap), D is the dimension
+        tail_state: the same as head_state
+            Note:
+            If you want a trajecory of minimum s, only the 0~(s-1) degree bounded contitions and valid.
+            e.g. for minimum jerk(s=3) trajectory, we can specify
+            pos(s=0), vel(s=1), and acc(s=2) in head_state and tail_state both.
+            If you don't fill up the bounded conditions, the default will be zero.
+
+        int_wpts (Optional): (M-1,D) array, where M is the piece num of trajectory
+            Two models of planning:
+            1. left int_wpts as None, then the trajectory will be initialized as a straight line
+            2. input customed waypoints, then the planner will use the input waypoints
+        '''
+        if int_wpts is None:
+            int_wpts = self.get_int_wpts(head_state, tail_state)
+
+        ts = 10 * np.ones((len(int_wpts)+1,))  # allocate 10s for each piece initially
+
+        self.D = head_state.shape[1]
+        self.M = ts.shape[0]
+        self.head_state = np.zeros((self.s, self.D))
+        self.tail_state = np.zeros((self.s, self.D))
+        for i in range(self.s):
+            self.head_state[i] = head_state[i]
+            self.tail_state[i] = tail_state[i]
+        self.int_wpts = int_wpts.T  # 'int' for 'intermediate'
+        self.ts = ts
+        self.tau = self.map_T2tau(ts)  # agent for ts
+
+        x0 = np.concatenate(
+            (np.reshape(self.int_wpts, (self.D*(self.M - 1),)), self.tau), axis=0)
+
+        time_start = time.time()
+        res = scipy.optimize.minimize(self.get_cost,
+                                      x0,
+                                      method='L-BFGS-B',
+                                      jac=self.get_grad,
+                                      bounds=None,
+                                      tol=1e-8,
+                                      callback=None,
+                                      options={'disp': 0,
+                                               'maxcor': 10,
+                                               'maxfun': 15000,
+                                               'maxiter': 15000,
+                                               'iprint': 1,
+                                               'maxls': 20})
+        time_end = time.time()
+
+        self.int_wpts = np.reshape(res.x[:self.D*(self.M - 1)], (self.D, self.M - 1))
+        self.tau = res.x[self.D*(self.M - 1):]
+        self.ts = self.map_tau2T(self.tau)
+
+        self.get_coeffs(self.int_wpts, self.ts)
+
+        print("-----------------------Final intermediate waypoints-----------------------")
+        pprint.pprint(self.int_wpts.T)
+        print("-----------------------Final T--------------------------------------------")
+        pprint.pprint(self.ts)
+
+        print("Otimization running time: %f" % (time_end - time_start))
+
+    def get_int_wpts(self, head_state, tail_state, int_wpts_num=3):
+        start_pos = head_state[0]
+        target_pos = tail_state[0]
+        dim = len(start_pos)
+        int_wpts = np.zeros((int_wpts_num, dim))
+        for i in range(dim):
+            step_length = (target_pos[i] - start_pos[i])/(int_wpts_num + 1)
+            int_wpts[:, i] = np.linspace(start_pos[i] + step_length, target_pos[i], int_wpts_num, endpoint=False)
+
+        return int_wpts
 
     def get_coeffs(self, int_wpts, ts):
         '''
@@ -289,175 +354,6 @@ class MinJerkPlanner():
         self.A = A
 
         self.coeffs = np.linalg.solve(A, b)
-
-    def get_pos(self, t):
-        '''
-        get position at time t
-        return a (1,D) array
-        '''
-        if t > sum(self.ts):
-            return self.get_pos(sum(self.ts))
-
-        if self.coeffs == []:
-            self.get_coeffs(self.int_wpts, self.ts)
-
-        # Locate piece index
-        piece_idx = 0
-        while sum(self.ts[:piece_idx+1]) < t:
-            piece_idx += 1
-
-        T = t - sum(self.ts[:piece_idx])
-
-        c_block = self.coeffs[2*self.s*piece_idx:2*self.s*(piece_idx+1), :]
-
-        beta = np.array([1, T, T**2, T**3, T**4, T**5])
-
-        return np.dot(c_block.T, np.array([beta]).T).T
-
-    def get_vel(self, t):
-        '''
-        get velocity at time t
-        return a (1,D) array
-        '''
-        if t > sum(self.ts):
-            return self.get_vel(sum(self.ts))
-
-        if self.coeffs == []:
-            self.get_coeffs(self.int_wpts, self.ts)
-
-        # Locate piece index
-        piece_idx = 0
-        while sum(self.ts[:piece_idx+1]) < t:
-            piece_idx += 1
-
-        T = t - sum(self.ts[:piece_idx])
-
-        c_block = self.coeffs[2*self.s*piece_idx:2*self.s*(piece_idx+1), :]
-
-        beta = np.array([0, 1, 2*T, 3*T**2, 4*T**3, 5*T**4])
-
-        return np.dot(c_block.T, np.array([beta]).T).T
-
-    def get_acc(self, t):
-        '''
-        get acceleration at time t
-        return a (1,D) array
-        '''
-        if t > sum(self.ts):
-            return self.get_acc(sum(self.ts))
-
-        if self.coeffs == []:
-            self.get_coeffs(self.int_wpts, self.ts)
-
-        # Locate piece index
-        piece_idx = 0
-        while sum(self.ts[:piece_idx+1]) < t:
-            piece_idx += 1
-
-        T = t - sum(self.ts[:piece_idx])
-
-        c_block = self.coeffs[2*self.s*piece_idx:2*self.s*(piece_idx+1), :]
-
-        beta = np.array([0, 0, 2, 6*T, 12*T**2, 20*T**3])
-
-        return np.dot(c_block.T, np.array([beta]).T).T
-
-    def get_jerk(self, t):
-        '''
-        get jerk at time t
-        return a (1,D) array
-        '''
-        if t > sum(self.ts):
-            return self.get_jerk(sum(self.ts))
-
-        if self.coeffs == []:
-            self.get_coeffs(self.int_wpts, self.ts)
-
-        # Locate piece index
-        piece_idx = 0
-        while sum(self.ts[:piece_idx+1]) < t:
-            piece_idx += 1
-
-        T = t - sum(self.ts[:piece_idx])
-
-        c_block = self.coeffs[2*self.s*piece_idx:2*self.s*(piece_idx+1), :]
-
-        beta = np.array([0, 0, 0, 6, 24*T, 60*T**2])
-
-        return np.dot(c_block.T, np.array([beta]).T).T
-
-    def get_full_state_cmd(self, hz=300):
-        if self.coeffs == []:
-            self.get_coeffs(self.int_wpts, self.ts)
-
-        total_time = sum(self.ts)
-        t_samples = np.arange(0, total_time, 1/hz)
-        sample_num = t_samples.shape[0]
-        state_cmd = np.zeros((sample_num, 3, self.D))
-
-        for i in range(sample_num):
-            t = t_samples[i]
-            state_cmd[i][0] = self.get_pos(t)
-            state_cmd[i][1] = self.get_vel(t)
-            state_cmd[i][2] = self.get_acc(t)
-
-        return state_cmd, total_time, hz
-
-    def get_pos_array(self):
-        '''
-        return the full pos array
-        '''
-        if self.coeffs == []:
-            self.get_coeffs(self.int_wpts, self.ts)
-
-        t_samples = np.arange(0, sum(self.ts), 0.1)
-        pos_array = np.zeros((t_samples.shape[0], self.D))
-        for i in range(t_samples.shape[0]):
-            pos_array[i] = self.get_pos(t_samples[i])
-
-        return pos_array
-
-    def get_vel_array(self):
-        '''
-        return the full vel array
-        '''
-        if self.coeffs == []:
-            self.get_coeffs(self.int_wpts, self.ts)
-
-        t_samples = np.arange(0, sum(self.ts), 0.1)
-        vel_array = np.zeros((t_samples.shape[0], self.D))
-        for i in range(t_samples.shape[0]):
-            vel_array[i] = self.get_vel(t_samples[i])
-
-        return vel_array
-
-    def get_acc_array(self):
-        '''
-        return the full acc array
-        '''
-        if self.coeffs == []:
-            self.get_coeffs(self.int_wpts, self.ts)
-
-        t_samples = np.arange(0, sum(self.ts), 0.1)
-        acc_array = np.zeros((t_samples.shape[0], self.D))
-        for i in range(t_samples.shape[0]):
-            acc_array[i] = self.get_acc(t_samples[i])
-
-        return acc_array
-
-    def get_jer_array(self):
-        '''
-        return the full jer array
-        '''
-        if self.coeffs == []:
-            self.get_coeffs(self.int_wpts, self.ts)
-
-        t_samples = np.arange(0, sum(self.ts), 0.1)
-        jer_array = np.zeros((t_samples.shape[0], self.D))
-        for i in range(t_samples.shape[0]):
-            jer_array[i] = self.get_jerk(t_samples[i])
-
-        return jer_array
 
     def reset_cost(self):
         self.costs = np.zeros(3)
@@ -712,63 +608,174 @@ class MinJerkPlanner():
 
         return grad
 
-    def get_int_wpts(self, head_state, tail_state, int_wpts_num=3):
-        start_pos = head_state[0]
-        target_pos = tail_state[0]
-        dim = len(start_pos)
-        int_wpts = np.zeros((int_wpts_num, dim))
-        for i in range(dim):
-            step_length = (target_pos[i] - start_pos[i])/(int_wpts_num + 1)
-            int_wpts[:, i] = np.linspace(start_pos[i] + step_length, target_pos[i], int_wpts_num, endpoint=False)
+    def get_pos(self, t):
+        '''
+        get position at time t
+        return a (1,D) array
+        '''
+        if t > sum(self.ts):
+            return self.get_pos(sum(self.ts))
 
-        return int_wpts
+        if self.coeffs == []:
+            self.get_coeffs(self.int_wpts, self.ts)
 
-    def plan(self, head_state, tail_state):
-        int_wpts = self.get_int_wpts(head_state, tail_state)
-        ts = 10 * np.ones((len(int_wpts)+1,))
+        # Locate piece index
+        piece_idx = 0
+        while sum(self.ts[:piece_idx+1]) < t:
+            piece_idx += 1
 
-        self.D = head_state.shape[1]
-        self.M = ts.shape[0]
-        self.head_state = np.zeros((self.s, self.D))
-        self.tail_state = np.zeros((self.s, self.D))
-        for i in range(self.s):
-            self.head_state[i] = head_state[i]
-            self.tail_state[i] = tail_state[i]
-        self.int_wpts = int_wpts.T  # 'int' for 'intermediate'
-        self.ts = ts
-        self.tau = self.map_T2tau(ts)  # agent for ts
+        T = t - sum(self.ts[:piece_idx])
 
-        x0 = np.concatenate(
-            (np.reshape(self.int_wpts, (self.D*(self.M - 1),)), self.tau), axis=0)
+        c_block = self.coeffs[2*self.s*piece_idx:2*self.s*(piece_idx+1), :]
 
-        time_start = time.time()
-        res = scipy.optimize.minimize(self.get_cost,
-                                      x0,
-                                      method='L-BFGS-B',
-                                      jac=self.get_grad,
-                                      bounds=None,
-                                      tol=1e-8,
-                                      callback=None,
-                                      options={'disp': 0,
-                                               'maxcor': 10,
-                                               'maxfun': 15000,
-                                               'maxiter': 15000,
-                                               'iprint': 1,
-                                               'maxls': 20})
-        time_end = time.time()
+        beta = np.array([1, T, T**2, T**3, T**4, T**5])
 
-        self.int_wpts = np.reshape(res.x[:self.D*(self.M - 1)], (self.D, self.M - 1))
-        self.tau = res.x[self.D*(self.M - 1):]
-        self.ts = self.map_tau2T(self.tau)
+        return np.dot(c_block.T, np.array([beta]).T).T
 
-        self.get_coeffs(self.int_wpts, self.ts)
+    def get_vel(self, t):
+        '''
+        get velocity at time t
+        return a (1,D) array
+        '''
+        if t > sum(self.ts):
+            return self.get_vel(sum(self.ts))
 
-        print("-----------------------Final intermediate waypoints-----------------------")
-        pprint.pprint(self.int_wpts.T)
-        print("-----------------------Final T--------------------------------------------")
-        pprint.pprint(self.ts)
+        if self.coeffs == []:
+            self.get_coeffs(self.int_wpts, self.ts)
 
-        print("Otimization running time: %f" % (time_end - time_start))
+        # Locate piece index
+        piece_idx = 0
+        while sum(self.ts[:piece_idx+1]) < t:
+            piece_idx += 1
+
+        T = t - sum(self.ts[:piece_idx])
+
+        c_block = self.coeffs[2*self.s*piece_idx:2*self.s*(piece_idx+1), :]
+
+        beta = np.array([0, 1, 2*T, 3*T**2, 4*T**3, 5*T**4])
+
+        return np.dot(c_block.T, np.array([beta]).T).T
+
+    def get_acc(self, t):
+        '''
+        get acceleration at time t
+        return a (1,D) array
+        '''
+        if t > sum(self.ts):
+            return self.get_acc(sum(self.ts))
+
+        if self.coeffs == []:
+            self.get_coeffs(self.int_wpts, self.ts)
+
+        # Locate piece index
+        piece_idx = 0
+        while sum(self.ts[:piece_idx+1]) < t:
+            piece_idx += 1
+
+        T = t - sum(self.ts[:piece_idx])
+
+        c_block = self.coeffs[2*self.s*piece_idx:2*self.s*(piece_idx+1), :]
+
+        beta = np.array([0, 0, 2, 6*T, 12*T**2, 20*T**3])
+
+        return np.dot(c_block.T, np.array([beta]).T).T
+
+    def get_jerk(self, t):
+        '''
+        get jerk at time t
+        return a (1,D) array
+        '''
+        if t > sum(self.ts):
+            return self.get_jerk(sum(self.ts))
+
+        if self.coeffs == []:
+            self.get_coeffs(self.int_wpts, self.ts)
+
+        # Locate piece index
+        piece_idx = 0
+        while sum(self.ts[:piece_idx+1]) < t:
+            piece_idx += 1
+
+        T = t - sum(self.ts[:piece_idx])
+
+        c_block = self.coeffs[2*self.s*piece_idx:2*self.s*(piece_idx+1), :]
+
+        beta = np.array([0, 0, 0, 6, 24*T, 60*T**2])
+
+        return np.dot(c_block.T, np.array([beta]).T).T
+
+    def get_full_state_cmd(self, hz=300):
+        if self.coeffs == []:
+            self.get_coeffs(self.int_wpts, self.ts)
+
+        total_time = sum(self.ts)
+        t_samples = np.arange(0, total_time, 1/hz)
+        sample_num = t_samples.shape[0]
+        state_cmd = np.zeros((sample_num, 3, self.D))
+
+        for i in range(sample_num):
+            t = t_samples[i]
+            state_cmd[i][0] = self.get_pos(t)
+            state_cmd[i][1] = self.get_vel(t)
+            state_cmd[i][2] = self.get_acc(t)
+
+        return state_cmd, total_time, hz
+
+    def get_pos_array(self):
+        '''
+        return the full pos array
+        '''
+        if self.coeffs == []:
+            self.get_coeffs(self.int_wpts, self.ts)
+
+        t_samples = np.arange(0, sum(self.ts), 0.1)
+        pos_array = np.zeros((t_samples.shape[0], self.D))
+        for i in range(t_samples.shape[0]):
+            pos_array[i] = self.get_pos(t_samples[i])
+
+        return pos_array
+
+    def get_vel_array(self):
+        '''
+        return the full vel array
+        '''
+        if self.coeffs == []:
+            self.get_coeffs(self.int_wpts, self.ts)
+
+        t_samples = np.arange(0, sum(self.ts), 0.1)
+        vel_array = np.zeros((t_samples.shape[0], self.D))
+        for i in range(t_samples.shape[0]):
+            vel_array[i] = self.get_vel(t_samples[i])
+
+        return vel_array
+
+    def get_acc_array(self):
+        '''
+        return the full acc array
+        '''
+        if self.coeffs == []:
+            self.get_coeffs(self.int_wpts, self.ts)
+
+        t_samples = np.arange(0, sum(self.ts), 0.1)
+        acc_array = np.zeros((t_samples.shape[0], self.D))
+        for i in range(t_samples.shape[0]):
+            acc_array[i] = self.get_acc(t_samples[i])
+
+        return acc_array
+
+    def get_jer_array(self):
+        '''
+        return the full jer array
+        '''
+        if self.coeffs == []:
+            self.get_coeffs(self.int_wpts, self.ts)
+
+        t_samples = np.arange(0, sum(self.ts), 0.1)
+        jer_array = np.zeros((t_samples.shape[0], self.D))
+        for i in range(t_samples.shape[0]):
+            jer_array[i] = self.get_jerk(t_samples[i])
+
+        return jer_array
 
 
 class MinSnapPlanner():
