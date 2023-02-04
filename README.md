@@ -47,7 +47,9 @@ wget -i gazebo_models.txt
 ls model.tar.g* | xargs -n1 tar xzvf
 ```
 
-4. Clone and build this repo:
+### Install this project (as a ROS workspace)
+
+1. Clone and build this repo:
 
 ```
 git clone git@github.com:Amos-Chen98/drone_ws.git
@@ -55,7 +57,7 @@ cd drone_ws
 catkin build
 ```
 
-5. Configure the environment variables
+2. Configure the environment variables
 
 Add the following lines to `.bashrc`
 

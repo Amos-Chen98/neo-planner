@@ -3,20 +3,23 @@ import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from nav_msgs.msg import Odometry
-from visualizer import get_marker_array
-from visualization_msgs.msg import MarkerArray
-import rospy
-import numpy as np
-from geometry_msgs.msg import PoseStamped, TwistStamped, Point, Vector3
-from mavros_msgs.msg import Altitude, ExtendedState, HomePosition, State, WaypointList, PositionTarget
-from mavros_msgs.srv import CommandBool, ParamGet, SetMode, WaypointClear, WaypointPush
-from sensor_msgs.msg import NavSatFix, Imu
-from octomap_msgs.msg import Octomap
-from traj_planner import MinJerkPlanner
-from pyquaternion import Quaternion
-import time
+import tf2_ros
+from geometry_msgs.msg import TransformStamped
 from nav_msgs.msg import Path, OccupancyGrid
+import time
+from pyquaternion import Quaternion
+from traj_planner import MinJerkPlanner
+from octomap_msgs.msg import Octomap
+from sensor_msgs.msg import NavSatFix, Imu
+from mavros_msgs.srv import CommandBool, ParamGet, SetMode, WaypointClear, WaypointPush
+from mavros_msgs.msg import Altitude, ExtendedState, HomePosition, State, WaypointList, PositionTarget
+from geometry_msgs.msg import PoseStamped, TwistStamped, Point, Vector3
+import numpy as np
+import rospy
+from visualization_msgs.msg import MarkerArray
+from visualizer import get_marker_array
+from nav_msgs.msg import Odometry
+
 
 
 class Config():
@@ -53,6 +56,8 @@ class GlobalPlanner():
         self.local_pos_cmd_pub = rospy.Publisher("/mavros/setpoint_raw/local", PositionTarget, queue_size=10)
         self.marker_pub = rospy.Publisher('/robotMarker', MarkerArray, queue_size=10)
         self.des_path_pub = rospy.Publisher('/des_path', Path, queue_size=10)
+        self.tf_broadcaster = tf2_ros.TransformBroadcaster()
+        # self.camera_pose_pub = rospy.Publisher('/camera_pose', TransformStamped, queue_size=10)
 
     def occupancy_map_cb(self, data):
         rospy.loginfo('Got occupancy map!')
@@ -60,8 +65,11 @@ class GlobalPlanner():
 
     def odom_cb(self, data):
         '''
-        Local velocity conversion to global frame
+        1. store the drone's global status
+        2. publish dynamic tf transform from map frame to camera frame
+        (Currently, regard camera frame as drone body frame)
         '''
+        # get global drone_state
         self.ODOM_RECEIVED = True
         self.odom = data
         local_pos = np.array([data.pose.pose.position.x,
@@ -79,6 +87,21 @@ class GlobalPlanner():
         global_vel = quat.inverse.rotate(local_vel)
         self.drone_state[0] = global_pos
         self.drone_state[1] = global_vel
+
+        # get tf from map to camera
+        tfs = TransformStamped()
+        tfs.header.frame_id = "map"
+        tfs.header.stamp = rospy.Time.now()
+        tfs.child_frame_id = "camera"
+        tfs.transform.translation.x = data.pose.pose.position.x
+        tfs.transform.translation.y = data.pose.pose.position.y
+        tfs.transform.translation.z = data.pose.pose.position.z
+        tfs.transform.rotation = data.pose.pose.orientation
+        self.tf_broadcaster.sendTransform(tfs)
+
+        # Publish camera pose
+        # self.camera_pose_pub.publish(tfs)
+        
 
     def plan(self, tail_state):
         while not self.ODOM_RECEIVED:

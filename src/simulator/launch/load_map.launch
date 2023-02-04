@@ -18,10 +18,6 @@
         <!-- resolution in meters per pixel -->
         <param name="resolution" value="0.1" />
 
-        <!-- generate 2D occupancy map from this interval -->
-        <param name="occupancy_min_z" value="0.3" />
-        <param name="occupancy_max_z" value="inf" />
-
         <!-- name of the fixed frame, needs to be "/map" for SLAM -->
         <param name="frame_id" type="string" value="$(arg frame_id)" />
 
@@ -32,6 +28,10 @@
         <!-- max/min height for occupancy map, should be in meters -->
         <param name="pointcloud_max_z" value="1000" />
         <param name="pointcloud_min_z" value="0" />
+
+        <!-- generate 2D occupancy map from this interval -->
+        <param name="occupancy_min_z" value="0.3" />
+        <param name="occupancy_max_z" value="inf" />
 
         <!-- topic from where pointcloud2 messages are subscribed -->
         <remap from="/cloud_in" to="$(arg pcl_topic)" />

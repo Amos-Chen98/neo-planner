@@ -1,6 +1,5 @@
 #! /usr/bin/env python
 from nav_msgs.msg import Odometry
-from visualizer import get_marker_array
 from visualization_msgs.msg import MarkerArray
 import rospy
 import math
@@ -11,10 +10,11 @@ from mavros_msgs.srv import CommandBool, ParamGet, SetMode, WaypointClear, Waypo
 from sensor_msgs.msg import NavSatFix, Imu
 from nav_msgs.msg import Path, OccupancyGrid
 from octomap_msgs.msg import Octomap
-from traj_planner import MinJerkPlanner
 from pyquaternion import Quaternion
 import time
 import octomap
+import tf2_ros
+from geometry_msgs.msg import TransformStamped
 
 
 class OctomapNode():
@@ -27,10 +27,11 @@ class OctomapNode():
         self.octree = octomap.OcTree(0.1)
         self.generateEDT = True
         self.updateOctomap = True
-        
+
         # Subscriber
-        # self.octomap_sub = rospy.Subscriber('/octomap_binary', Octomap, self.octomap_cb)
+        self.octomap_sub = rospy.Subscriber('/octomap_binary', Octomap, self.octomap_cb)
         self.occupancy_map_sub = rospy.Subscriber('/projected_map', OccupancyGrid, self.occupancy_map_cb)
+
 
     def octomap_cb(self, octomap_in):
         rospy.loginfo('Octomap updated !')
@@ -54,20 +55,20 @@ class OctomapNode():
         self.octree = tree
 
         time1 = time.time()
-        print("Time of building tree: %f" %(time1 - time0))
+        print("Time of building tree: %f" % (time1 - time0))
 
         test_point = np.array([0, 2, 1])
         node = tree.search(test_point)
 
         try:
             occupancy = tree.isNodeOccupied(node)
-        except(octomap.NullPointerException):
+        except (octomap.NullPointerException):
             occupancy = False
 
         print(occupancy)
 
         time2 = time.time()
-        print("Time of collision check: %f" %(time2 - time1))
+        print("Time of collision check: %f" % (time2 - time1))
 
         # Euclidean Distance Transform generation
         if self.generateEDT:
@@ -83,12 +84,25 @@ class OctomapNode():
             self.octree.dynamicEDT_update(True)
 
         time3 = time.time()
-        print("Time of building EDT: %f" %(time3 - time2))
+        print("Time of building EDT: %f" % (time3 - time2))
 
     def occupancy_map_cb(self, data):
         rospy.loginfo('Got occupancy map!')
         self.occupancy_map = data
-        
+        width = data.info.width
+        height = data.info.height
+        resolution = data.info.resolution
+        origin_x = data.info.origin.position.x
+        origin_y = data.info.origin.position.y
+        origin_z = data.info.origin.position.z
+        frame = data.header.frame_id
+        print("width = %d, height = %d， resolution = %f" % (width, height, resolution))
+        print("origin: %f, %f, %f" % (origin_x, origin_y, origin_z))
+        print(frame)
+        pt = np.array([2.0, 0.0, 0.5])
+        d = self.octree.dynamicEDT_getDistance(pt)
+        print("d = %f" % d)
+
 
 if __name__ == "__main__":
     octomap_node = OctomapNode()
