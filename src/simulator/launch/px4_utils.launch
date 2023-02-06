@@ -11,10 +11,11 @@
     <arg name="Y" default="0"/>
     <!-- vehicle model and world -->
     <arg name="est" default="ekf2"/>
-    <arg name="vehicle" default="iris"/>
-    <!-- <arg name="vehicle" default="iris_realsense_camera"/> -->
+    <!-- <arg name="vehicle" default="iris"/> -->
+    <arg name="vehicle" default="iris_depth_camera"/>
     <arg name="world" default="$(find simulator)/worlds/my_world.world"/>
-    <arg name="sdf" default="$(find mavlink_sitl_gazebo)/models/$(arg vehicle)/$(arg vehicle).sdf"/>
+    <!-- <arg name="sdf" default="$(find mavlink_sitl_gazebo)/models/$(arg vehicle)/$(arg vehicle).sdf"/> -->
+    <arg name="sdf" default="$(find mavlink_sitl_gazebo)/models/iris_depth_camera/iris_depth_camera.sdf"/>
 
     <!-- gazebo configs -->
     <arg name="gui" default="true"/>
