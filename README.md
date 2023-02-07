@@ -109,7 +109,7 @@ Note that the above rosservice call has a few adjustable variables. The bounding
 
 updated 02/07/2023.
 
-Step1: launch QGC (**remember to enable Virtual Joystick in Application Settings**), and launch the simulator and Mavros using the following command.
+Step1: launch QGC, and launch the simulator and Mavros using the following command.
 
 ```bash
 roslaunch simulator sim_empty.launch 
@@ -129,7 +129,7 @@ Then the drone will follow an '8' pattern with time-varying velocity.
 
 updated 02/07/2023.
 
-Step1: launch QGC (**remember to enable Virtual Joystick in Application Settings**), and simulation.
+Step1: launch QGC, and simulation.
 
 ```bash
 roslaunch simulator sim_onboard.launch 
@@ -141,7 +141,7 @@ Step2: use the Virtual Joystick to move the drone to generate octomap.
 
 updated 02/07/2023.
 
-Step1: launch QGC (**remember to enable Virtual Joystick in Application Settings**), and launch the simulator and Mavros using the following command.
+Step1: launch QGC, and launch the simulator and Mavros using the following command.
 
 ```bash
 roslaunch simulator sim_global.launch 
