@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- PX4 SITL, Gazebo, and MAVROS -->
+    <include file="$(find simulator)/launch/px4_utils.launch" />
+
+    <!-- map server -->
+    <include file="$(find simulator)/launch/map_server.launch" />
+
+    <!-- TF -->
+    <include file="$(find simulator)/launch/tf_server.launch" />
+
+    <!-- Rviz -->
+    <node pkg="rviz" type="rviz" name="rviz" args="-d $(find simulator)/rviz/rviz_config.rviz" />
+
+</launch>

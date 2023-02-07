@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+
+    <!-- Static tf -->
+    <node pkg="tf2_ros" type="static_transform_publisher" name="map2odom_tf" args="0 0 0 0 0 0 map odom" />
+    <node pkg="tf2_ros" type="static_transform_publisher" name="base2camera_tf" args="0 0 0 -1.5707 0 -1.5707 base_link camera_link" />
+
+    <!-- Dynamic tf -->
+    <node pkg="simulator" type="odom2base_tf.py" name="odom2base_tf" />
+
+</launch>
