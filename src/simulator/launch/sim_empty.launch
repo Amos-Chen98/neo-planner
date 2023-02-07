@@ -1,8 +1,15 @@
 <?xml version="1.0"?>
 <launch>
     <!-- PX4 SITL, Gazebo, and MAVROS -->
-	<!-- Include the MAVROS node with SITL and Gazebo -->
 	<include file="$(find px4)/launch/mavros_posix_sitl.launch" />
 
+    <!-- TF -->
+    <include file="$(find simulator)/launch/tf_server.launch" />
+
+    <!-- Visualizer -->
+    <node pkg="planner" type="visualizer_node.py" name="visualizer" />
+
+    <!-- Rviz -->
     <node pkg="rviz" type="rviz" name="rviz" args="-d $(find simulator)/rviz/rviz_config.rviz" />
+
 </launch>

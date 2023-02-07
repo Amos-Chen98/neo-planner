@@ -72,8 +72,8 @@ if __name__ == "__main__":
 
     rate = rospy.Rate(300)
 
-    last_req = rospy.get_time()CMakeLists
-
+    last_req = rospy.get_time()
+    
     # Send a few setpoints before starting
     for _ in range(300):
         if (rospy.is_shutdown()):

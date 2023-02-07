@@ -9,7 +9,7 @@ This project (as a ROS workspace) provides a motion planning framework for drone
 
 1. Install required framework and softwares.
 
-   Before using this project, make sure the following dependencies have been successfully installed and configured.
+   Before using this project, please make sure the following dependencies have been successfully installed and configured.
 
 * ROS1 with Gazebo: https://wiki.ros.org/noetic/Installation/Ubuntu
 * PX4-Autopilot:
@@ -26,7 +26,10 @@ make px4_sitl gazebo
 Ref:  https://docs.px4.io/main/en/dev_setup/dev_env_linux_ubuntu.html
 
 * Mavros: https://docs.px4.io/main/en/ros/mavros_installation.html
+
 * QGC: https://docs.qgroundcontrol.com/master/en/getting_started/download_and_install.html
+
+  **Note: Remember to enable Virtual Joystick in Application Settings in QGC, otherwise, the drone will refuse to switch to OFFBOARD mode.**
 
 2. Install required packages
 
@@ -76,24 +79,6 @@ export GAZEBO_PLUGIN_PATH=$GAZEBO_PLUGIN_PATH:/usr/lib/x86_64-linux-gnu/gazebo-1
 
 ## Usage
 
-### Trajectory tracking demo
-
-updated 02/07/2023.
-
-Step1: launch QGC (**remember to enable Virtual Joystick in Application Settings**), and launch the simulator and Mavros using the following command.
-
-```bash
-roslaunch px4_controller run_simulator.launch 
-```
-
-Step2: use the `take off` command in QGC to make the drone take off.
-
-Step3: start trajecory tracking.
-
-```
-rosrun planner global_planner_node.py
-```
-
 ### Generate octomap from Gazebo world
 
 updated 01/23/2023
@@ -120,11 +105,52 @@ $ rosservice call /world/build_octomap '{bounding_box_origin: {x: 0, y: 0, z: 15
 
 Note that the above rosservice call has a few adjustable variables. The bounding box origin can be set as desired (in meters) as well as the bounding box lengths (in meters) relative to the bounding box origin. The bounding box lengths are done in both (+/-) directions relative to the origin. For example, in the `rosservice` call above, from `(0, 0, 0)`, our bounding box will start at **-15 meters** and end at **+15 meters** in the X and Y directions. In the Z direction, we will start at **0 meters** and end at **30 meters**.
 
-### Publish octomap from .pcd file
+### Trajectory tracking
 
-updated 01/24/2023
+updated 02/07/2023.
+
+Step1: launch QGC (**remember to enable Virtual Joystick in Application Settings**), and launch the simulator and Mavros using the following command.
+
+```bash
+roslaunch simulator sim_empty.launch 
+```
+
+Step2: use the `take off` command in QGC to make the drone take off.
+
+Step3: start trajecory tracking.
 
 ```
-roslaunch simulator load_map.launch
+rosrun px4_controller traj_tracking.py
 ```
 
+Then the drone will follow an '8' pattern with time-varying velocity.
+
+### Online octomap building
+
+updated 02/07/2023.
+
+Step1: launch QGC (**remember to enable Virtual Joystick in Application Settings**), and simulation.
+
+```bash
+roslaunch simulator sim_onboard.launch 
+```
+
+Step2: use the Virtual Joystick to move the drone to generate octomap.
+
+### Trajectory planning and tracking using ground truth map
+
+updated 02/07/2023.
+
+Step1: launch QGC (**remember to enable Virtual Joystick in Application Settings**), and launch the simulator and Mavros using the following command.
+
+```bash
+roslaunch simulator sim_global.launch 
+```
+
+Step2: use the `take off` command in QGC to make the drone take off.
+
+Step3: start trajecory planning and tracking.
+
+```
+rosrun planner global_planner_node.py
+```

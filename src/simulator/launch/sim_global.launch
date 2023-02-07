@@ -4,7 +4,10 @@
     <include file="$(find simulator)/launch/px4_utils.launch" />
 
     <!-- Publish map -->
-    <include file="$(find simulator)/launch/load_map.launch" />
+    <include file="$(find simulator)/launch/map_server_global.launch" />
+
+    <!-- TF -->
+    <include file="$(find simulator)/launch/tf_server.launch" />
 
     <!-- Visualizer -->
     <node pkg="planner" type="visualizer_node.py" name="visualizer" />

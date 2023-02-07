@@ -1,11 +1,11 @@
+'''
+Author: Yicheng Chen (yicheng-chen@outlook.com)
+LastEditTime: 2023-02-07 20:13:03
+'''
 import os
 import sys
-
 current_path = os.path.abspath(os.path.dirname(__file__))
-sys.path.insert(0, current_path)'''
-Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-01-17 22:45:46
-'''
+sys.path.insert(0, current_path)
 from math import sqrt
 from math import sin
 from math import cos

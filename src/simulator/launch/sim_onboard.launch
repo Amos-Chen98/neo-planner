@@ -4,10 +4,13 @@
     <include file="$(find simulator)/launch/px4_utils.launch" />
 
     <!-- map server -->
-    <include file="$(find simulator)/launch/map_server.launch" />
+    <include file="$(find simulator)/launch/map_server_onboard.launch" />
 
     <!-- TF -->
     <include file="$(find simulator)/launch/tf_server.launch" />
+
+    <!-- Visualizer -->
+    <node pkg="planner" type="visualizer_node.py" name="visualizer" />
 
     <!-- Rviz -->
     <node pkg="rviz" type="rviz" name="rviz" args="-d $(find simulator)/rviz/rviz_config.rviz" />
