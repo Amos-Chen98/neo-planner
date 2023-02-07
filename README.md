@@ -12,15 +12,18 @@ This project (as a ROS workspace) provides a motion planning framework for drone
    Before using this project, make sure the following dependencies have been successfully installed and configured.
 
 * ROS1 with Gazebo: https://wiki.ros.org/noetic/Installation/Ubuntu
-* PX4-Autopilot: https://docs.px4.io/main/en/dev_setup/dev_env_linux_ubuntu.html
+* PX4-Autopilot:
 
 ```bash
 git clone https://github.com/PX4/PX4-Autopilot.git
 cd PX4-Autopilot
 git checkout v1.13.2
-bash ./PX4-Autopilot/Tools/setup/ubuntu.sh
+git submodule update --init --recursive
+bash Tools/setup/ubuntu.sh
 make px4_sitl gazebo
 ```
+
+Ref:  https://docs.px4.io/main/en/dev_setup/dev_env_linux_ubuntu.html
 
 * Mavros: https://docs.px4.io/main/en/ros/mavros_installation.html
 * QGC: https://docs.qgroundcontrol.com/master/en/getting_started/download_and_install.html
@@ -34,6 +37,8 @@ sudo apt-get install ros-noetic-octovis
 
 ```
 pip install octomap-python
+pip install pyquaternion
+pip install scipy
 ```
 
 3. Download all Gazebo models (optional)
@@ -73,9 +78,9 @@ export GAZEBO_PLUGIN_PATH=$GAZEBO_PLUGIN_PATH:/usr/lib/x86_64-linux-gnu/gazebo-1
 
 ### Trajectory tracking demo
 
-updated 01/17/2023.
+updated 02/07/2023.
 
-Step1: launch QGC, and launch the simulator and Mavros using the following command.
+Step1: launch QGC (**remember to enable Virtual Joystick in Application Settings**), and launch the simulator and Mavros using the following command.
 
 ```bash
 roslaunch px4_controller run_simulator.launch 
