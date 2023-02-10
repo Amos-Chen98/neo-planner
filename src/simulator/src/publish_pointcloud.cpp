@@ -1,6 +1,6 @@
 /*
  * @Author: Yicheng Chen (yicheng-chen@outlook.com)
- * @LastEditTime: 2023-01-25 17:15:23
+ * @LastEditTime: 2023-02-10 10:47:55
  * @Modified from: https://github.com/RuPingCen/publish_pointcloud/blob/master/src/publish_pointcloud.cpp
  */
 
@@ -15,6 +15,7 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <pcl/io/pcd_io.h>
+#include <pcl/filters/passthrough.h>
 
 using namespace std;
 
@@ -35,8 +36,17 @@ int main(int argc, char **argv)
     ros::Publisher pcl_pub = nh.advertise<sensor_msgs::PointCloud2>(topic, 10);
 
     pcl::PointCloud<pcl::PointXYZ> cloud;
-    sensor_msgs::PointCloud2 output;
     pcl::io::loadPCDFile(path, cloud);
+
+    // filter the point cloud
+    pcl::PassThrough<pcl::PointXYZ> pass;
+    pass.setInputCloud(cloud.makeShared());
+    pass.setFilterFieldName("z");
+    pass.setFilterLimits(0.1, 15.0);
+    pass.filter(cloud);
+
+    // convert to ros message
+    sensor_msgs::PointCloud2 output;
     pcl::toROSMsg(cloud, output);
 
     output.header.stamp = ros::Time::now();

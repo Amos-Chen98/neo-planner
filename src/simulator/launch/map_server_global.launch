@@ -23,6 +23,8 @@
         <param name="sensor_model/max_range" value="100.0" />
         <param name="latch" value="false" />
 
+        <param name="filter_ground" value="ture" />
+
         <!-- max/min height for occupancy map, should be in meters -->
         <param name="pointcloud_max_z" value="1000" />
         <param name="pointcloud_min_z" value="0" />

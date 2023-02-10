@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-02-09 22:43:06
+LastEditTime: 2023-02-10 09:39:17
 '''
 
 import rospy
@@ -37,7 +37,7 @@ class ESDF():
         self.occupancy_2d = np.array(self.occupancy_raw).reshape(self.map_height, self.map_width)  # row-major order: row - height, column - width
 
         # get the ESDF map, in distance_transform_edt(), 0 is treated as occupied, so use 1-occupancy_2d
-        self.esdf_mapesdf_mapesdf_map = ndimage.distance_transform_edt(1 - self.occupancy_2d) * self.map_resolution  # size: map_height * map_width
+        self.esdf_map = ndimage.distance_transform_edt(1 - self.occupancy_2d) * self.map_resolution  # size: map_height * map_width
 
         # get the ESDF gradient map
         # grad_x = grad along x axis in map = grad along col in matrix, so y (row) first
