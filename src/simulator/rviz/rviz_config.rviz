@@ -4,12 +4,6 @@ Panels:
     Name: Displays
     Property Tree Widget:
       Expanded:
-        - /Global Options1
-        - /Status1
-        - /Desired path1
-        - /Real path1
-        - /Odometry1
-        - /Map1
         - /Map1/Position1
         - /Map1/Orientation1
       Splitter Ratio: 0.5
@@ -58,14 +52,14 @@ Visualization Manager:
       Reference Frame: <Fixed Frame>
       Value: true
     - Class: octomap_rviz_plugin/OccupancyGrid
-      Enabled: false
+      Enabled: true
       Max. Height Display: 3.4028234663852886e+38
       Max. Octree Depth: 16
       Min. Height Display: -3.4028234663852886e+38
       Name: OccupancyGrid
       Octomap Topic: /octomap_full
       Queue Size: 5
-      Value: false
+      Value: true
       Voxel Alpha: 1
       Voxel Coloring: Z-Axis
       Voxel Rendering: Occupied Voxels
@@ -154,11 +148,11 @@ Visualization Manager:
       Value: true
     - Alpha: 0.699999988079071
       Class: rviz/Map
-      Color Scheme: map
+      Color Scheme: costmap
       Draw Behind: false
       Enabled: true
       Name: Map
-      Topic: /projected_map
+      Topic: /esdf_map
       Unreliable: false
       Use Timestamp: false
       Value: true
@@ -190,7 +184,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 23.8946590423584
+      Distance: 20.970417022705078
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -198,17 +192,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 7.127575874328613
-        Y: -3.160977840423584
-        Z: 0.8776604533195496
+        X: 8.571313858032227
+        Y: -3.473705768585205
+        Z: 4.146641731262207
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.9653981924057007
+      Pitch: 0.7803983688354492
       Target Frame: <Fixed Frame>
-      Yaw: 3.1235697269439697
+      Yaw: 4.118575572967529
     Saved: ~
 Window Geometry:
   Displays:

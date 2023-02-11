@@ -1,8 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <launch>
+    <!-- drone init state -->
+    <arg name="x" default="0"/>
+    <arg name="y" default="0"/>
+    <arg name="z" default="0"/>
+    <arg name="R" default="0"/>
+    <arg name="P" default="0"/>
+    <arg name="Y" default="0"/>
 
     <!-- Static tf -->
-    <node pkg="tf2_ros" type="static_transform_publisher" name="map2odom_tf" args="0 0 0 0 0 0 map odom" />
+    <node pkg="tf2_ros" type="static_transform_publisher" name="map2odom_tf" args="$(arg x) $(arg y) $(arg z) $(arg Y) $(arg P) $(arg R) map odom" />
+
     <node pkg="tf2_ros" type="static_transform_publisher" name="base2camera_tf" args="0 0 0 -1.5707 0 -1.5707 base_link camera_link" />
 
     <!-- Dynamic tf -->

@@ -1,13 +1,37 @@
 <?xml version="1.0"?>
 <launch>
+    <!-- drone init state -->
+    <arg name="x" default="0"/>
+    <arg name="y" default="0"/>
+    <arg name="z" default="0"/>
+    <arg name="R" default="0"/>
+    <arg name="P" default="0"/>
+    <arg name="Y" default="0"/>
+
+    <!-- <include file="$(find simulator)/launch/load_world.launch" /> -->
+
     <!-- PX4 SITL, Gazebo, and MAVROS -->
-    <include file="$(find simulator)/launch/px4_utils.launch" />
+    <include file="$(find simulator)/launch/px4_utils.launch">
+        <arg name="x" value="$(arg x)"/>
+        <arg name="y" value="$(arg y)"/>
+        <arg name="z" value="$(arg z)"/>
+        <arg name="R" value="$(arg R)"/>
+        <arg name="P" value="$(arg P)"/>
+        <arg name="Y" value="$(arg Y)"/>
+    </include>
 
     <!-- Publish map -->
     <include file="$(find simulator)/launch/map_server_global.launch" />
 
     <!-- TF -->
-    <include file="$(find simulator)/launch/tf_server.launch" />
+    <include file="$(find simulator)/launch/tf_server.launch">
+        <arg name="x" value="$(arg x)"/>
+        <arg name="y" value="$(arg y)"/>
+        <arg name="z" value="$(arg z)"/>
+        <arg name="R" value="$(arg R)"/>
+        <arg name="P" value="$(arg P)"/>
+        <arg name="Y" value="$(arg Y)"/>
+    </include>
 
     <!-- Visualizer -->
     <node pkg="planner" type="visualizer_node.py" name="visualizer" />

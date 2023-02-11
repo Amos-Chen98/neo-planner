@@ -30,12 +30,15 @@
         <param name="pointcloud_min_z" value="0" />
 
         <!-- generate 2D occupancy map from this interval -->
-        <param name="occupancy_min_z" value="0.3" />
-        <param name="occupancy_max_z" value="inf" />
+        <param name="occupancy_min_z" value="0" />
+        <param name="occupancy_max_z" value="10" />
 
         <!-- topic from where pointcloud2 messages are subscribed -->
         <remap from="/cloud_in" to="$(arg pcl_topic)" />
 
     </node>
+
+    <!-- get ESDF map -->
+    <node pkg="planner" type="esdf_server_node.py" name="esdf_server_node" output="screen" />
 
 </launch>

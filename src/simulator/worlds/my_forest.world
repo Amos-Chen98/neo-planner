@@ -2084,5 +2084,6 @@
                 <projection_type>perspective</projection_type>
             </camera>
         </gui>
+        <plugin name='gazebo_octomap' filename='libBuildOctomapPlugin.so'/>
     </world>
 </sdf>
