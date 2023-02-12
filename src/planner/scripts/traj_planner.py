@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-02-09 11:18:21
+LastEditTime: 2023-02-12 21:33:18
 '''
 import math
 import pprint
@@ -14,8 +14,10 @@ class DefaultConfig():
         self.v_max = 5.0
         self.T_min = 2.0  # The minimum T of each piece
         self.T_max = 20.0
+        self.safe_dis = 0.3  # the safe distance to the obstacle
         self.kappa = 50  # the sample number on every piece
-        self.weights = [1.0, 1.0, 0.001]  # the weights of different costs: [energy cost, time cost, feasibility cost]
+        # self.weights = [1.0, 1.0, 0.001, 10000]  # the weights of different costs: [energy cost, time cost, feasibility cost]
+        self.weights = [0, 0, 0, 1]  # the weights of different costs: [energy cost, time cost, feasibility cost]
 
 
 class MinAccPlanner():
@@ -198,14 +200,16 @@ class MinJerkPlanner():
         self.v_max = config.v_max
         self.T_min = config.T_min
         self.T_max = config.T_max
+        self.safe_dis = config.safe_dis
 
         # Hyper params in cost func
         self.kappa = config.kappa
         self.weights = np.array(config.weights)
 
-    def plan(self, head_state, tail_state, int_wpts=None):
+    def plan(self, map, head_state, tail_state, int_wpts=None):
         '''
         Input:
+        map: map object
         head_state: (s,D) array, where s=2(acc)/3(jerk)/4(snap), D is the dimension
         tail_state: the same as head_state
             Note:
@@ -219,6 +223,9 @@ class MinJerkPlanner():
             1. left int_wpts as None, then the trajectory will be initialized as a straight line
             2. input customed waypoints, then the planner will use the input waypoints
         '''
+        self.map = map
+        print("self.map.resolution: ", self.map.map_resolution)
+
         if int_wpts is None:
             int_wpts = self.get_int_wpts(head_state, tail_state)
 
@@ -264,6 +271,12 @@ class MinJerkPlanner():
         pprint.pprint(self.int_wpts.T)
         print("-----------------------Final T--------------------------------------------")
         pprint.pprint(self.ts)
+
+        print("-----------Weighted cost------------")
+        weighted_cost = self.costs * self.weights
+        print("Energy cost: %f, Time cost: %f, Feasibility cost: %f, Collision cost: %f" %
+              (weighted_cost[0], weighted_cost[1], weighted_cost[2], weighted_cost[3]))
+        print("\n")
 
         print("Otimization running time: %f" % (time_end - time_start))
 
@@ -356,11 +369,70 @@ class MinJerkPlanner():
         self.coeffs = np.linalg.solve(A, b)
 
     def reset_cost(self):
-        self.costs = np.zeros(3)
+        self.costs = np.zeros(len(self.weights))
 
     def reset_grad_CT(self):
         self.grad_C = np.zeros((2 * self.M * self.s, self.D))
         self.grad_T = np.zeros(self.M)
+
+    def add_obstacle_cost(self):
+        '''
+        get obstacle cost according to self.coeffs and self.ts
+        refer to eq (17)-(18) in distributed...
+        '''
+        # print("---------------------obstacle cost---------------------")
+        for i in range(self.M):  # for every piece
+            t = 0.0
+            step = self.ts[i] / self.kappa
+            c = self.coeffs[2*self.s*i:2*self.s*(i+1), :]
+
+            for j in range(self.kappa):  # for every time slot within the i-th piece
+                beta = self.get_beta_s3(t)
+                pos = np.dot(c.T, beta[0])
+                omg = 0.5 if j in [0, self.kappa-1] else 1
+
+                pos_projected = pos[:2]
+                edt_dis = self.map.get_edt_dis(pos_projected)
+                violate_dis = self.safe_dis - edt_dis
+
+                if violate_dis > 0.0:
+                    # print("Collision at pos: ", pos_projected)
+                    self.costs[3] += omg*step*violate_dis**3
+
+                t += step
+
+    def add_obstacle_grad_CT(self):
+        '''
+        get obstacle grad according to self.coeffs and self.ts
+        stores self.grad_C and self.grad_T
+        refer to eq (17)-(22) in Decentralized...
+        '''
+        for i in range(self.M):  # for every piece
+            t = 0.0
+            step = self.ts[i] / self.kappa
+            c = self.coeffs[2*self.s*i:2*self.s*(i+1), :]
+
+            for j in range(self.kappa):  # for every time slot within the i-th piece
+                beta = self.get_beta_s3(t)
+                pos = np.dot(c.T, beta[0])  # return a (2,) array
+                vel = np.dot(c.T, beta[1])
+                omg = 0.5 if j in [0, self.kappa-1] else 1
+
+                pos_projected = pos[:2]
+                edt_dis = self.map.get_edt_dis(pos_projected)
+                violate_dis = self.safe_dis - edt_dis
+
+                if violate_dis > 0.0:
+                    edt_grad = self.map.get_edt_grad(pos_projected)  # list, len=2
+                    # print("At point: ", pos_projected, "edt_grad: ", edt_grad, "violate_dis: ", violate_dis)
+                    grad_K2psi = 3 * step * omg * violate_dis**2
+                    grad_psi2c = -np.array([beta[0]]).T @ np.array([edt_grad])  # (2*s,1) @ (1,2) = (2*s,2)
+                    grad_psi2t = (-np.array([edt_grad]) @ np.array([vel]).T).item()
+
+                    self.grad_C[2*self.s*i: 2*self.s * (i+1), :] += self.weights[3] * grad_K2psi * grad_psi2c
+                    self.grad_T[i] += self.weights[3] * (omg*violate_dis**3/self.kappa + grad_K2psi * grad_psi2t * j/self.kappa)
+
+                t += step
 
     def add_energy_cost(self):
         '''
@@ -572,10 +644,11 @@ class MinJerkPlanner():
         self.add_energy_cost()
         self.add_time_cost()
         self.add_feasibility_cost()
+        self.add_obstacle_cost()
 
         # print("-----------Current weighted cost------------")
-        # print("Energy cost: %f, Time cost: %f, Feasibility cost: %f" %
-        #       (self.costs[0], self.costs[1], self.costs[2]))
+        # print("Energy cost: %f, Time cost: %f, Feasibility cost: %f, Collision cost: %f" %
+        #       (self.costs[0], self.costs[1], self.costs[2], self.costs[3]))
         # print("\n")
         return np.dot(self.costs, self.weights)
 
@@ -597,10 +670,11 @@ class MinJerkPlanner():
         self.add_energy_grad_CT()
         self.add_time_grad_CT()
         self.add_feasibility_grad_CT()
+        self.add_obstacle_grad_CT()
+
         grad_q, grad_tau = self.propagate_grad_q_tau()  # prop grad to q and tau
 
-        grad = np.concatenate(
-            (np.reshape(grad_q, (self.D * (self.M - 1),)), grad_tau), axis=0)
+        grad = np.concatenate((np.reshape(grad_q, (self.D * (self.M - 1),)), grad_tau), axis=0)
 
         # print("----------------Current grad----------------")
         # print(grad)

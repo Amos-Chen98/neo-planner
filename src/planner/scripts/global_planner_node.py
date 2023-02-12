@@ -7,6 +7,7 @@ from mavros_msgs.srv import SetMode, SetModeRequest
 import numpy as np
 import rospy
 from global_planner import GlobalPlanner
+import time
 
 
 if __name__ == "__main__":
@@ -17,16 +18,12 @@ if __name__ == "__main__":
 
     global_planner = GlobalPlanner()
 
-    tail_state = np.array([[50, 0, 10],
-                           [0, 0, 0],
-                           [0, 0, 0],
-                           [0, 0, 0]])
+    tail_state = np.array([[11, 0],
+                           [0, 0],
+                           [0, 0],
+                           [0, 0]]) # p,v,a, jer in map frame
 
-    # int_wpts = np.array([[10, 0, 10],
-    #                     [10, 30, 15],
-    #                     [5, 35, 10]])
-
-    # int_wpts = get_int_wpts(head_state, tail_state)
+    time.sleep(1)
 
     global_planner.plan(tail_state)
 
@@ -37,6 +34,8 @@ if __name__ == "__main__":
 
     global_planner.publish_state_cmd()
     
-    global_planner.publish_des_path()
+    global_planner.visualize_des_wpts()
+
+    global_planner.visualize_des_path()
 
     rospy.spin()
