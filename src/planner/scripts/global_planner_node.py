@@ -38,4 +38,6 @@ if __name__ == "__main__":
 
     global_planner.visualize_des_path()
 
+    global_planner.plot_state_curve()
+
     rospy.spin()

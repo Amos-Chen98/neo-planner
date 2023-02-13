@@ -1,3 +1,7 @@
+'''
+Author: Yicheng Chen (yicheng-chen@outlook.com)
+LastEditTime: 2023-02-13 17:32:23
+'''
 from scipy import ndimage
 import numpy as np
 # a = np.array(([0,1,1,1,1],
@@ -29,10 +33,7 @@ import numpy as np
 # # print(grad_x)
 # # print(grad_y)
 # # # 注意：这里的梯度是沿着行和列方向的，所以是先行后列
-vel_array = np.array([1,2,3])
-vel_max = np.max(vel_array)
-vel_nor = vel_array/vel_max*256
-print(vel_nor)
-# convert vel_nor to int
-vel_nor = vel_nor.astype(int)
-print(vel_nor)
+
+final_ts = np.array([1,2,3])
+t_array = np.cumsum(final_ts)
+print(t_array)

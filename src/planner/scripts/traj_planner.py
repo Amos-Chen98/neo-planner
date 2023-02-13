@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-02-12 21:33:18
+LastEditTime: 2023-02-13 17:25:56
 '''
 import math
 import pprint
@@ -45,7 +45,7 @@ class MinAccPlanner():
         Calculate coeffs according to q and T
         input: q(D,M-1) and T(M,)
         '''
-        int_wpts = int_wpts.T
+        int_wpts = int_wpts.T # (M-1,D)
         T1 = ts
         T2 = ts**2
         T3 = ts**3
@@ -227,9 +227,11 @@ class MinJerkPlanner():
         print("self.map.resolution: ", self.map.map_resolution)
 
         if int_wpts is None:
-            int_wpts = self.get_int_wpts(head_state, tail_state)
+            int_wpts = self.get_int_wpts(head_state, tail_state, 5)
 
-        ts = 10 * np.ones((len(int_wpts)+1,))  # allocate 10s for each piece initially
+        ts = 5 * np.ones((len(int_wpts)+1,))  # allocate 10s for each piece initially
+        ts[0] *= 2
+        ts[-1] *= 2
 
         self.D = head_state.shape[1]
         self.M = ts.shape[0]
@@ -238,12 +240,11 @@ class MinJerkPlanner():
         for i in range(self.s):
             self.head_state[i] = head_state[i]
             self.tail_state[i] = tail_state[i]
-        self.int_wpts = int_wpts.T  # 'int' for 'intermediate'
+        self.int_wpts = int_wpts.T  # 'int' for 'intermediate', make it (D,M-1) array
         self.ts = ts
         self.tau = self.map_T2tau(ts)  # agent for ts
 
-        x0 = np.concatenate(
-            (np.reshape(self.int_wpts, (self.D*(self.M - 1),)), self.tau), axis=0)
+        x0 = np.concatenate((np.reshape(self.int_wpts, (self.D*(self.M - 1),)), self.tau), axis=0)
 
         time_start = time.time()
         res = scipy.optimize.minimize(self.get_cost,
@@ -259,6 +260,21 @@ class MinJerkPlanner():
                                                'maxiter': 15000,
                                                'iprint': 1,
                                                'maxls': 20})
+        
+        # res = scipy.optimize.minimize(self.get_cost,
+        #                               x0,
+        #                               method='SLSQP',
+        #                               jac=self.get_grad,
+        #                               bounds=None,
+        #                               tol=1e-8,
+        #                               callback=None,
+        #                               options={'disp': 0,
+        #                                        'maxcor': 10,
+        #                                        'maxfun': 15000,
+        #                                        'maxiter': 15000,
+        #                                        'iprint': 1,
+        #                                        'maxls': 20})
+        
         time_end = time.time()
 
         self.int_wpts = np.reshape(res.x[:self.D*(self.M - 1)], (self.D, self.M - 1))
@@ -359,7 +375,7 @@ class MinJerkPlanner():
         A[-2, -3] = 3 * T2[-1]
         A[-2, -2] = 4 * T3[-1]
         A[-2, -1] = 5 * T4[-1]
-        A[-1, -4] = 2
+        A[-1, -4] = 2.0
         A[-1, -3] = 6 * T1[-1]
         A[-1, -2] = 12 * T2[-1]
         A[-1, -1] = 20 * T3[-1]

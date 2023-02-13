@@ -3,23 +3,24 @@ import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from ESDF import ESDF
-import tf2_ros
-from geometry_msgs.msg import TransformStamped
-from nav_msgs.msg import Path, OccupancyGrid
-import time
-from pyquaternion import Quaternion
-from traj_planner import MinJerkPlanner
-from octomap_msgs.msg import Octomap
-from sensor_msgs.msg import NavSatFix, Imu
-from mavros_msgs.srv import CommandBool, ParamGet, SetMode, WaypointClear, WaypointPush
-from mavros_msgs.msg import Altitude, ExtendedState, HomePosition, State, WaypointList, PositionTarget
-from geometry_msgs.msg import PoseStamped, TwistStamped, Point, Vector3
-import numpy as np
-import rospy
-from visualization_msgs.msg import MarkerArray
-from visualizer import Visualizer
+from matplotlib import pyplot as plt
 from nav_msgs.msg import Odometry
+from visualizer import Visualizer
+from visualization_msgs.msg import MarkerArray
+import rospy
+import numpy as np
+from geometry_msgs.msg import PoseStamped, TwistStamped, Point, Vector3
+from mavros_msgs.msg import Altitude, ExtendedState, HomePosition, State, WaypointList, PositionTarget
+from mavros_msgs.srv import CommandBool, ParamGet, SetMode, WaypointClear, WaypointPush
+from sensor_msgs.msg import NavSatFix, Imu
+from octomap_msgs.msg import Octomap
+from traj_planner import MinJerkPlanner
+from pyquaternion import Quaternion
+import time
+from nav_msgs.msg import Path, OccupancyGrid
+from geometry_msgs.msg import TransformStamped
+import tf2_ros
+from ESDF import ESDF
 
 
 
@@ -185,3 +186,38 @@ class GlobalPlanner():
         rospy.loginfo("Desired path published!")
         # time_end = time.time()
         # print("time cost of visualize_des_path: ", time_end - time_start)
+
+    def plot_state_curve(self):
+        final_ts = self.planner.ts
+        t_samples = np.arange(0, sum(final_ts), 0.1)
+        t_cum_array = np.cumsum(final_ts)
+        vel = self.planner.get_vel_array()
+        acc = self.planner.get_acc_array()
+        jer = self.planner.get_jer_array()
+
+        # get the norm of vel, acc and jer
+        vel_norm = np.linalg.norm(vel, axis=1)
+        acc_norm = np.linalg.norm(acc, axis=1)
+        jer_norm = np.linalg.norm(jer, axis=1)
+
+        plt.figure("Vel, Acc, Jerk by axis")
+        plt.plot(t_samples, vel[:, 0], label='Vel_x')
+        plt.plot(t_samples, vel[:, 1], label='Vel_y')
+        plt.plot(t_samples, acc[:, 0], label='Acc_x')
+        plt.plot(t_samples, acc[:, 1], label='Acc_y')
+        plt.plot(t_samples, jer[:, 0], label='Jerk_x')
+        plt.plot(t_samples, jer[:, 1], label='Jerk_y')
+        plt.xlabel('t/s')
+        plt.legend()
+        plt.grid()
+
+        plt.figure("Vel, Acc, Jerk magnitude")
+        plt.plot(t_samples, vel_norm, label='Vel')
+        plt.plot(t_samples, acc_norm, label='Acc')
+        plt.plot(t_samples, jer_norm, label='Jerk')
+        plt.vlines(t_cum_array, 0, np.max(vel_norm))  # mark the wpts
+        plt.xlabel('t/s')
+        plt.legend()
+        plt.grid()
+
+        plt.show()
