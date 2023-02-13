@@ -18,7 +18,7 @@ if __name__ == "__main__":
 
     global_planner = GlobalPlanner()
 
-    tail_state = np.array([[11, 0],
+    tail_state = np.array([[-5, -5],
                            [0, 0],
                            [0, 0],
                            [0, 0]]) # p,v,a, jer in map frame

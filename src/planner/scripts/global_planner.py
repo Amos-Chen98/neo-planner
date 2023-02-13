@@ -27,12 +27,12 @@ from ESDF import ESDF
 class Config():
     def __init__(self):
         self.v_max = rospy.get_param("~v_max", 5.0)
-        self.T_min = rospy.get_param("~T_min", 2.0)
+        self.T_min = rospy.get_param("~T_min", 1.0)
         self.T_max = rospy.get_param("~T_max", 20)
         self.safe_dis = rospy.get_param("~safe_dis", 0.3)
         self.kappa = rospy.get_param("~kappa", 50)
         # self.weights = rospy.get_param("~weights", [1.0, 1.0, 0.001, 1])
-        self.weights = rospy.get_param("~weights", [0, 0, 0, 1])
+        self.weights = rospy.get_param("~weights", [10, 1.0, 0, 10000])
 
 
 class GlobalPlanner():

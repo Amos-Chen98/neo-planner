@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-02-13 17:25:56
+LastEditTime: 2023-02-13 20:38:13
 '''
 import math
 import pprint
@@ -45,7 +45,7 @@ class MinAccPlanner():
         Calculate coeffs according to q and T
         input: q(D,M-1) and T(M,)
         '''
-        int_wpts = int_wpts.T # (M-1,D)
+        int_wpts = int_wpts.T  # (M-1,D)
         T1 = ts
         T2 = ts**2
         T3 = ts**3
@@ -227,11 +227,11 @@ class MinJerkPlanner():
         print("self.map.resolution: ", self.map.map_resolution)
 
         if int_wpts is None:
-            int_wpts = self.get_int_wpts(head_state, tail_state, 5)
+            int_wpts = self.get_int_wpts(head_state, tail_state)
 
         ts = 5 * np.ones((len(int_wpts)+1,))  # allocate 10s for each piece initially
-        ts[0] *= 2
-        ts[-1] *= 2
+        ts[0] *= 1.5
+        ts[-1] *= 1.5
 
         self.D = head_state.shape[1]
         self.M = ts.shape[0]
@@ -260,7 +260,7 @@ class MinJerkPlanner():
                                                'maxiter': 15000,
                                                'iprint': 1,
                                                'maxls': 20})
-        
+
         # res = scipy.optimize.minimize(self.get_cost,
         #                               x0,
         #                               method='SLSQP',
@@ -274,7 +274,7 @@ class MinJerkPlanner():
         #                                        'maxiter': 15000,
         #                                        'iprint': 1,
         #                                        'maxls': 20})
-        
+
         time_end = time.time()
 
         self.int_wpts = np.reshape(res.x[:self.D*(self.M - 1)], (self.D, self.M - 1))
@@ -296,9 +296,11 @@ class MinJerkPlanner():
 
         print("Otimization running time: %f" % (time_end - time_start))
 
-    def get_int_wpts(self, head_state, tail_state, int_wpts_num=3):
+    def get_int_wpts(self, head_state, tail_state):
         start_pos = head_state[0]
         target_pos = tail_state[0]
+        straight_length = np.linalg.norm(target_pos - start_pos)
+        int_wpts_num = max(int(straight_length / 2), 1) # 2m for each intermediate waypoint
         dim = len(start_pos)
         int_wpts = np.zeros((int_wpts_num, dim))
         for i in range(dim):
