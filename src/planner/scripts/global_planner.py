@@ -188,6 +188,9 @@ class GlobalPlanner():
         # print("time cost of visualize_des_path: ", time_end - time_start)
 
     def plot_state_curve(self):
+        # delete all existing plots
+        plt.close('all')
+
         final_ts = self.planner.ts
         t_samples = np.arange(0, sum(final_ts), 0.1)
         t_cum_array = np.cumsum(final_ts)
