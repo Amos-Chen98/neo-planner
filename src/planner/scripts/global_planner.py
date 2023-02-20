@@ -1,4 +1,7 @@
-#! /usr/bin/env python
+'''
+Author: Yicheng Chen (yicheng-chen@outlook.com)
+LastEditTime: 2023-02-20 17:19:48
+'''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
@@ -12,16 +15,14 @@ import numpy as np
 from geometry_msgs.msg import PoseStamped, TwistStamped, Point, Vector3
 from mavros_msgs.msg import Altitude, ExtendedState, HomePosition, State, WaypointList, PositionTarget
 from mavros_msgs.srv import CommandBool, ParamGet, SetMode, WaypointClear, WaypointPush
-from sensor_msgs.msg import NavSatFix, Imu
 from octomap_msgs.msg import Octomap
 from traj_planner import MinJerkPlanner
 from pyquaternion import Quaternion
 import time
 from nav_msgs.msg import Path, OccupancyGrid
 from geometry_msgs.msg import TransformStamped
-import tf2_ros
 from ESDF import ESDF
-
+from mavros_msgs.srv import SetMode, SetModeRequest
 
 
 class Config():
@@ -31,7 +32,6 @@ class Config():
         self.T_max = rospy.get_param("~T_max", 20)
         self.safe_dis = rospy.get_param("~safe_dis", 0.3)
         self.kappa = rospy.get_param("~kappa", 50)
-        # self.weights = rospy.get_param("~weights", [1.0, 1.0, 0.001, 1])
         self.weights = rospy.get_param("~weights", [10, 1.0, 0, 10000])
 
 
@@ -54,18 +54,26 @@ class GlobalPlanner():
         self.map = ESDF()
         self.visualizer = Visualizer()
 
+        # Services
+        rospy.wait_for_service("/mavros/set_mode")
+        self.set_mode_client = rospy.ServiceProxy("mavros/set_mode", SetMode)
+
         # Subscribers
+        self.flight_state_sub = rospy.Subscriber('/mavros/state', State, self.flight_state_cb)
         self.occupancy_map_sub = rospy.Subscriber('/projected_map', OccupancyGrid, self.map.occupancy_map_cb)
         self.odom_sub = rospy.Subscriber('/mavros/local_position/odom', Odometry, self.odom_cb)
+        self.target_sub = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.move)  # when a new target is received, move
 
         # Publishers
         self.local_pos_cmd_pub = rospy.Publisher("/mavros/setpoint_raw/local", PositionTarget, queue_size=10)
         self.drone_snapshots_pub = rospy.Publisher('/robotMarker', MarkerArray, queue_size=10)
         self.des_wpts_pub = rospy.Publisher('/des_wpts', MarkerArray, queue_size=10)
         self.des_path_pub = rospy.Publisher('/des_path', MarkerArray, queue_size=10)
-        # self.des_path_pub = rospy.Publisher('/des_path', Path, queue_size=10)
 
-        self.tf_broadcaster = tf2_ros.TransformBroadcaster()
+        rospy.loginfo("Global planner initialized")
+
+    def flight_state_cb(self, data):
+        self.flight_state = data
 
     def odom_cb(self, data):
         '''
@@ -73,7 +81,6 @@ class GlobalPlanner():
         2. publish dynamic tf transform from map frame to camera frame
         (Currently, regard camera frame as drone body frame)
         '''
-        # get global drone_state
         self.ODOM_RECEIVED = True
         self.odom = data
         local_pos = np.array([data.pose.pose.position.x,
@@ -93,14 +100,35 @@ class GlobalPlanner():
         self.drone_state[0] = global_pos
         self.drone_state[1] = global_vel
 
-    def plan(self, tail_state):
+    def move(self, target):
+        print(" ")
+        rospy.loginfo("Target received: x = %f, y = %f", target.pose.position.x, target.pose.position.y)
+        target_state = np.array([[target.pose.position.x, target.pose.position.y],
+                                 [0, 0],
+                                 [0, 0],
+                                 [0, 0]])  # p,v,a,j in map frame
         while not self.ODOM_RECEIVED:
             time.sleep(0.01)
 
+        self.traj_plan(target_state)
+        # if not in OFFBOARD mode, switch to OFFBOARD mode
+        if self.flight_state.mode != "OFFBOARD":
+            self.warm_up()
+            set_offb_req = SetModeRequest()
+            set_offb_req.custom_mode = 'OFFBOARD'
+            if (self.set_mode_client.call(set_offb_req).mode_sent == True):
+                rospy.loginfo("OFFBOARD enabled")
+
+        self.traj_track()
+        self.visualize_des_wpts()
+        self.visualize_des_path()
+        # self.plot_state_curve()
+
+    def traj_plan(self, target_state):
+        rospy.loginfo("Trajectory planning...")
         drone_state_2d = self.drone_state[:, 0:2]
         self.des_pos_z = self.drone_state[0][2]  # use current height
-        self.planner.plan(self.map, drone_state_2d, tail_state)  # 2D planning, z is fixed
-
+        self.planner.plan(self.map, drone_state_2d, target_state)  # 2D planning, z is fixed
         rospy.loginfo("Trajectory planning finished!")
 
     def warm_up(self):
@@ -115,16 +143,17 @@ class GlobalPlanner():
             self.local_pos_cmd_pub.publish(self.state_cmd)
             rate.sleep()
 
-    def publish_state_cmd(self):
+    def traj_track(self):
         '''
         When triggered, start to publish full state cmd
         '''
+        rospy.loginfo("Trajectory executing...")
         self.des_state, self.traj_time, hz = self.planner.get_full_state_cmd()
         self.des_state_index = 0
         self.start_time = rospy.get_time()
-        self.timer = rospy.Timer(rospy.Duration(1/hz), self.timer_cb)
+        self.tracking_cmd_timer = rospy.Timer(rospy.Duration(1/hz), self.tracking_cmd_timer_cb)
 
-    def timer_cb(self, event):
+    def tracking_cmd_timer_cb(self, event):
         '''
         Publish state cmd, height is fixed to current height
         '''
@@ -144,11 +173,11 @@ class GlobalPlanner():
 
         self.local_pos_cmd_pub.publish(self.state_cmd)
 
-        self.des_state_index += 1 if self.des_state_index < len(self.des_state)-1 else 0
+        if self.des_state_index == len(self.des_state)-1:
+            self.tracking_cmd_timer.shutdown()
+            rospy.loginfo("Trajectory execution finished!")
 
-        # if event.current_real.to_sec() - self.start_time > self.traj_time:
-        #     self.des_state_index -= 1  # keep publishing the last des_state
-        #     # self.timer.shutdown()
+        self.des_state_index += 1
 
     def visualize_drone_snapshots(self):
         '''
@@ -169,7 +198,7 @@ class GlobalPlanner():
         pos_array = np.vstack((pos_array, self.des_pos_z * np.ones([1, pos_array.shape[1]]))).T
         des_wpts = self.visualizer.get_marker_array(pos_array, 2, 0.4)
         self.des_wpts_pub.publish(des_wpts)
-        rospy.loginfo("Desired waypoints published!")
+        # rospy.loginfo("Desired waypoints published!")
         # time_end = time.time()
         # print("time cost of visualize_des_wpts: ", time_end - time_start)
 
@@ -183,7 +212,7 @@ class GlobalPlanner():
         vel_array = np.linalg.norm(self.planner.get_vel_array(), axis=1)  # shape: (n,)
         des_path = self.visualizer.get_path(pos_array, vel_array)
         self.des_path_pub.publish(des_path)
-        rospy.loginfo("Desired path published!")
+        # rospy.loginfo("Desired path published!")
         # time_end = time.time()
         # print("time cost of visualize_des_path: ", time_end - time_start)
 

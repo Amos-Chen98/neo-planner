@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-02-13 20:38:13
+LastEditTime: 2023-02-20 17:00:10
 '''
 import math
 import pprint
@@ -224,7 +224,6 @@ class MinJerkPlanner():
             2. input customed waypoints, then the planner will use the input waypoints
         '''
         self.map = map
-        print("self.map.resolution: ", self.map.map_resolution)
 
         if int_wpts is None:
             int_wpts = self.get_int_wpts(head_state, tail_state)
@@ -288,11 +287,10 @@ class MinJerkPlanner():
         print("-----------------------Final T--------------------------------------------")
         pprint.pprint(self.ts)
 
-        print("-----------Weighted cost------------")
+        print("-----------------------Weighted cost--------------------------------------")
         weighted_cost = self.costs * self.weights
         print("Energy cost: %f, Time cost: %f, Feasibility cost: %f, Collision cost: %f" %
               (weighted_cost[0], weighted_cost[1], weighted_cost[2], weighted_cost[3]))
-        print("\n")
 
         print("Otimization running time: %f" % (time_end - time_start))
 

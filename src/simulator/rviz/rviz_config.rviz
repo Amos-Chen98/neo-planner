@@ -6,9 +6,8 @@ Panels:
       Expanded:
         - /Map1/Position1
         - /Map1/Orientation1
-        - /MarkerArray1/Status1
+        - /MarkerArray1
         - /MarkerArray2
-        - /MarkerArray2/Status1
       Splitter Ratio: 0.4067796468734741
     Tree Height: 1731
   - Class: rviz/Selection
@@ -141,7 +140,7 @@ Visualization Manager:
       Name: MarkerArray
       Namespaces:
         "": true
-      Queue Size: 100
+      Queue Size: 1
       Value: true
     - Class: rviz/MarkerArray
       Enabled: true
@@ -149,7 +148,7 @@ Visualization Manager:
       Name: MarkerArray
       Namespaces:
         "": true
-      Queue Size: 100
+      Queue Size: 1
       Value: true
   Enabled: true
   Global Options:
