@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-02-20 17:00:10
+LastEditTime: 2023-02-20 23:01:18
 '''
 import math
 import pprint
@@ -14,7 +14,7 @@ class DefaultConfig():
         self.v_max = 5.0
         self.T_min = 2.0  # The minimum T of each piece
         self.T_max = 20.0
-        self.safe_dis = 0.3  # the safe distance to the obstacle
+        self.safe_dis = 0.5  # the safe distance to the obstacle
         self.kappa = 50  # the sample number on every piece
         # self.weights = [1.0, 1.0, 0.001, 10000]  # the weights of different costs: [energy cost, time cost, feasibility cost]
         self.weights = [0, 0, 0, 1]  # the weights of different costs: [energy cost, time cost, feasibility cost]
@@ -228,7 +228,7 @@ class MinJerkPlanner():
         if int_wpts is None:
             int_wpts = self.get_int_wpts(head_state, tail_state)
 
-        ts = 5 * np.ones((len(int_wpts)+1,))  # allocate 10s for each piece initially
+        ts = 3 * np.ones((len(int_wpts)+1,))  # allocate 10s for each piece initially
         ts[0] *= 1.5
         ts[-1] *= 1.5
 

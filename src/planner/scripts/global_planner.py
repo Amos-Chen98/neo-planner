@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-02-20 17:19:48
+LastEditTime: 2023-02-20 23:31:07
 '''
 import os
 import sys
@@ -27,10 +27,10 @@ from mavros_msgs.srv import SetMode, SetModeRequest
 
 class Config():
     def __init__(self):
-        self.v_max = rospy.get_param("~v_max", 5.0)
+        self.v_max = rospy.get_param("~v_max", 10.0)
         self.T_min = rospy.get_param("~T_min", 1.0)
         self.T_max = rospy.get_param("~T_max", 20)
-        self.safe_dis = rospy.get_param("~safe_dis", 0.3)
+        self.safe_dis = rospy.get_param("~safe_dis", 0.9)
         self.kappa = rospy.get_param("~kappa", 50)
         self.weights = rospy.get_param("~weights", [10, 1.0, 0, 10000])
 
