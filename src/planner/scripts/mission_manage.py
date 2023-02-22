@@ -6,17 +6,18 @@ from mavros_msgs.srv import SetMode
 from mavros_msgs.msg import State, PositionTarget
 from mavros_msgs.srv import CommandBool, CommandBoolRequest, SetMode, SetModeRequest, CommandTOL, CommandTOLRequest
 import rospy
+import numpy as np
 
 
 class Manager():
     def __init__(self, node_name="mission_manager"):
         # Node
         rospy.init_node(node_name, anonymous=True)
+        self.flight_state = State()
+        self.exec_state = "INIT"
         self.odom_received = False
         self.taking_off = False
         self.hover_height = 2.0
-        self.flight_state = State()
-        self.exec_state = "INIT"
 
         self.offb_req = SetModeRequest()
         self.offb_req.custom_mode = 'OFFBOARD'
@@ -25,6 +26,8 @@ class Manager():
         self.pos_cmd = PositionTarget()
         self.pos_cmd.coordinate_frame = 1
         self.pos_cmd.position.z = self.hover_height
+
+        self.drone_state = np.zeros((3, 3))  # p,v,a in map frame
 
         # Client / Service init
         try:
@@ -56,12 +59,32 @@ class Manager():
             if self.taking_off == False:
                 self.takeoff()
                 # self.takeoff_by_service() # This is the alternative way to takeoff, but it is not working
+        elif self.exec_state == "HOVER":
+            pass
 
     def flight_state_cb(self, data):
         self.flight_state = data
 
     def odom_cb(self, data):
+        '''
+        1. store the drone's global status
+        2. publish dynamic tf transform from map frame to camera frame
+        (Currently, regard camera frame as drone body frame)
+        '''
         self.odom_received = True
+        # self.odom = data
+        local_pos = np.array([data.pose.pose.position.x,
+                              data.pose.pose.position.y,
+                              data.pose.pose.position.z])
+        global_pos = local_pos
+        local_vel = np.array([data.twist.twist.linear.x,
+                              data.twist.twist.linear.y,
+                              data.twist.twist.linear.z,
+                              ])
+        global_vel = local_vel
+
+        self.drone_state[0] = global_pos
+        self.drone_state[1] = global_vel
 
     def takeoff(self):
         self.taking_off = True
@@ -96,6 +119,12 @@ class Manager():
             rospy.loginfo("OFFBOARD re-enabled")
 
         self.local_pos_cmd_pub.publish(self.pos_cmd)
+
+        if self.drone_state[0,2] >= self.hover_height - 0.05:
+            self.takeoff_cmd_timer.shutdown()
+            self.taking_off = False
+            self.exec_state = "HOVER"
+            rospy.loginfo("Takeoff finished")
 
 
 if __name__ == "__main__":
