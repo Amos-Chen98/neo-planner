@@ -8,6 +8,9 @@ from mavros_msgs.srv import CommandBool, CommandBoolRequest, SetMode, SetModeReq
 import rospy
 import numpy as np
 from transitions import Machine
+from transitions.extensions import GraphMachine
+from geometry_msgs.msg import PoseStamped, TwistStamped, Point, Vector3
+from std_msgs.msg import String
 
 
 class Manager():
@@ -43,15 +46,34 @@ class Manager():
         # Subscribers
         self.flight_state_sub = rospy.Subscriber('/mavros/state', State, self.flight_state_cb)
         self.odom_sub = rospy.Subscriber('/mavros/local_position/odom', Odometry, self.odom_cb)
+        self.target_sub = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.trigger_plan)
+        self.fsm_trigger_sub = rospy.Subscriber('/manager/trigger', String, self.trigger_fsm)
 
         # Publishers
         self.local_pos_cmd_pub = rospy.Publisher("/mavros/setpoint_raw/local", PositionTarget, queue_size=10)
+        self.local_target_pub = rospy.Publisher("/manager/local_target", PoseStamped, queue_size=10)
 
         # FSM
         self.fsm = Machine(model=self, states=['INIT', 'TRACKING', 'HOVER', 'PLANNING'], initial='INIT')
         self.fsm.add_transition(trigger='launch', source='INIT', dest='TRACKING', before="get_odom", after='takeoff')
         self.fsm.add_transition(trigger='reach_target', source='TRACKING', dest='HOVER')
-        # self.fsm.add_transition(trigger='get_target', source='HOVER', dest='PLANNING')
+        self.fsm.add_transition(trigger='start_planning', source='HOVER', dest='PLANNING')
+        self.fsm.add_transition(trigger='start_tracking', source='PLANNING', dest='TRACKING')
+        self.fsm.add_transition(trigger='start_planning', source='TRACKING', dest='PLANNING')
+        self.fsm.add_transition(trigger='start_planning', source='*', dest='PLANNING')
+
+    def trigger_fsm(self, data):
+        if data.data == "reach_target":
+            self.reach_target()
+            rospy.loginfo("Current state: %s", self.state)
+        elif data.data == "start_tracking":
+            self.start_tracking()
+            rospy.loginfo("Current state: %s", self.state)
+
+    def trigger_plan(self, data):
+        self.local_target_pub.publish(data)
+        self.start_planning()
+        rospy.loginfo("Current state: %s", self.state)
 
     def flight_state_cb(self, data):
         self.flight_state = data
@@ -105,11 +127,11 @@ class Manager():
             rospy.logerr(e)
 
     def takeoff_cmd(self, event):
-        if not self.flight_state.armed and self.arming_client.call(self.arm_req).success == True:
-            rospy.loginfo("Vehicle re-armed")
+        if not self.flight_state.armed:
+            self.arming_client.call(self.arm_req)
 
-        if self.flight_state.mode != "OFFBOARD" and self.set_mode_client.call(self.offb_req).mode_sent == True:
-            rospy.loginfo("OFFBOARD re-enabled")
+        if self.flight_state.mode != "OFFBOARD":
+            self.set_mode_client.call(self.offb_req)
 
         self.local_pos_cmd_pub.publish(self.pos_cmd)
 

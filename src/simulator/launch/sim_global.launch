@@ -39,7 +39,7 @@
     <!-- Rviz -->
     <node pkg="rviz" type="rviz" name="rviz" args="-d $(find simulator)/rviz/rviz_config.rviz" />
 
-    <!-- Mission Manager -->
-    <node pkg="planner" type="manager_node.py" name="manager" />
+    <!-- FSM Manager -->
+    <!-- <node pkg="planner" type="manager_node.py" name="manager" /> -->
 
 </launch>

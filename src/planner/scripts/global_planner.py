@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-02-20 23:31:07
+LastEditTime: 2023-02-24 22:33:31
 '''
 import os
 import sys
@@ -23,6 +23,7 @@ from nav_msgs.msg import Path, OccupancyGrid
 from geometry_msgs.msg import TransformStamped
 from ESDF import ESDF
 from mavros_msgs.srv import SetMode, SetModeRequest
+from std_msgs.msg import String
 
 
 class Config():
@@ -62,13 +63,14 @@ class GlobalPlanner():
         self.flight_state_sub = rospy.Subscriber('/mavros/state', State, self.flight_state_cb)
         self.occupancy_map_sub = rospy.Subscriber('/projected_map', OccupancyGrid, self.map.occupancy_map_cb)
         self.odom_sub = rospy.Subscriber('/mavros/local_position/odom', Odometry, self.odom_cb)
-        self.target_sub = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.move)  # when a new target is received, move
+        self.target_sub = rospy.Subscriber('/manager/local_target', PoseStamped, self.move)  # when a new target is received, move
 
         # Publishers
         self.local_pos_cmd_pub = rospy.Publisher("/mavros/setpoint_raw/local", PositionTarget, queue_size=10)
         self.drone_snapshots_pub = rospy.Publisher('/robotMarker', MarkerArray, queue_size=10)
         self.des_wpts_pub = rospy.Publisher('/des_wpts', MarkerArray, queue_size=10)
         self.des_path_pub = rospy.Publisher('/des_path', MarkerArray, queue_size=10)
+        self.fsm_trigger_pub = rospy.Publisher('/manager/trigger', String, queue_size=10)
 
         rospy.loginfo("Global planner initialized")
 
@@ -111,6 +113,11 @@ class GlobalPlanner():
             time.sleep(0.01)
 
         self.traj_plan(target_state)
+
+        msg = String()
+        msg.data = "start_tracking"
+        self.fsm_trigger_pub.publish(msg)
+        
         # if not in OFFBOARD mode, switch to OFFBOARD mode
         if self.flight_state.mode != "OFFBOARD":
             self.warm_up()
@@ -176,6 +183,9 @@ class GlobalPlanner():
         if self.des_state_index == len(self.des_state)-1:
             self.tracking_cmd_timer.shutdown()
             rospy.loginfo("Trajectory execution finished!")
+            msg = String()
+            msg.data = "reach_target"
+            self.fsm_trigger_pub.publish(msg)
 
         self.des_state_index += 1
 
