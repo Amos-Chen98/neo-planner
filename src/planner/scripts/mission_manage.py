@@ -7,6 +7,7 @@ from mavros_msgs.msg import State, PositionTarget
 from mavros_msgs.srv import CommandBool, CommandBoolRequest, SetMode, SetModeRequest, CommandTOL, CommandTOLRequest
 import rospy
 import numpy as np
+from transitions import Machine
 
 
 class Manager():
@@ -16,7 +17,6 @@ class Manager():
         self.flight_state = State()
         self.exec_state = "INIT"
         self.odom_received = False
-        self.taking_off = False
         self.hover_height = 2.0
 
         self.offb_req = SetModeRequest()
@@ -48,22 +48,17 @@ class Manager():
         self.local_pos_cmd_pub = rospy.Publisher("/mavros/setpoint_raw/local", PositionTarget, queue_size=10)
 
         # FSM
-        self.fsm_timer = rospy.Timer(rospy.Duration(0.01), self.fsm)
-
-    def fsm(self, event):
-        if self.exec_state == "INIT":
-            if self.odom_received and self.flight_state.connected:
-                rospy.loginfo("Connected to vehicle")
-                self.exec_state = "TAKEOFF"
-        elif self.exec_state == "TAKEOFF":
-            if self.taking_off == False:
-                self.takeoff()
-                # self.takeoff_by_service() # This is the alternative way to takeoff, but it is not working
-        elif self.exec_state == "HOVER":
-            pass
+        self.fsm = Machine(model=self, states=['INIT', 'TRACKING', 'HOVER'], initial='INIT')
+        self.fsm.add_transition(trigger='launch', source='INIT', dest='TRACKING', before="get_odom", after='takeoff')
+        self.fsm.add_transition(trigger='reach_target', source='TRACKING', dest='HOVER')
 
     def flight_state_cb(self, data):
         self.flight_state = data
+
+    def get_odom(self):
+        rospy.loginfo("Current state: %s", self.state)
+        while not self.odom_received or not self.flight_state.connected:
+            rospy.sleep(0.01)
 
     def odom_cb(self, data):
         '''
@@ -72,7 +67,6 @@ class Manager():
         (Currently, regard camera frame as drone body frame)
         '''
         self.odom_received = True
-        # self.odom = data
         local_pos = np.array([data.pose.pose.position.x,
                               data.pose.pose.position.y,
                               data.pose.pose.position.z])
@@ -87,7 +81,7 @@ class Manager():
         self.drone_state[1] = global_vel
 
     def takeoff(self):
-        self.taking_off = True
+        rospy.loginfo("Current state: %s", self.state)
         self.takeoff_cmd_timer = rospy.Timer(rospy.Duration(0.1), self.takeoff_cmd)
 
         if not self.flight_state.armed and self.arming_client.call(self.arm_req).success == True:
@@ -97,8 +91,6 @@ class Manager():
             rospy.loginfo("OFFBOARD enabled")
 
     def takeoff_by_service(self):
-        self.taking_off = True
-
         if not self.flight_state.armed and self.arming_client.call(self.arm_req).success == True:
             rospy.loginfo("Vehicle armed")
 
@@ -120,15 +112,16 @@ class Manager():
 
         self.local_pos_cmd_pub.publish(self.pos_cmd)
 
-        if self.drone_state[0,2] >= self.hover_height - 0.05:
+        if self.drone_state[0, 2] >= self.hover_height - 0.05:
             self.takeoff_cmd_timer.shutdown()
-            self.taking_off = False
-            self.exec_state = "HOVER"
-            rospy.loginfo("Takeoff finished")
+            self.reach_target()
+            rospy.loginfo("Current state: %s", self.state)
 
 
 if __name__ == "__main__":
 
     mission_manager = Manager()
+
+    mission_manager.launch()
 
     rospy.spin()

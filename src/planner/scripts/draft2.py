@@ -1,39 +1,77 @@
-'''
-Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-02-13 17:32:23
-'''
-from scipy import ndimage
-import numpy as np
-# a = np.array(([0,1,1,1,1],
-#               [0,0,1,1,1],
-#               [0,1,1,1,1],
-#               [0,1,1,1,0],
-#               [0,1,1,0,0]))
-# distance_map = ndimage.distance_transform_edt(a)
-# print(distance_map)
+from transitions import Machine
+import random
 
-# # gradient_x, gradient_y = np.gradient(distance_map)
 
-# # print(gradient_x)
+class NarcolepticSuperhero(object):
 
-# # gradient_magnitude = np.sqrt(np.power(gradient_x, 2) + np.power(gradient_y, 2))
+    # Define some states. Most of the time, narcoleptic superheroes are just like
+    # everyone else. Except for...
+    states = ['asleep', 'hanging out', 'hungry', 'sweaty', 'saving the world']
 
-# # # print(gradient_magnitude)
+    def __init__(self, name):
 
-# # test_point = np.array([2,2])
-# # print(distance_map[test_point[0], test_point[1]])
-# # print(gradient_x[test_point[0], test_point[1]])
-# # print(gradient_y[test_point[0], test_point[1]])
+        # No anonymous superheroes on my watch! Every narcoleptic superhero gets
+        # a name. Any name at all. SleepyMan. SlumberGirl. You get the idea.
+        self.name = name
 
-# # # x = np.array([1, 2, 4, 7, 11, 16], dtype=float)
-# # mat = np.array([[1, 2, 4, 7, 11, 16],
-# #                 [4, 4, 6, 2, 4, 9],
-# #                 [5, 3, 4, 3, 5, 2]])
-# # grad_x, grad_y = np.gradient(mat, edge_order=1)
-# # print(grad_x)
-# # print(grad_y)
-# # # 注意：这里的梯度是沿着行和列方向的，所以是先行后列
+        # What have we accomplished today?
+        self.kittens_rescued = 0
 
-final_ts = np.array([1,2,3])
-t_array = np.cumsum(final_ts)
-print(t_array)
+        # Initialize the state machine
+        self.machine = Machine(model=self, states=NarcolepticSuperhero.states, initial='asleep')
+
+        # Add some transitions. We could also define these using a static list of
+        # dictionaries, as we did with states above, and then pass the list to
+        # the Machine initializer as the transitions= argument.
+
+        # At some point, every superhero must rise and shine.
+        self.machine.add_transition(trigger='wake_up', source='asleep', dest='hanging out', conditions='can_wake_up')
+
+        # Superheroes need to keep in shape.
+        self.machine.add_transition('work_out', 'hanging out', 'hungry')
+
+        # Those calories won't replenish themselves!
+        self.machine.add_transition('eat', 'hungry', 'hanging out')
+
+        # Superheroes are always on call. ALWAYS. But they're not always
+        # dressed in work-appropriate clothing.
+        self.machine.add_transition('distress_call', '*', 'saving the world',
+                                    before='change_into_super_secret_costume')
+
+        # When they get off work, they're all sweaty and disgusting. But before
+        # they do anything else, they have to meticulously log their latest
+        # escapades. Because the legal department says so.
+        self.machine.add_transition('complete_mission', 'saving the world', 'sweaty',
+                                    after='update_journal')
+
+        # Sweat is a disorder that can be remedied with water.
+        # Unless you've had a particularly long day, in which case... bed time!
+        self.machine.add_transition('clean_up', 'sweaty', 'asleep', conditions=['is_exhausted'])
+        self.machine.add_transition('clean_up', 'sweaty', 'hanging out')
+
+        # Our NarcolepticSuperhero can fall asleep at pretty much any time.
+        self.machine.add_transition('nap', '*', 'asleep')
+
+    def update_journal(self):
+        """ Dear Diary, today I saved Mr. Whiskers. Again. """
+        self.kittens_rescued += 1
+
+    def can_wake_up(self):
+        """ Superheroes are allowed to sleep in on weekends. """
+        return True
+
+    @property
+    def is_exhausted(self):
+        """ Basically a coin toss. """
+        return random.random() < 0.5
+
+    def change_into_super_secret_costume(self):
+        print("Beauty, eh?")
+
+
+if __name__ == '__main__':
+    hero = NarcolepticSuperhero("Batman")
+    print(hero.state)
+    hero.wake_up()
+    print(hero.state)
+    # hero.clean_up()
