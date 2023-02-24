@@ -170,7 +170,7 @@ catkin_install_python(PROGRAMS
     scripts/traj_planner.py
     scripts/visualizer_node.py
     scripts/visualizer.py
-    scripts/mission_manage.py
+    scripts/manager_node.py
     DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

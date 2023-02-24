@@ -42,6 +42,7 @@ sudo apt-get install ros-noetic-octovis
 pip install octomap-python
 pip install pyquaternion
 pip install scipy
+pip install transitions
 ```
 
 3. Download all Gazebo models (optional)

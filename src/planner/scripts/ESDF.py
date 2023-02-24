@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-02-22 17:24:31
+LastEditTime: 2023-02-24 20:41:19
 '''
 
 import numpy as np
@@ -12,7 +12,9 @@ class ESDF():
         pass
 
     def occupancy_map_cb(self, map):
-        '''
+        '''ROS有五种不同类型的log信息，分别为：logdebug、loginfo、logwarn、logerr、logfatal。
+
+
         Subscribe to the OccupancyGrid and convert it to the ESDF map
         visualize the ESDF map in RViz
         '''

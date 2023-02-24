@@ -11,9 +11,9 @@ from transitions import Machine
 
 
 class Manager():
-    def __init__(self, node_name="mission_manager"):
+    def __init__(self, node_name="manager"):
         # Node
-        rospy.init_node(node_name, anonymous=True)
+        rospy.init_node(node_name, anonymous=False)
         self.flight_state = State()
         self.exec_state = "INIT"
         self.odom_received = False
@@ -48,9 +48,10 @@ class Manager():
         self.local_pos_cmd_pub = rospy.Publisher("/mavros/setpoint_raw/local", PositionTarget, queue_size=10)
 
         # FSM
-        self.fsm = Machine(model=self, states=['INIT', 'TRACKING', 'HOVER'], initial='INIT')
+        self.fsm = Machine(model=self, states=['INIT', 'TRACKING', 'HOVER', 'PLANNING'], initial='INIT')
         self.fsm.add_transition(trigger='launch', source='INIT', dest='TRACKING', before="get_odom", after='takeoff')
         self.fsm.add_transition(trigger='reach_target', source='TRACKING', dest='HOVER')
+        # self.fsm.add_transition(trigger='get_target', source='HOVER', dest='PLANNING')
 
     def flight_state_cb(self, data):
         self.flight_state = data
@@ -120,8 +121,8 @@ class Manager():
 
 if __name__ == "__main__":
 
-    mission_manager = Manager()
+    manager = Manager()
 
-    mission_manager.launch()
+    manager.launch()
 
     rospy.spin()
