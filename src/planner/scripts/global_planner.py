@@ -1,29 +1,29 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-02-24 22:33:31
+LastEditTime: 2023-02-25 11:31:14
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from matplotlib import pyplot as plt
-from nav_msgs.msg import Odometry
-from visualizer import Visualizer
-from visualization_msgs.msg import MarkerArray
-import rospy
-import numpy as np
-from geometry_msgs.msg import PoseStamped, TwistStamped, Point, Vector3
-from mavros_msgs.msg import Altitude, ExtendedState, HomePosition, State, WaypointList, PositionTarget
-from mavros_msgs.srv import CommandBool, ParamGet, SetMode, WaypointClear, WaypointPush
-from octomap_msgs.msg import Octomap
-from traj_planner import MinJerkPlanner
-from pyquaternion import Quaternion
-import time
-from nav_msgs.msg import Path, OccupancyGrid
-from geometry_msgs.msg import TransformStamped
-from ESDF import ESDF
-from mavros_msgs.srv import SetMode, SetModeRequest
 from std_msgs.msg import String
+from mavros_msgs.srv import SetMode, SetModeRequest
+from ESDF import ESDF
+from geometry_msgs.msg import TransformStamped
+from nav_msgs.msg import Path, OccupancyGrid
+import time
+from pyquaternion import Quaternion
+from traj_planner import MinJerkPlanner
+from octomap_msgs.msg import Octomap
+from mavros_msgs.srv import CommandBool, ParamGet, SetMode, WaypointClear, WaypointPush
+from mavros_msgs.msg import Altitude, ExtendedState, HomePosition, State, WaypointList, PositionTarget
+from geometry_msgs.msg import PoseStamped, TwistStamped, Point, Vector3
+import numpy as np
+import rospy
+from visualization_msgs.msg import MarkerArray
+from visualizer import Visualizer
+from nav_msgs.msg import Odometry
+from matplotlib import pyplot as plt
 
 
 class Config():
@@ -54,6 +54,7 @@ class GlobalPlanner():
         self.real_path = Path()
         self.map = ESDF()
         self.visualizer = Visualizer()
+        self.fsm_trigger = String()
 
         # Services
         rospy.wait_for_service("/mavros/set_mode")
@@ -114,10 +115,6 @@ class GlobalPlanner():
 
         self.traj_plan(target_state)
 
-        msg = String()
-        msg.data = "start_tracking"
-        self.fsm_trigger_pub.publish(msg)
-        
         # if not in OFFBOARD mode, switch to OFFBOARD mode
         if self.flight_state.mode != "OFFBOARD":
             self.warm_up()
@@ -155,6 +152,9 @@ class GlobalPlanner():
         When triggered, start to publish full state cmd
         '''
         rospy.loginfo("Trajectory executing...")
+        self.fsm_trigger.data = "start_tracking"
+        self.fsm_trigger_pub.publish(self.fsm_trigger)
+        
         self.des_state, self.traj_time, hz = self.planner.get_full_state_cmd()
         self.des_state_index = 0
         self.start_time = rospy.get_time()
@@ -183,9 +183,8 @@ class GlobalPlanner():
         if self.des_state_index == len(self.des_state)-1:
             self.tracking_cmd_timer.shutdown()
             rospy.loginfo("Trajectory execution finished!")
-            msg = String()
-            msg.data = "reach_target"
-            self.fsm_trigger_pub.publish(msg)
+            self.fsm_trigger.data = "reach_target"
+            self.fsm_trigger_pub.publish(self.fsm_trigger)
 
         self.des_state_index += 1
 

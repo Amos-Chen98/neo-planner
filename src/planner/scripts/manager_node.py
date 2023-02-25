@@ -55,31 +55,31 @@ class Manager():
 
         # FSM
         self.fsm = GraphMachine(model=self, states=['INIT', 'TRACKING', 'HOVER', 'PLANNING'], initial='INIT')
-        self.fsm.add_transition(trigger='launch', source='INIT', dest='TRACKING', before="get_odom", after='takeoff')
-        self.fsm.add_transition(trigger='reach_target', source='TRACKING', dest='HOVER')
-        self.fsm.add_transition(trigger='start_planning', source='HOVER', dest='PLANNING')
-        self.fsm.add_transition(trigger='start_tracking', source='PLANNING', dest='TRACKING')
-        self.fsm.add_transition(trigger='start_planning', source='TRACKING', dest='PLANNING')
-        self.fsm.add_transition(trigger='start_planning', source='*', dest='PLANNING')
+        self.fsm.add_transition(trigger='launch', source='INIT', dest='TRACKING', before="get_odom", after=['takeoff', 'print_current_state'])
+        self.fsm.add_transition(trigger='reach_target', source='TRACKING', dest='HOVER', after='print_current_state')
+        self.fsm.add_transition(trigger='start_planning', source='HOVER', dest='PLANNING', after='print_current_state')
+        self.fsm.add_transition(trigger='start_tracking', source='PLANNING', dest='TRACKING', after='print_current_state')
+        self.fsm.add_transition(trigger='start_planning', source='TRACKING', dest='PLANNING', after='print_current_state')
+        self.fsm.add_transition(trigger='start_planning', source='PLANNING', dest='PLANNING', after='print_current_state')
+        
 
-    def trigger_fsm(self, data):
-        if data.data == "reach_target":
-            self.reach_target()
-            rospy.loginfo("Current state: %s", self.state)
-        elif data.data == "start_tracking":
-            self.start_tracking()
-            rospy.loginfo("Current state: %s", self.state)
-
-    def trigger_plan(self, data):
-        self.local_target_pub.publish(data)
-        self.start_planning()
+    def print_current_state(self):
         rospy.loginfo("Current state: %s", self.state)
+
+    def trigger_fsm(self, trigger):
+        if trigger.data == "reach_target":
+            self.reach_target()
+        elif trigger.data == "start_tracking":
+            self.start_tracking()
+
+    def trigger_plan(self, target):
+        self.local_target_pub.publish(target)
+        self.start_planning()
 
     def flight_state_cb(self, data):
         self.flight_state = data
 
     def get_odom(self):
-        rospy.loginfo("Current state: %s", self.state)
         while not self.odom_received or not self.flight_state.connected:
             rospy.sleep(0.01)
 
@@ -104,7 +104,6 @@ class Manager():
         self.drone_state[1] = global_vel
 
     def takeoff(self):
-        rospy.loginfo("Current state: %s", self.state)
         self.takeoff_cmd_timer = rospy.Timer(rospy.Duration(0.1), self.takeoff_cmd)
 
         if not self.flight_state.armed and self.arming_client.call(self.arm_req).success == True:
@@ -138,7 +137,6 @@ class Manager():
         if self.drone_state[0, 2] >= self.hover_height - 0.05:
             self.takeoff_cmd_timer.shutdown()
             self.reach_target()
-            rospy.loginfo("Current state: %s", self.state)
 
     def draw_fsm_graph(self):
         self.get_graph().draw('fsm.pdf', prog='dot')
