@@ -9,7 +9,7 @@ import rospy
 import numpy as np
 from transitions import Machine
 from transitions.extensions import GraphMachine
-from geometry_msgs.msg import PoseStamped, TwistStamped, Point, Vector3
+from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import String
 
 
@@ -54,7 +54,7 @@ class Manager():
         self.local_target_pub = rospy.Publisher("/manager/local_target", PoseStamped, queue_size=10)
 
         # FSM
-        self.fsm = Machine(model=self, states=['INIT', 'TRACKING', 'HOVER', 'PLANNING'], initial='INIT')
+        self.fsm = GraphMachine(model=self, states=['INIT', 'TRACKING', 'HOVER', 'PLANNING'], initial='INIT')
         self.fsm.add_transition(trigger='launch', source='INIT', dest='TRACKING', before="get_odom", after='takeoff')
         self.fsm.add_transition(trigger='reach_target', source='TRACKING', dest='HOVER')
         self.fsm.add_transition(trigger='start_planning', source='HOVER', dest='PLANNING')
@@ -140,11 +140,16 @@ class Manager():
             self.reach_target()
             rospy.loginfo("Current state: %s", self.state)
 
+    def draw_fsm_graph(self):
+        self.get_graph().draw('fsm.pdf', prog='dot')
+
 
 if __name__ == "__main__":
 
     manager = Manager()
 
     manager.launch()
+
+    manager.draw_fsm_graph()
 
     rospy.spin()

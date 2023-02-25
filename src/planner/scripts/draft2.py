@@ -1,4 +1,6 @@
 from transitions import Machine
+from transitions.extensions import GraphMachine
+
 import random
 
 
@@ -18,7 +20,7 @@ class NarcolepticSuperhero(object):
         self.kittens_rescued = 0
 
         # Initialize the state machine
-        self.machine = Machine(model=self, states=NarcolepticSuperhero.states, initial='asleep')
+        self.machine = GraphMachine(model=self, states=NarcolepticSuperhero.states, initial='asleep')
 
         # Add some transitions. We could also define these using a static list of
         # dictionaries, as we did with states above, and then pass the list to
@@ -68,6 +70,9 @@ class NarcolepticSuperhero(object):
     def change_into_super_secret_costume(self):
         print("Beauty, eh?")
 
+    def draw_fsm_graph(self):
+        self.get_graph().draw('fsm.png', prog='dot')
+
 
 if __name__ == '__main__':
     hero = NarcolepticSuperhero("Batman")
@@ -75,3 +80,4 @@ if __name__ == '__main__':
     hero.wake_up()
     print(hero.state)
     # hero.clean_up()
+    hero.draw_fsm_graph()
