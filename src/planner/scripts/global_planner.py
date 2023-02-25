@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-02-25 11:31:14
+LastEditTime: 2023-02-25 16:42:37
 '''
 import os
 import sys
@@ -64,7 +64,7 @@ class GlobalPlanner():
         self.flight_state_sub = rospy.Subscriber('/mavros/state', State, self.flight_state_cb)
         self.occupancy_map_sub = rospy.Subscriber('/projected_map', OccupancyGrid, self.map.occupancy_map_cb)
         self.odom_sub = rospy.Subscriber('/mavros/local_position/odom', Odometry, self.odom_cb)
-        self.target_sub = rospy.Subscriber('/manager/local_target', PoseStamped, self.move)  # when a new target is received, move
+        self.target_sub = rospy.Subscriber('/manager/local_target', PoseStamped, self.move, queue_size=1, buff_size=25600)  # when a new target is received, move
 
         # Publishers
         self.local_pos_cmd_pub = rospy.Publisher("/mavros/setpoint_raw/local", PositionTarget, queue_size=10)

@@ -51,7 +51,7 @@ class Manager():
 
         # Publishers
         self.local_pos_cmd_pub = rospy.Publisher("/mavros/setpoint_raw/local", PositionTarget, queue_size=10)
-        self.local_target_pub = rospy.Publisher("/manager/local_target", PoseStamped, queue_size=10)
+        self.local_target_pub = rospy.Publisher("/manager/local_target", PoseStamped, queue_size=1)
 
         # FSM
         self.fsm = GraphMachine(model=self, states=['INIT', 'TRACKING', 'HOVER', 'PLANNING'], initial='INIT')
@@ -61,7 +61,8 @@ class Manager():
         self.fsm.add_transition(trigger='start_tracking', source='PLANNING', dest='TRACKING', after='print_current_state')
         self.fsm.add_transition(trigger='start_planning', source='TRACKING', dest='PLANNING', after='print_current_state')
         self.fsm.add_transition(trigger='start_planning', source='PLANNING', dest='PLANNING', after='print_current_state')
-        
+        # if triggered planning in state TRACKING, and the target is reached during planning, stay in PLANNING
+        self.fsm.add_transition(trigger='reach_target', source='PLANNING', dest='PLANNING')
 
     def print_current_state(self):
         rospy.loginfo("Current state: %s", self.state)
