@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-02-22 17:26:17
+LastEditTime: 2023-02-27 10:26:37
 '''
 import math
 import pprint
@@ -15,7 +15,7 @@ class DefaultConfig():
         self.T_min = 2.0  # The minimum T of each piece
         self.T_max = 20.0
         self.safe_dis = 0.5  # the safe distance to the obstacle
-        self.kappa = 50  # the sample number on every piece
+        self.delta_t = 0.1  # the time interval of sampling
         # self.weights = [1.0, 1.0, 0.001, 10000]  # the weights of different costs: [energy cost, time cost, feasibility cost]
         self.weights = [0, 0, 0, 1]  # the weights of different costs: [energy cost, time cost, feasibility cost]
 
@@ -203,8 +203,9 @@ class MinJerkPlanner():
         self.safe_dis = config.safe_dis
 
         # Hyper params in cost func
-        self.kappa = config.kappa
         self.weights = np.array(config.weights)
+        self.delta_t = config.delta_t
+        self.get_beta_full()
 
     def plan(self, map, head_state, tail_state, int_wpts=None):
         '''
@@ -298,7 +299,7 @@ class MinJerkPlanner():
         start_pos = head_state[0]
         target_pos = tail_state[0]
         straight_length = np.linalg.norm(target_pos - start_pos)
-        int_wpts_num = max(int(straight_length / 2), 1) # 2m for each intermediate waypoint
+        int_wpts_num = max(int(straight_length / 2), 1)  # 2m for each intermediate waypoint
         dim = len(start_pos)
         int_wpts = np.zeros((int_wpts_num, dim))
         for i in range(dim):
@@ -306,6 +307,17 @@ class MinJerkPlanner():
             int_wpts[:, i] = np.linspace(start_pos[i] + step_length, target_pos[i], int_wpts_num, endpoint=False)
 
         return int_wpts
+
+    def get_beta_full(self):
+        t_array = np.arange(0, self.T_max, self.delta_t)
+        beta_full = np.zeros((len(t_array), 4, 6))
+        for i in range(len(t_array)):
+            t = t_array[i]
+            beta_full[i] = np.array([[1, t, t**2, t**3, t**4, t**5],
+                                     [0, 1, 2*t, 3*t**2, 4*t**3, 5*t**4],
+                                     [0, 0, 2, 6*t, 12*t**2, 20*t**3],
+                                     [0, 0, 0, 6, 24*t, 60*t**2]])
+        self.beta_full = beta_full
 
     def get_coeffs(self, int_wpts, ts):
         '''
@@ -398,14 +410,13 @@ class MinJerkPlanner():
         '''
         # print("---------------------obstacle cost---------------------")
         for i in range(self.M):  # for every piece
-            t = 0.0
-            step = self.ts[i] / self.kappa
             c = self.coeffs[2*self.s*i:2*self.s*(i+1), :]
+            sample_num = int(self.ts[i]/self.delta_t)
 
-            for j in range(self.kappa):  # for every time slot within the i-th piece
-                beta = self.get_beta_s3(t)
+            for j in range(sample_num):  # for every time slot within the i-th piece
+                beta = self.beta_full[j]
                 pos = np.dot(c.T, beta[0])
-                omg = 0.5 if j in [0, self.kappa-1] else 1
+                omg = 0.5 if j in [0, sample_num-1] else 1
 
                 pos_projected = pos[:2]
                 edt_dis = self.map.get_edt_dis(pos_projected)
@@ -413,9 +424,7 @@ class MinJerkPlanner():
 
                 if violate_dis > 0.0:
                     # print("Collision at pos: ", pos_projected)
-                    self.costs[3] += omg*step*violate_dis**3
-
-                t += step
+                    self.costs[3] += omg*self.delta_t*violate_dis**3
 
     def add_obstacle_grad_CT(self):
         '''
@@ -424,15 +433,14 @@ class MinJerkPlanner():
         refer to eq (17)-(22) in Decentralized...
         '''
         for i in range(self.M):  # for every piece
-            t = 0.0
-            step = self.ts[i] / self.kappa
             c = self.coeffs[2*self.s*i:2*self.s*(i+1), :]
+            sample_num = int(self.ts[i]/self.delta_t)
 
-            for j in range(self.kappa):  # for every time slot within the i-th piece
-                beta = self.get_beta_s3(t)
+            for j in range(sample_num):  # for every time slot within the i-th piece
+                beta = self.beta_full[j]
                 pos = np.dot(c.T, beta[0])  # return a (2,) array
                 vel = np.dot(c.T, beta[1])
-                omg = 0.5 if j in [0, self.kappa-1] else 1
+                omg = 0.5 if j in [0, sample_num-1] else 1
 
                 pos_projected = pos[:2]
                 edt_dis = self.map.get_edt_dis(pos_projected)
@@ -441,14 +449,12 @@ class MinJerkPlanner():
                 if violate_dis > 0.0:
                     edt_grad = self.map.get_edt_grad(pos_projected)  # list, len=2
                     # print("At point: ", pos_projected, "edt_grad: ", edt_grad, "violate_dis: ", violate_dis)
-                    grad_K2psi = 3 * step * omg * violate_dis**2
+                    grad_K2psi = 3 * self.delta_t * omg * violate_dis**2
                     grad_psi2c = -np.array([beta[0]]).T @ np.array([edt_grad])  # (2*s,1) @ (1,2) = (2*s,2)
                     grad_psi2t = (-np.array([edt_grad]) @ np.array([vel]).T).item()
 
                     self.grad_C[2*self.s*i: 2*self.s * (i+1), :] += self.weights[3] * grad_K2psi * grad_psi2c
-                    self.grad_T[i] += self.weights[3] * (omg*violate_dis**3/self.kappa + grad_K2psi * grad_psi2t * j/self.kappa)
-
-                t += step
+                    self.grad_T[i] += self.weights[3] * (omg*violate_dis**3/sample_num + grad_K2psi * grad_psi2t * j/sample_num)
 
     def add_energy_cost(self):
         '''
@@ -507,24 +513,21 @@ class MinJerkPlanner():
         '''
 
         for i in range(self.M):  # for every piece
-            t = 0.0
-            step = self.ts[i] / self.kappa
             c = self.coeffs[2*self.s*i:2*self.s*(i+1), :]
+            sample_num = int(self.ts[i]/self.delta_t)
 
-            for j in range(self.kappa):  # for every time slot within the i-th piece
-                beta = self.get_beta_s3(t)
+            for j in range(sample_num):  # for every time slot within the i-th piece
+                beta = self.beta_full[j]
                 pos = np.dot(c.T, beta[0])  # return a (2,) array
                 vel = np.dot(c.T, beta[1])
                 acc = np.dot(c.T, beta[2])
                 jer = np.dot(c.T, beta[3])
-                omg = 0.5 if j in [0, self.kappa-1] else 1
+                omg = 0.5 if j in [0, sample_num-1] else 1
 
                 violate_vel = sum(vel**2) - self.v_max**2
 
                 if violate_vel > 0.0:
-                    self.costs[2] += omg*step*violate_vel**3
-
-                t += step
+                    self.costs[2] += omg*self.delta_t*violate_vel**3
 
     def add_feasibility_grad_CT(self):
         '''
@@ -533,48 +536,35 @@ class MinJerkPlanner():
         refer to eq (6-16) in Decentralized...
         '''
         for i in range(self.M):  # for every piece
-            t = 0.0
-            step = self.ts[i] / self.kappa
             c = self.coeffs[2*self.s*i:2*self.s*(i+1), :]
+            sample_num = int(self.ts[i]/self.delta_t)
 
-            for j in range(self.kappa):  # for every time slot within the i-th piece
-                beta = self.get_beta_s3(t)
+            for j in range(sample_num):  # for every time slot within the i-th piece
+                beta = self.beta_full[j]
                 pos = np.dot(c.T, beta[0])  # return a (2,) array
                 vel = np.dot(c.T, beta[1])
                 acc = np.dot(c.T, beta[2])
                 jer = np.dot(c.T, beta[3])
-                omg = 0.5 if j in [0, self.kappa-1] else 1
+                omg = 0.5 if j in [0, sample_num-1] else 1
 
                 violate_vel = sum(vel**2) - self.v_max**2
                 # print("violate_vel:%f" % violate_vel)
 
                 if violate_vel > 0.0:
-                    # self.costs[2] += self.weights[2] * omg*step*violate_vel**3
+                    # self.costs[2] += self.weights[2] * omg*self.delta_t*violate_vel**3
 
                     grad_v2c = 2 * \
                         np.dot(np.array([beta[1]]).T,
                                np.array([vel]))  # col * row
                     grad_v2t = 2*(np.array([beta[2]])
                                   @ c @ np.array([vel]).T).item()
-                    grad_K2v = 3 * step * omg * violate_vel**2
+                    grad_K2v = 3 * self.delta_t * omg * violate_vel**2
 
                     self.grad_C[2*self.s*i: 2*self.s *
                                 (i+1), :] += self.weights[2] * grad_K2v * grad_v2c
 
-                    self.grad_T[i] += self.weights[2] * (omg*violate_vel**3/self.kappa +
-                                                         grad_K2v * grad_v2t * j/self.kappa)
-
-                t += step
-
-    def get_beta_s3(self, t):
-        '''
-        used in func 'add_feasibility_grad_CT'
-        '''
-        beta = np.array([[1, t, t**2, t**3, t**4, t**5],
-                         [0, 1, 2*t, 3*t**2, 4*t**3, 5*t**4],
-                         [0, 0, 2, 6*t, 12*t**2, 20*t**3],
-                         [0, 0, 0, 6, 24*t, 60*t**2]])
-        return beta
+                    self.grad_T[i] += self.weights[2] * (omg*violate_vel**3/sample_num +
+                                                         grad_K2v * grad_v2t * j/sample_num)
 
     def map_T2tau(self, ts):
         '''
