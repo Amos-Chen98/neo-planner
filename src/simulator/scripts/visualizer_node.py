@@ -1,8 +1,4 @@
-'''
-Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-01-29 16:40:14
-'''
-
+#! /usr/bin/env python
 from nav_msgs.msg import Path
 import rospy
 from visualization_msgs.msg import MarkerArray

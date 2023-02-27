@@ -171,6 +171,7 @@ target_link_libraries(publish_pointcloud
 # # in contrast to setup.py, you can choose the destination
 catkin_install_python(PROGRAMS
     scripts/odom2base_tf.py
+    scripts/visualizer_node.py
     DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

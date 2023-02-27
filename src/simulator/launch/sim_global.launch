@@ -34,7 +34,7 @@
     </include>
 
     <!-- Visualizer -->
-    <node pkg="planner" type="visualizer_node.py" name="visualizer" />
+    <node pkg="simulator" type="visualizer_node.py" name="visualizer" />
 
     <!-- Rviz -->
     <node pkg="rviz" type="rviz" name="rviz" args="-d $(find simulator)/rviz/rviz_config.rviz" />
