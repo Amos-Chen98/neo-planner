@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-02-27 11:22:30
+LastEditTime: 2023-02-27 22:07:46
 '''
 
 import matplotlib.pyplot as plt
@@ -50,8 +50,6 @@ if __name__ == "__main__":
     cProfile.run('planner.plan(map, head_state, tail_state)', 'result.prof')
 
     # Evaluate results
-
-    print("Times of getting cost: %d  Times of getting grad: %d" % (planner.get_cost_times, planner.get_grad_times))
     final_wpts = planner.int_wpts.T
     final_ts = planner.ts
 

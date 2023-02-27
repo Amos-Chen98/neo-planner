@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-02-27 10:40:23
+LastEditTime: 2023-02-27 22:06:58
 '''
 import math
 import pprint
@@ -28,8 +28,6 @@ class MinJerkPlanner():
     def __init__(self, config=DefaultConfig()):
         # Mission conditions
         self.s = 3
-        self.get_cost_times = 0
-        self.get_grad_times = 0
 
         # Dynamic constraints
         self.v_max = config.v_max
@@ -353,10 +351,7 @@ class MinJerkPlanner():
 
             for j in range(sample_num):  # for every time slot within the i-th piece
                 beta = self.beta_full[j]
-                pos = np.dot(c.T, beta[0])  # return a (2,) array
                 vel = np.dot(c.T, beta[1])
-                acc = np.dot(c.T, beta[2])
-                jer = np.dot(c.T, beta[3])
                 omg = 0.5 if j in [0, sample_num-1] else 1
 
                 violate_vel = sum(vel**2) - self.v_max**2
@@ -376,30 +371,19 @@ class MinJerkPlanner():
 
             for j in range(sample_num):  # for every time slot within the i-th piece
                 beta = self.beta_full[j]
-                pos = np.dot(c.T, beta[0])  # return a (2,) array
                 vel = np.dot(c.T, beta[1])
-                acc = np.dot(c.T, beta[2])
-                jer = np.dot(c.T, beta[3])
                 omg = 0.5 if j in [0, sample_num-1] else 1
 
                 violate_vel = sum(vel**2) - self.v_max**2
                 # print("violate_vel:%f" % violate_vel)
 
                 if violate_vel > 0.0:
-                    # self.costs[2] += self.weights[2] * omg*self.delta_t*violate_vel**3
-
-                    grad_v2c = 2 * \
-                        np.dot(np.array([beta[1]]).T,
-                               np.array([vel]))  # col * row
-                    grad_v2t = 2*(np.array([beta[2]])
-                                  @ c @ np.array([vel]).T).item()
+                    grad_v2c = 2 * np.dot(np.array([beta[1]]).T, np.array([vel]))  # col * row
+                    grad_v2t = 2 * (np.array([beta[2]]) @ c @ np.array([vel]).T).item()
                     grad_K2v = 3 * self.delta_t * omg * violate_vel**2
 
-                    self.grad_C[2*self.s*i: 2*self.s *
-                                (i+1), :] += self.weights[2] * grad_K2v * grad_v2c
-
-                    self.grad_T[i] += self.weights[2] * (omg*violate_vel**3/sample_num +
-                                                         grad_K2v * grad_v2t * j/sample_num)
+                    self.grad_C[2*self.s*i: 2*self.s * (i+1), :] += self.weights[2] * grad_K2v * grad_v2c
+                    self.grad_T[i] += self.weights[2] * (omg*violate_vel**3/sample_num + grad_K2v * grad_v2t * j/sample_num)
 
     def map_T2tau(self, ts):
         '''
@@ -407,15 +391,13 @@ class MinJerkPlanner():
         '''
         tau = np.zeros(self.M)
         for i in range(self.M):
-            tau[i] = -math.log((self.T_max - self.T_min) /
-                               (ts[i]-self.T_min) - 1)
+            tau[i] = -math.log((self.T_max - self.T_min) / (ts[i]-self.T_min) - 1)
         return tau
 
     def map_tau2T(self, tau):
         ts = np.zeros(self.M)
         for i in range(self.M):
-            ts[i] = (self.T_max - self.T_min) / \
-                (1 + math.exp(-tau[i])) + self.T_min
+            ts[i] = (self.T_max - self.T_min) / (1 + math.exp(-tau[i])) + self.T_min
         return ts
 
     def get_grad_T2tau(self, grad_T):
@@ -471,9 +453,7 @@ class MinJerkPlanner():
         return grad_q, grad_tau
 
     def get_cost(self, x):
-        self.get_cost_times += 1
-        self.int_wpts = np.reshape(
-            x[:self.D*(self.M - 1)], (self.D, self.M - 1))
+        self.int_wpts = np.reshape(x[:self.D*(self.M - 1)], (self.D, self.M - 1))
         self.tau = x[self.D*(self.M - 1):]
         self.ts = self.map_tau2T(self.tau)
 
@@ -500,9 +480,7 @@ class MinJerkPlanner():
         2. Get grad_q and grad_tau, size: grad_q(D,M-1), grad_tau(M,)
         3. Flatten and concatenate grad_q and grad_tau to return a vector        
         '''
-        self.get_grad_times += 1
-        self.int_wpts = np.reshape(
-            x[:self.D*(self.M - 1)], (self.D, self.M - 1))
+        self.int_wpts = np.reshape(x[:self.D*(self.M - 1)], (self.D, self.M - 1))
         self.tau = x[self.D*(self.M - 1):]
         self.ts = self.map_tau2T(self.tau)
 
