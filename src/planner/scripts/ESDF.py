@@ -12,9 +12,7 @@ class ESDF():
         pass
 
     def occupancy_map_cb(self, map):
-        '''ROS有五种不同类型的log信息，分别为：logdebug、loginfo、logwarn、logerr、logfatal。
-
-
+        '''
         Subscribe to the OccupancyGrid and convert it to the ESDF map
         visualize the ESDF map in RViz
         '''
