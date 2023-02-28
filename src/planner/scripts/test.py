@@ -1,35 +1,53 @@
-import gurobipy as gp
+'''
+Author: Yicheng Chen (yicheng-chen@outlook.com)
+LastEditTime: 2023-02-28 16:47:19
+'''
 import numpy as np
+import time
 
-# Define the objective function
-def rosenbrock(x):
-    N = len(x)
-    f = sum(100*(x[i+1]-x[i]**2)**2 + (1-x[i])**2 for i in range(N-1))
-    return f
 
-# Define the gradient function
-def rosenbrock_grad(x):
-    N = len(x)
-    grad = np.zeros(N)
-    grad[0] = -400*x[0]*(x[1]-x[0]**2) - 2*(1-x[0])
-    grad[N-1] = 200*(x[N-1]-x[N-2]**2)
-    for i in range(1, N-1):
-        grad[i] = -400*x[i]*(x[i+1]-x[i]**2) - 2*(1-x[i]) + 200*(x[i]-x[i-1]**2)
-    return grad
+def get_int_wpts(head_state, tail_state):
+    start_pos = head_state[0]
+    target_pos = tail_state[0]
+    straight_length = np.linalg.norm(target_pos - start_pos)
+    int_wpts_num = max(int(straight_length/2 - 1), 1)  # 2m for each intermediate waypoint
+    step_length = (tail_state[0] - head_state[0]) / (int_wpts_num + 1)
+    int_wpts = np.linspace(start_pos + step_length, target_pos, int_wpts_num, endpoint=False)
+    return int_wpts
 
-# Create a model
-model = gp.Model()
 
-# Add variables to the model
-N = 3 # number of variables
-x = model.addMVar(shape=N, lb=-10, ub=10)
+def get_int_wpts2(head_state, tail_state):
+    start_pos = head_state[0]
+    target_pos = tail_state[0]
+    straight_length = np.linalg.norm(target_pos - start_pos)
+    int_wpts_num = max(int(straight_length / 2), 1)  # 2m for each intermediate waypoint
+    dim = len(start_pos)
+    int_wpts = np.zeros((int_wpts_num, dim))
+    for i in range(dim):
+        step_length = (target_pos[i] - start_pos[i])/(int_wpts_num + 1)
+        int_wpts[:, i] = np.linspace(start_pos[i] + step_length, target_pos[i], int_wpts_num, endpoint=False)
 
-# Set the objective function and gradient
-model.setObjectiveN(rosenbrock, 0, x)
-model.setObjectiveN(rosenbrock_grad, 1, x)
+    return int_wpts
 
-# Optimize the model
-model.optimize()
 
-# Get the solution
-solution = model.getAttr('x', x)
+head_state = np.array([[0.0, 0, 5],
+                       [0, 0, 0],
+                       [0, 0, 0],
+                       [0, 0, 0]])
+tail_state = np.array([[0.0, 10, 5],
+                       [0, 0, 0],
+                       [0, 0, 0],
+                       [0, 0, 0]])
+
+time_start = time.time()
+int_wpts = get_int_wpts(head_state, tail_state)
+time_end = time.time()
+print("time cost: %f" % (time_end - time_start))
+print(int_wpts)
+
+print("")
+time_start = time.time()
+int_wpts2 = get_int_wpts2(head_state, tail_state)
+time_end = time.time()
+print("time cost: %f" % (time_end - time_start))
+print(int_wpts2)

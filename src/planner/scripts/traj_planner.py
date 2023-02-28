@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-02-27 23:05:36
+LastEditTime: 2023-02-28 17:09:10
 '''
 import math
 import pprint
@@ -11,14 +11,14 @@ import scipy
 
 class DefaultConfig():
     def __init__(self):
-        self.v_max = 5.0
+        self.v_max = 10.0
         self.T_min = 2.0  # The minimum T of each piece
         self.T_max = 20.0
         self.safe_dis = 0.5  # the safe distance to the obstacle
         self.delta_t = 0.1  # the time interval of sampling
-        # self.weights = [1.0, 1.0, 0.001, 10000]  # the weights of different costs: [energy cost, time cost, feasibility cost]
-        self.weights = [0, 0, 0, 1]  # the weights of different costs: [energy cost, time cost, feasibility cost]
-
+        self.weights = [1.0, 1.0, 0.001, 10000]  # the weights of different costs: [energy, time, feasibility, collision]
+        self.init_seg_len = 2.0  # the initial length of each segment
+        self.init_T = 2.0  # the initial T of each segment
 
 class MinJerkPlanner():
     '''
@@ -39,6 +39,10 @@ class MinJerkPlanner():
         self.weights = np.array(config.weights)
         self.delta_t = config.delta_t
         self.get_beta_full()
+
+        # Initial conditions
+        self.init_seg_len = config.init_seg_len
+        self.init_T = config.init_T
 
     def plan(self, map, head_state, tail_state, int_wpts=None):
         '''
@@ -62,7 +66,7 @@ class MinJerkPlanner():
         if int_wpts is None:
             int_wpts = self.get_int_wpts(head_state, tail_state)
 
-        ts = 3 * np.ones((len(int_wpts)+1,))  # allocate 10s for each piece initially
+        ts = self.init_T * np.ones((len(int_wpts)+1,))  # allocate 1s for each piece initially
         ts[0] *= 1.5
         ts[-1] *= 1.5
 
@@ -94,20 +98,6 @@ class MinJerkPlanner():
                                                'iprint': 1,
                                                'maxls': 20})
 
-        # res = scipy.optimize.minimize(self.get_cost,
-        #                               x0,
-        #                               method='SLSQP',
-        #                               jac=self.get_grad,
-        #                               bounds=None,
-        #                               tol=1e-8,
-        #                               callback=None,
-        #                               options={'disp': 0,
-        #                                        'maxcor': 10,
-        #                                        'maxfun': 15000,
-        #                                        'maxiter': 15000,
-        #                                        'iprint': 1,
-        #                                        'maxls': 20})
-
         time_end = time.time()
 
         self.int_wpts = np.reshape(res.x[:self.D*(self.M - 1)], (self.D, self.M - 1))
@@ -132,13 +122,9 @@ class MinJerkPlanner():
         start_pos = head_state[0]
         target_pos = tail_state[0]
         straight_length = np.linalg.norm(target_pos - start_pos)
-        int_wpts_num = max(int(straight_length / 2), 1)  # 2m for each intermediate waypoint
-        dim = len(start_pos)
-        int_wpts = np.zeros((int_wpts_num, dim))
-        for i in range(dim):
-            step_length = (target_pos[i] - start_pos[i])/(int_wpts_num + 1)
-            int_wpts[:, i] = np.linspace(start_pos[i] + step_length, target_pos[i], int_wpts_num, endpoint=False)
-
+        int_wpts_num = max(int(straight_length/self.init_seg_len - 1), 1)  # 2m for each intermediate waypoint
+        step_length = (tail_state[0] - head_state[0]) / (int_wpts_num + 1)
+        int_wpts = np.linspace(start_pos + step_length, target_pos, int_wpts_num, endpoint=False)
         return int_wpts
 
     def get_beta_full(self):
@@ -236,59 +222,6 @@ class MinJerkPlanner():
         self.grad_C = np.zeros((2 * self.M * self.s, self.D))
         self.grad_T = np.zeros(self.M)
 
-    def add_obstacle_cost(self):
-        '''
-        get obstacle cost according to self.coeffs and self.ts
-        refer to eq (17)-(18) in distributed...
-        '''
-        # print("---------------------obstacle cost---------------------")
-        for i in range(self.M):  # for every piece
-            c = self.coeffs[2*self.s*i:2*self.s*(i+1), :]
-            sample_num = int(self.ts[i]/self.delta_t)
-
-            for j in range(sample_num):  # for every time slot within the i-th piece
-                beta = self.beta_full[j]
-                pos = np.dot(c.T, beta[0])
-                omg = 0.5 if j in [0, sample_num-1] else 1
-
-                pos_projected = pos[:2]
-                edt_dis = self.map.get_edt_dis(pos_projected)
-                violate_dis = self.safe_dis - edt_dis
-
-                if violate_dis > 0.0:
-                    # print("Collision at pos: ", pos_projected)
-                    self.costs[3] += omg*self.delta_t*violate_dis**3
-
-    def add_obstacle_grad_CT(self):
-        '''
-        get obstacle grad according to self.coeffs and self.ts
-        stores self.grad_C and self.grad_T
-        refer to eq (17)-(22) in Decentralized...
-        '''
-        for i in range(self.M):  # for every piece
-            c = self.coeffs[2*self.s*i:2*self.s*(i+1), :]
-            sample_num = int(self.ts[i]/self.delta_t)
-
-            for j in range(sample_num):  # for every time slot within the i-th piece
-                beta = self.beta_full[j]
-                pos = np.dot(c.T, beta[0])  # return a (2,) array
-                vel = np.dot(c.T, beta[1])
-                omg = 0.5 if j in [0, sample_num-1] else 1
-
-                pos_projected = pos[:2]
-                edt_dis = self.map.get_edt_dis(pos_projected)
-                violate_dis = self.safe_dis - edt_dis
-
-                if violate_dis > 0.0:
-                    edt_grad = self.map.get_edt_grad(pos_projected)  # list, len=2
-                    # print("At point: ", pos_projected, "edt_grad: ", edt_grad, "violate_dis: ", violate_dis)
-                    grad_K2psi = 3 * self.delta_t * omg * violate_dis**2
-                    grad_psi2c = -np.array([beta[0]]).T @ np.array([edt_grad])  # (2*s,1) @ (1,2) = (2*s,2)
-                    grad_psi2t = (-np.array([edt_grad]) @ np.array([vel]).T).item()
-
-                    self.grad_C[2*self.s*i: 2*self.s * (i+1), :] += self.weights[3] * grad_K2psi * grad_psi2c
-                    self.grad_T[i] += self.weights[3] * (omg*violate_dis**3/sample_num + grad_K2psi * grad_psi2t * j/sample_num)
-
     def add_energy_cost(self):
         '''
         get energy cost according to self.coeffs and self.ts
@@ -321,16 +254,13 @@ class MinJerkPlanner():
                                   [0, 0, 0, 36*T, 72*T**2, 120*T**3],
                                   [0, 0, 0, 72*T**2, 192*T**3, 360*T**4],
                                   [0, 0, 0, 120*T**3, 360*T**4, 720*T**5]])
-            # self.costs[0] += self.weights[0] * np.trace(c.T @ beta3_mat @ c)
 
-            self.grad_C[2*self.s*i: 2*self.s *
-                        (i+1), :] += self.weights[0] * 2 * beta3_mat @ c
+            self.grad_C[2*self.s*i: 2*self.s*(i+1), :] += self.weights[0] * 2 * beta3_mat @ c
 
             for j in range(self.D):
                 c_current_dim = c[:, j]  # (6,) vector
-                self.grad_T[i] += self.weights[0] * \
-                    (np.dot(c_current_dim, beta3).item())**2
-                # the above 3 lines are equal to this following line
+                self.grad_T[i] += self.weights[0] * (np.dot(c_current_dim, beta3).item())**2
+                # the above 3 lines are equal to this following line?
                 # self.grad_T[i] = c.T @ beta3 @ beta3.T @ c
 
     def add_time_cost(self):
@@ -385,6 +315,58 @@ class MinJerkPlanner():
                     self.grad_C[2*self.s*i: 2*self.s * (i+1), :] += self.weights[2] * grad_K2v * grad_v2c
                     self.grad_T[i] += self.weights[2] * (omg*violate_vel**3/sample_num + grad_K2v * grad_v2t * j/sample_num)
 
+    def add_obstacle_cost(self):
+        '''
+        get obstacle cost according to self.coeffs and self.ts
+        refer to eq (17)-(18) in distributed...
+        '''
+        for i in range(self.M):  # for every piece
+            c = self.coeffs[2*self.s*i:2*self.s*(i+1), :]
+            sample_num = int(self.ts[i]/self.delta_t)
+
+            for j in range(sample_num):  # for every time slot within the i-th piece
+                beta = self.beta_full[j]
+                pos = np.dot(c.T, beta[0])
+                omg = 0.5 if j in [0, sample_num-1] else 1
+
+                pos_projected = pos[:2]
+                edt_dis = self.map.get_edt_dis(pos_projected)
+                violate_dis = self.safe_dis - edt_dis
+
+                if violate_dis > 0.0:
+                    # print("Collision at pos: ", pos_projected)
+                    self.costs[3] += omg*self.delta_t*violate_dis**3
+
+    def add_obstacle_grad_CT(self):
+        '''
+        get obstacle grad according to self.coeffs and self.ts
+        stores self.grad_C and self.grad_T
+        refer to eq (17)-(22) in Decentralized...
+        '''
+        for i in range(self.M):  # for every piece
+            c = self.coeffs[2*self.s*i:2*self.s*(i+1), :]
+            sample_num = int(self.ts[i]/self.delta_t)
+
+            for j in range(sample_num):  # for every time slot within the i-th piece
+                beta = self.beta_full[j]
+                pos = np.dot(c.T, beta[0])  # return a (2,) array
+                vel = np.dot(c.T, beta[1])
+                omg = 0.5 if j in [0, sample_num-1] else 1
+
+                pos_projected = pos[:2]
+                edt_dis = self.map.get_edt_dis(pos_projected)
+                violate_dis = self.safe_dis - edt_dis
+
+                if violate_dis > 0.0:
+                    edt_grad = self.map.get_edt_grad(pos_projected)  # list, len=2
+                    # print("At point: ", pos_projected, "edt_grad: ", edt_grad, "violate_dis: ", violate_dis)
+                    grad_K2psi = 3 * self.delta_t * omg * violate_dis**2
+                    grad_psi2c = -np.array([beta[0]]).T @ np.array([edt_grad])  # (2*s,1) @ (1,2) = (2*s,2)
+                    grad_psi2t = (-np.array([edt_grad]) @ np.array([vel]).T).item()
+
+                    self.grad_C[2*self.s*i: 2*self.s*(i+1), :] += self.weights[3] * grad_K2psi * grad_psi2c
+                    self.grad_T[i] += self.weights[3] * (omg*violate_dis**3/sample_num + grad_K2psi * grad_psi2t * j/sample_num)
+
     def map_T2tau(self, ts):
         '''
         inverse sigmoid func
@@ -395,16 +377,20 @@ class MinJerkPlanner():
         return tau
 
     def map_tau2T(self, tau):
+        # print("tau: ", tau)
         ts = np.zeros(self.M)
         for i in range(self.M):
             ts[i] = (self.T_max - self.T_min) / (1 + math.exp(-tau[i])) + self.T_min
+        # print("ts: ", ts)
         return ts
 
     def get_grad_T2tau(self, grad_T):
+        # print("grad_T: ", grad_T)
         grad_tau = np.zeros(self.M)
         for i in range(self.M):
             grad_tau[i] = grad_T[i] * (self.T_max - self.T_min) * \
                 math.exp(-self.tau[i])/(1+math.exp(-self.tau[i]))**2
+        # print("grad_tau: ", grad_tau)
         return grad_tau
 
     def propagate_grad_q_tau(self):

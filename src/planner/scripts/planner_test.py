@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-02-27 22:34:28
+LastEditTime: 2023-02-28 16:51:17
 '''
 
 import matplotlib.pyplot as plt
@@ -16,7 +16,9 @@ class Config():
         self.T_max = 20.0
         self.safe_dis = 0.5  # the safe distance to the obstacle
         self.delta_t = 0.1  # the time interval of sampling
-        self.weights = [1, 1, 1, 1]  # the weights of different costs: [energy cost, time cost, feasibility cost]
+        self.weights = [1.0, 1.0, 1.0, 1.0]  # the weights of different costs: [energy, time, feasibility, collision]
+        self.init_seg_len = 2.0  # the initial length of each segment
+        self.init_T = 2.0  # the initial T of each segment
 
 
 class FakeMap():

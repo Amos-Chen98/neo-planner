@@ -62,7 +62,7 @@ class Manager():
         self.fsm.add_transition(trigger='start_planning', source='TRACKING', dest='PLANNING', after='print_current_state')
         self.fsm.add_transition(trigger='start_planning', source='PLANNING', dest='PLANNING', after='print_current_state')
         # if triggered planning in state TRACKING, and the target is reached during planning, stay in PLANNING
-        # self.fsm.add_transition(trigger='reach_target', source='PLANNING', dest='PLANNING', after='print_current_state')
+        self.fsm.add_transition(trigger='reach_target', source='PLANNING', dest='PLANNING', after='print_current_state')
 
     def print_current_state(self):
         rospy.loginfo("Current state: %s", self.state)

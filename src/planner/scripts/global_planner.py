@@ -1,39 +1,39 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-02-27 10:37:52
+LastEditTime: 2023-02-28 17:08:21
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from std_msgs.msg import String
-from mavros_msgs.srv import SetMode, SetModeRequest
-from ESDF import ESDF
-from geometry_msgs.msg import TransformStamped
-from nav_msgs.msg import Path, OccupancyGrid
-import time
-from pyquaternion import Quaternion
-from traj_planner import MinJerkPlanner
-from octomap_msgs.msg import Octomap
-from mavros_msgs.srv import CommandBool, ParamGet, SetMode, WaypointClear, WaypointPush
-from mavros_msgs.msg import Altitude, ExtendedState, HomePosition, State, WaypointList, PositionTarget
-from geometry_msgs.msg import PoseStamped, TwistStamped, Point, Vector3
-import numpy as np
-import rospy
-from visualization_msgs.msg import MarkerArray
-from visualizer import Visualizer
-from nav_msgs.msg import Odometry
 from matplotlib import pyplot as plt
+from nav_msgs.msg import Odometry
+from visualizer import Visualizer
+from visualization_msgs.msg import MarkerArray
+import rospy
+import numpy as np
+from geometry_msgs.msg import PoseStamped
+from mavros_msgs.msg import State, PositionTarget
+from mavros_msgs.srv import SetMode
+from traj_planner import MinJerkPlanner
+from pyquaternion import Quaternion
+import time
+from nav_msgs.msg import Path, OccupancyGrid
+from ESDF import ESDF
+from mavros_msgs.srv import SetMode, SetModeRequest
+from std_msgs.msg import String
 
 
 class Config():
     def __init__(self):
-        self.v_max = rospy.get_param("~v_max", 10.0)
+        self.v_max = rospy.get_param("~v_max", 5.0)
         self.T_min = rospy.get_param("~T_min", 1.0)
         self.T_max = rospy.get_param("~T_max", 20)
         self.safe_dis = rospy.get_param("~safe_dis", 0.9)
         self.delta_t = rospy.get_param("~delta_t", 0.1)
-        self.weights = rospy.get_param("~weights", [10, 1.0, 0, 10000])
+        self.weights = rospy.get_param("~weights", [10, 1.0, 1.0, 100000])
+        self.init_seg_len = rospy.get_param("~init_seg_len", 2.0)  # the initial length of each segment
+        self.init_T = rospy.get_param("~init_T", 2.0)  # the initial T of each segment
 
 
 class GlobalPlanner():
@@ -64,7 +64,8 @@ class GlobalPlanner():
         self.flight_state_sub = rospy.Subscriber('/mavros/state', State, self.flight_state_cb)
         self.occupancy_map_sub = rospy.Subscriber('/projected_map', OccupancyGrid, self.map.occupancy_map_cb)
         self.odom_sub = rospy.Subscriber('/mavros/local_position/odom', Odometry, self.odom_cb)
-        self.target_sub = rospy.Subscriber('/manager/local_target', PoseStamped, self.move, queue_size=1, buff_size=25600)  # when a new target is received, move
+        self.target_sub = rospy.Subscriber('/manager/local_target', PoseStamped, self.move, queue_size=1,
+                                           buff_size=25600)  # when a new target is received, move
 
         # Publishers
         self.local_pos_cmd_pub = rospy.Publisher("/mavros/setpoint_raw/local", PositionTarget, queue_size=10)
@@ -126,7 +127,7 @@ class GlobalPlanner():
         self.traj_track()
         self.visualize_des_wpts()
         self.visualize_des_path()
-        # self.plot_state_curve()
+        self.plot_state_curve()
 
     def traj_plan(self, target_state):
         rospy.loginfo("Trajectory planning...")
@@ -154,7 +155,7 @@ class GlobalPlanner():
         rospy.loginfo("Trajectory executing...")
         self.fsm_trigger.data = "start_tracking"
         self.fsm_trigger_pub.publish(self.fsm_trigger)
-        
+
         self.des_state, self.traj_time, hz = self.planner.get_full_state_cmd()
         self.des_state_index = 0
         self.start_time = rospy.get_time()
