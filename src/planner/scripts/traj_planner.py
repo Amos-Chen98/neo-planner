@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-02-28 17:09:10
+LastEditTime: 2023-02-28 17:34:56
 '''
 import math
 import pprint
@@ -19,6 +19,7 @@ class DefaultConfig():
         self.weights = [1.0, 1.0, 0.001, 10000]  # the weights of different costs: [energy, time, feasibility, collision]
         self.init_seg_len = 2.0  # the initial length of each segment
         self.init_T = 2.0  # the initial T of each segment
+
 
 class MinJerkPlanner():
     '''
@@ -269,57 +270,13 @@ class MinJerkPlanner():
     def add_time_grad_CT(self):
         self.grad_T += self.weights[1] * np.ones(self.M)
 
-    def add_feasibility_cost(self):
+    def add_sampled_cost(self):
         '''
-        get dynamic feasibility cost according to self.coeffs and self.ts
-        refer to eq (6) in Decentralized...
+        get dynamic feasibility cost and collision cost according to self.coeffs and self.ts
+        feasibility: refer to eq (6) in Decentralized...
+        collision: refer to eq (17)-(18) in distributed...
         '''
 
-        for i in range(self.M):  # for every piece
-            c = self.coeffs[2*self.s*i:2*self.s*(i+1), :]
-            sample_num = int(self.ts[i]/self.delta_t)
-
-            for j in range(sample_num):  # for every time slot within the i-th piece
-                beta = self.beta_full[j]
-                vel = np.dot(c.T, beta[1])
-                omg = 0.5 if j in [0, sample_num-1] else 1
-
-                violate_vel = sum(vel**2) - self.v_max**2
-
-                if violate_vel > 0.0:
-                    self.costs[2] += omg*self.delta_t*violate_vel**3
-
-    def add_feasibility_grad_CT(self):
-        '''
-        get dynamic feasibility grad according to self.coeffs and self.ts
-        stores self.grad_C and self.grad_T
-        refer to eq (6-16) in Decentralized...
-        '''
-        for i in range(self.M):  # for every piece
-            c = self.coeffs[2*self.s*i:2*self.s*(i+1), :]
-            sample_num = int(self.ts[i]/self.delta_t)
-
-            for j in range(sample_num):  # for every time slot within the i-th piece
-                beta = self.beta_full[j]
-                vel = np.dot(c.T, beta[1])
-                omg = 0.5 if j in [0, sample_num-1] else 1
-
-                violate_vel = sum(vel**2) - self.v_max**2
-                # print("violate_vel:%f" % violate_vel)
-
-                if violate_vel > 0.0:
-                    grad_v2c = 2 * np.dot(np.array([beta[1]]).T, np.array([vel]))  # col * row
-                    grad_v2t = 2 * (np.array([beta[2]]) @ c @ np.array([vel]).T).item()
-                    grad_K2v = 3 * self.delta_t * omg * violate_vel**2
-
-                    self.grad_C[2*self.s*i: 2*self.s * (i+1), :] += self.weights[2] * grad_K2v * grad_v2c
-                    self.grad_T[i] += self.weights[2] * (omg*violate_vel**3/sample_num + grad_K2v * grad_v2t * j/sample_num)
-
-    def add_obstacle_cost(self):
-        '''
-        get obstacle cost according to self.coeffs and self.ts
-        refer to eq (17)-(18) in distributed...
-        '''
         for i in range(self.M):  # for every piece
             c = self.coeffs[2*self.s*i:2*self.s*(i+1), :]
             sample_num = int(self.ts[i]/self.delta_t)
@@ -327,8 +284,16 @@ class MinJerkPlanner():
             for j in range(sample_num):  # for every time slot within the i-th piece
                 beta = self.beta_full[j]
                 pos = np.dot(c.T, beta[0])
+                vel = np.dot(c.T, beta[1])
                 omg = 0.5 if j in [0, sample_num-1] else 1
 
+                # Feasibility
+                violate_vel = sum(vel**2) - self.v_max**2
+
+                if violate_vel > 0.0:
+                    self.costs[2] += omg*self.delta_t*violate_vel**3
+
+                # Collision
                 pos_projected = pos[:2]
                 edt_dis = self.map.get_edt_dis(pos_projected)
                 violate_dis = self.safe_dis - edt_dis
@@ -337,11 +302,12 @@ class MinJerkPlanner():
                     # print("Collision at pos: ", pos_projected)
                     self.costs[3] += omg*self.delta_t*violate_dis**3
 
-    def add_obstacle_grad_CT(self):
+    def add_sampled_grad_CT(self):
         '''
-        get obstacle grad according to self.coeffs and self.ts
+        get dynamic feasibility grad and collision grad according to self.coeffs and self.ts
         stores self.grad_C and self.grad_T
-        refer to eq (17)-(22) in Decentralized...
+        feasibility: refer to eq (6-16) in Decentralized...
+        collision: refer to eq (17)-(22) in Decentralized...
         '''
         for i in range(self.M):  # for every piece
             c = self.coeffs[2*self.s*i:2*self.s*(i+1), :]
@@ -353,6 +319,19 @@ class MinJerkPlanner():
                 vel = np.dot(c.T, beta[1])
                 omg = 0.5 if j in [0, sample_num-1] else 1
 
+                # Feasibility
+                violate_vel = sum(vel**2) - self.v_max**2
+                # print("violate_vel:%f" % violate_vel)
+
+                if violate_vel > 0.0:
+                    grad_v2c = 2 * np.dot(np.array([beta[1]]).T, np.array([vel]))  # col * row
+                    grad_v2t = 2 * (np.array([beta[2]]) @ c @ np.array([vel]).T).item()
+                    grad_K2v = 3 * self.delta_t * omg * violate_vel**2
+
+                    self.grad_C[2*self.s*i: 2*self.s * (i+1), :] += self.weights[2] * grad_K2v * grad_v2c
+                    self.grad_T[i] += self.weights[2] * (omg*violate_vel**3/sample_num + grad_K2v * grad_v2t * j/sample_num)
+
+                # Colllision
                 pos_projected = pos[:2]
                 edt_dis = self.map.get_edt_dis(pos_projected)
                 violate_dis = self.safe_dis - edt_dis
@@ -450,8 +429,7 @@ class MinJerkPlanner():
         self.reset_cost()
         self.add_energy_cost()
         self.add_time_cost()
-        self.add_feasibility_cost()
-        self.add_obstacle_cost()
+        self.add_sampled_cost()
 
         # print("-----------Current weighted cost------------")
         # print("Energy cost: %f, Time cost: %f, Feasibility cost: %f, Collision cost: %f" %
@@ -474,8 +452,7 @@ class MinJerkPlanner():
         self.reset_grad_CT()  # init self.cost, self.grad_c, and self.grad_T as zero
         self.add_energy_grad_CT()
         self.add_time_grad_CT()
-        self.add_feasibility_grad_CT()
-        self.add_obstacle_grad_CT()
+        self.add_sampled_grad_CT()
 
         grad_q, grad_tau = self.propagate_grad_q_tau()  # prop grad to q and tau
 
