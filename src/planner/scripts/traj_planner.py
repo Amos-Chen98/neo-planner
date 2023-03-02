@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-02-28 17:34:56
+LastEditTime: 2023-03-01 11:39:58
 '''
 import math
 import pprint
@@ -45,7 +45,17 @@ class MinJerkPlanner():
         self.init_seg_len = config.init_seg_len
         self.init_T = config.init_T
 
-    def plan(self, map, head_state, tail_state, int_wpts=None):
+    # def plan_top(self, map, head_state, tail_state, int_wpts=None, seed=0):
+    #     while True:
+    #         try:
+    #             self.plan(map, head_state, tail_state, int_wpts, seed)
+    #             break
+    #         except:
+    #             print("Planning failed, retrying...")
+    #             seed += 1
+
+
+    def plan(self, map, head_state, tail_state, int_wpts=None, seed=0):
         '''
         Input:
         map: map object
@@ -65,7 +75,7 @@ class MinJerkPlanner():
         self.map = map
 
         if int_wpts is None:
-            int_wpts = self.get_int_wpts(head_state, tail_state)
+            int_wpts = self.get_int_wpts(head_state, tail_state, seed)
 
         ts = self.init_T * np.ones((len(int_wpts)+1,))  # allocate 1s for each piece initially
         ts[0] *= 1.5
@@ -96,7 +106,7 @@ class MinJerkPlanner():
                                                'maxcor': 10,
                                                'maxfun': 15000,
                                                'maxiter': 15000,
-                                               'iprint': 1,
+                                               'iprint': 0,
                                                'maxls': 20})
 
         time_end = time.time()
@@ -113,19 +123,22 @@ class MinJerkPlanner():
         pprint.pprint(self.ts)
 
         print("-----------------------Weighted cost--------------------------------------")
-        weighted_cost = self.costs * self.weights
+        self.weighted_cost = self.costs * self.weights
         print("Energy cost: %f, Time cost: %f, Feasibility cost: %f, Collision cost: %f" %
-              (weighted_cost[0], weighted_cost[1], weighted_cost[2], weighted_cost[3]))
+              (self.weighted_cost[0], self.weighted_cost[1], self.weighted_cost[2], self.weighted_cost[3]))
 
         print("Otimization running time: %f" % (time_end - time_start))
 
-    def get_int_wpts(self, head_state, tail_state):
+    def get_int_wpts(self, head_state, tail_state, seed):
         start_pos = head_state[0]
         target_pos = tail_state[0]
         straight_length = np.linalg.norm(target_pos - start_pos)
         int_wpts_num = max(int(straight_length/self.init_seg_len - 1), 1)  # 2m for each intermediate waypoint
         step_length = (tail_state[0] - head_state[0]) / (int_wpts_num + 1)
         int_wpts = np.linspace(start_pos + step_length, target_pos, int_wpts_num, endpoint=False)
+        if seed != 0:
+            int_wpts += np.random.normal(0, 0.5, int_wpts.shape)
+
         return int_wpts
 
     def get_beta_full(self):
@@ -422,8 +435,9 @@ class MinJerkPlanner():
         self.tau = x[self.D*(self.M - 1):]
         self.ts = self.map_tau2T(self.tau)
 
-        # print("-----------------Current ts-----------------")
-        # print(self.ts)
+        # print("-----------------Current ts and tau-----------------")
+        # print("ts: ", self.ts)
+        # print("tau: ", self.tau)
 
         self.get_coeffs(self.int_wpts, self.ts)  # get A and coeffs by input
         self.reset_cost()

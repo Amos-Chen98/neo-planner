@@ -164,7 +164,6 @@ catkin_install_python(PROGRAMS
     scripts/draft.py
     scripts/esdf_server.py
     scripts/esdf_server_node.py
-    scripts/global_planner.py
     scripts/global_planner_node.py
     scripts/traj_planner.py
     scripts/visualizer.py
