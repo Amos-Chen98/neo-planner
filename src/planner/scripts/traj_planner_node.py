@@ -1,27 +1,27 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-02 20:54:22
+LastEditTime: 2023-03-02 21:31:14
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from std_msgs.msg import String
-from mavros_msgs.srv import SetMode, SetModeRequest
-from esdf import ESDF
-from nav_msgs.msg import Path, OccupancyGrid
-import time
-from pyquaternion import Quaternion
-from traj_planner import MinJerkPlanner
-from mavros_msgs.srv import SetMode
-from mavros_msgs.msg import State, PositionTarget
-from geometry_msgs.msg import PoseStamped
-import numpy as np
-import rospy
-from visualization_msgs.msg import MarkerArray
-from visualizer import Visualizer
-from nav_msgs.msg import Odometry
 from matplotlib import pyplot as plt
+from nav_msgs.msg import Odometry
+from visualizer import Visualizer
+from visualization_msgs.msg import MarkerArray
+import rospy
+import numpy as np
+from geometry_msgs.msg import PoseStamped
+from mavros_msgs.msg import State, PositionTarget
+from mavros_msgs.srv import SetMode
+from traj_planner import MinJerkPlanner
+from pyquaternion import Quaternion
+import time
+from nav_msgs.msg import Path, OccupancyGrid
+from esdf import ESDF
+from mavros_msgs.srv import SetMode, SetModeRequest
+from std_msgs.msg import String
 
 
 class Config():
@@ -36,8 +36,8 @@ class Config():
         self.init_T = rospy.get_param("~init_T", 2.0)  # the initial T of each segment
 
 
-class GlobalPlanner():
-    def __init__(self, node_name="global_planner"):
+class TrajPlanner():
+    def __init__(self, node_name="traj_planner"):
         # Node
         rospy.init_node(node_name, anonymous=False)
 
@@ -205,28 +205,20 @@ class GlobalPlanner():
         '''
         Visualize the desired waypoints as markers
         '''
-        # time_start = time.time()
         pos_array = self.planner.int_wpts  # shape: (2,n)
         pos_array = np.vstack((pos_array, self.des_pos_z * np.ones([1, pos_array.shape[1]]))).T
         des_wpts = self.visualizer.get_marker_array(pos_array, 2, 0.4)
         self.des_wpts_pub.publish(des_wpts)
-        # rospy.loginfo("Desired waypoints published!")
-        # time_end = time.time()
-        # print("time cost of visualize_des_wpts: ", time_end - time_start)
 
     def visualize_des_path(self):
         '''
         Visualize the desired path, where high-speed pieces and low-speed pieces are colored differently
         '''
-        # time_start = time.time()
         pos_array = self.planner.get_pos_array()
         pos_array = np.hstack((pos_array, self.des_pos_z * np.ones([len(pos_array), 1])))
         vel_array = np.linalg.norm(self.planner.get_vel_array(), axis=1)  # shape: (n,)
         des_path = self.visualizer.get_path(pos_array, vel_array)
         self.des_path_pub.publish(des_path)
-        # rospy.loginfo("Desired path published!")
-        # time_end = time.time()
-        # print("time cost of visualize_des_path: ", time_end - time_start)
 
     def plot_state_curve(self):
         # delete all existing plots
@@ -266,9 +258,9 @@ class GlobalPlanner():
 
         plt.show()
 
+
 if __name__ == "__main__":
-    
-    global_planner = GlobalPlanner()
+
+    traj_planner = TrajPlanner()
 
     rospy.spin()
-

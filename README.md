@@ -153,7 +153,7 @@ Step2: use the `take off` command in QGC to make the drone take off.
 Step3: launch global planner:
 
 ```
-rosrun planner global_planner_node.py
+rosrun planner traj_planner_node.py
 ```
 
 Step4: Set 2D Nav Goal in RViz, and you will see the drone perform trajectory planning and tracking.

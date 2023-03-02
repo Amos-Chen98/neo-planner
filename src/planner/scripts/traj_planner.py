@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-02 21:07:39
+LastEditTime: 2023-03-02 21:20:50
 '''
 import math
 import pprint
@@ -74,7 +74,7 @@ class MinJerkPlanner():
                 self.plan_once()
                 break
             except Exception as ex:
-                print("Re-planning for %s" % ex)
+                print(f"Re-planning for {ex}")
                 seed += 1
                 self.set_interm_params(head_state, tail_state, seed)
 
