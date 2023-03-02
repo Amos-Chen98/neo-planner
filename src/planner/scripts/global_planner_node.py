@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-02 11:11:39
+LastEditTime: 2023-03-02 11:55:50
 '''
 import os
 import sys
@@ -134,11 +134,6 @@ class GlobalPlanner():
         drone_state_2d = self.drone_state[:, 0:2]
         self.des_pos_z = self.drone_state[0][2]  # use current height
         self.planner.plan(self.map, drone_state_2d, target_state)  # 2D planning, z is fixed
-        collision_cost = self.planner.weighted_cost[3]
-        while collision_cost > 5:
-            rospy.loginfo("Collision detected, re-planning...")
-            self.planner.plan(self.map, drone_state_2d, target_state, seed=1)
-            collision_cost = self.planner.weighted_cost[3]
         rospy.loginfo("Trajectory planning finished!")
 
     def warm_up(self):

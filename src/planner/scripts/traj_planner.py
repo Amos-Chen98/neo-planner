@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-01 11:39:58
+LastEditTime: 2023-03-02 12:11:56
 '''
 import math
 import pprint
@@ -54,7 +54,6 @@ class MinJerkPlanner():
     #             print("Planning failed, retrying...")
     #             seed += 1
 
-
     def plan(self, map, head_state, tail_state, int_wpts=None, seed=0):
         '''
         Input:
@@ -77,24 +76,49 @@ class MinJerkPlanner():
         if int_wpts is None:
             int_wpts = self.get_int_wpts(head_state, tail_state, seed)
 
-        ts = self.init_T * np.ones((len(int_wpts)+1,))  # allocate 1s for each piece initially
+        ts = self.init_T * np.ones((len(int_wpts)+1,))  # allocate time for each piece
         ts[0] *= 1.5
         ts[-1] *= 1.5
 
         self.D = head_state.shape[1]
         self.M = ts.shape[0]
+
         self.head_state = np.zeros((self.s, self.D))
         self.tail_state = np.zeros((self.s, self.D))
         for i in range(self.s):
             self.head_state[i] = head_state[i]
             self.tail_state[i] = tail_state[i]
+
         self.int_wpts = int_wpts.T  # 'int' for 'intermediate', make it (D,M-1) array
         self.ts = ts
         self.tau = self.map_T2tau(ts)  # agent for ts
+        
+        while True:
+            try:
+                self.plan_once()
+                break
+            except:
+                print("Planning failed, retrying...")
+                seed += 1
 
+        self.get_coeffs(self.int_wpts, self.ts)
+
+        print("-----------------------Final intermediate waypoints-----------------------")
+        pprint.pprint(self.int_wpts.T)
+        print("-----------------------Final T--------------------------------------------")
+        pprint.pprint(self.ts)
+
+        print("-----------------------Weighted cost--------------------------------------")
+        self.weighted_cost = self.costs * self.weights
+        print("Energy cost: %f, Time cost: %f, Feasibility cost: %f, Collision cost: %f" %
+              (self.weighted_cost[0], self.weighted_cost[1], self.weighted_cost[2], self.weighted_cost[3]))
+
+    def plan_once(self):
+        '''
+        Plan once using current wtps and ts profile
+        '''
         x0 = np.concatenate((np.reshape(self.int_wpts, (self.D*(self.M - 1),)), self.tau), axis=0)
 
-        time_start = time.time()
         res = scipy.optimize.minimize(self.get_cost,
                                       x0,
                                       method='L-BFGS-B',
@@ -109,25 +133,13 @@ class MinJerkPlanner():
                                                'iprint': 0,
                                                'maxls': 20})
 
-        time_end = time.time()
-
         self.int_wpts = np.reshape(res.x[:self.D*(self.M - 1)], (self.D, self.M - 1))
         self.tau = res.x[self.D*(self.M - 1):]
         self.ts = self.map_tau2T(self.tau)
-
-        self.get_coeffs(self.int_wpts, self.ts)
-
-        print("-----------------------Final intermediate waypoints-----------------------")
-        pprint.pprint(self.int_wpts.T)
-        print("-----------------------Final T--------------------------------------------")
-        pprint.pprint(self.ts)
-
-        print("-----------------------Weighted cost--------------------------------------")
         self.weighted_cost = self.costs * self.weights
-        print("Energy cost: %f, Time cost: %f, Feasibility cost: %f, Collision cost: %f" %
-              (self.weighted_cost[0], self.weighted_cost[1], self.weighted_cost[2], self.weighted_cost[3]))
-
-        print("Otimization running time: %f" % (time_end - time_start))
+        collision_cost = self.weighted_cost[3]
+        if collision_cost > 5:
+            raise ValueError("Collision cost too large, planning failed.")
 
     def get_int_wpts(self, head_state, tail_state, seed):
         start_pos = head_state[0]
