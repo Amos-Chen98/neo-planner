@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-02 20:53:27
+LastEditTime: 2023-03-02 21:07:39
 '''
 import math
 import pprint
@@ -73,8 +73,8 @@ class MinJerkPlanner():
             try:
                 self.plan_once()
                 break
-            except:
-                print("Planning failed, retrying...")
+            except Exception as ex:
+                print("Re-planning for %s" % ex)
                 seed += 1
                 self.set_interm_params(head_state, tail_state, seed)
 
@@ -129,7 +129,7 @@ class MinJerkPlanner():
         self.weighted_cost = self.costs * self.weights
         collision_cost = self.weighted_cost[3]
         if collision_cost > 5:
-            raise ValueError("Collision cost too large, planning failed.")
+            raise ValueError("collision cost too large")
 
     def print_results(self):
         print("-----------------------Final intermediate waypoints-----------------------")
