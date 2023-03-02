@@ -39,6 +39,6 @@
     </node>
 
     <!-- get ESDF map -->
-    <node pkg="planner" type="esdf_server_node.py" name="esdf_server_node" output="screen" />
+    <node pkg="planner" type="esdf_vis_node.py" name="esdf_vis" output="screen" />
 
 </launch>

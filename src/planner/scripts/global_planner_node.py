@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-02 10:23:12
+LastEditTime: 2023-03-02 11:11:39
 '''
 import os
 import sys
@@ -8,7 +8,7 @@ current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
 from std_msgs.msg import String
 from mavros_msgs.srv import SetMode, SetModeRequest
-from ESDF import ESDF
+from esdf import ESDF
 from nav_msgs.msg import Path, OccupancyGrid
 import time
 from pyquaternion import Quaternion

@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-02-12 23:24:02
+LastEditTime: 2023-03-02 11:15:28
 '''
 
 import rospy
@@ -10,32 +10,10 @@ from pyquaternion import Quaternion
 from std_msgs.msg import ColorRGBA
 from tf.transformations import quaternion_from_euler
 from visualization_msgs.msg import Marker, MarkerArray
-from nav_msgs.msg import Path, OccupancyGrid
-from geometry_msgs.msg import PoseStamped, TwistStamped, Point, Vector3
+from geometry_msgs.msg import Point
 
 
 class Visualizer():
-    def __init__(self):
-        pass
-
-    # def get_path(self,pos_array):
-    #     '''
-    #     Get path from pos array
-    #     input:
-    #     pos_array: np.ndarray of (n,3)
-    #     output: path: nav_msgs.msg.Path
-    #     '''
-    #     des_path = Path()
-    #     des_path.header.frame_id = "map"
-    #     for i in range(len(pos_array)):
-    #         pose_stamped = PoseStamped()
-    #         pose_stamped.pose.position.x = pos_array[i][0]
-    #         pose_stamped.pose.position.y = pos_array[i][1]
-    #         pose_stamped.pose.position.z = pos_array[i][2]
-
-    #         des_path.poses.append(pose_stamped)
-
-    #     return des_path
 
     def get_path(self, pos_array, vel_array):
         path = MarkerArray()
@@ -98,7 +76,7 @@ class Visualizer():
 
             color = cm.jet(int(i*1.0/len(pos_array)*256))
             marker.color = ColorRGBA(color[0], color[1], color[2], color[3])
-            
+
             if marker_typeID == 10:
                 marker.mesh_resource = "package://simulator/models/meshes/iris.stl"
                 # marker.mesh_resource = "package://simulator/models/meshes/quad.stl"

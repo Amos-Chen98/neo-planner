@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-02-11 11:02:16
+LastEditTime: 2023-03-02 11:05:22
 '''
 
 import rospy
@@ -9,18 +9,19 @@ from nav_msgs.msg import OccupancyGrid
 from scipy import ndimage
 
 
-class ESDF():
-    def __init__(self, node_name="esdf_server"):
+class ESDFVis():
+
+    def __init__(self, node_name="esdf_vis"):
         # Node
         rospy.init_node(node_name, anonymous=False)
 
         # Subscriber
-        self.occupancy_map_sub = rospy.Subscriber('/projected_map', OccupancyGrid, self.occupancy_map_cb)
+        self.occupancy_map_sub = rospy.Subscriber('/projected_map', OccupancyGrid, self.show_esdf)
 
         # Publisher
         self.esdf_map_pub = rospy.Publisher('/esdf_map', OccupancyGrid, queue_size=10)
 
-    def occupancy_map_cb(self, map):
+    def show_esdf(self, map):
         '''
         Get the occupancy map and convert it to the ESDF map
         visualize the ESDF map in RViz
@@ -40,10 +41,6 @@ class ESDF():
         # get the ESDF map, in distance_transform_edt(), 0 is treated as occupied, so use 1-occupancy_2d
         self.esdf_map = ndimage.distance_transform_edt(1 - self.occupancy_2d) * self.map_resolution  # size: map_height * map_width
 
-        # get the ESDF gradient map
-        # grad_x = grad along x axis in map = grad along col in matrix, so y (row) first
-        self.esdf_grad_y, self.esdf_grad_x = np.gradient(self.esdf_map)
-
         # normalize the esdf_map to 0-100 for visualization, no acctual meaning
         esdf_map_show = 100 - (self.esdf_map - np.min(self.esdf_map)) / (np.max(self.esdf_map) - np.min(self.esdf_map)) * 100
 
@@ -57,38 +54,8 @@ class ESDF():
         esdf_map_msg.data = tuple(int(x) for x in esdf_map_show.reshape(-1))  # convert to 1D array
         self.esdf_map_pub.publish(esdf_map_msg)
 
-    def is_occuiped(self, pos):
-        '''
-        input: x, y in map frame
-        return True if the cell is occupied
-        '''
-        x = pos[0]
-        y = pos[1]
-        # get the real index of the cell
-        row_index = int((y - self.map_origin.y) / self.map_resolution)  # row index = y in map frame
-        col_index = int((x - self.map_origin.x) / self.map_resolution)  # column index = x in map frame
-        return self.occupancy_2d[row_index, col_index]
 
-    def get_edt_dis(self, pos):
-        '''
-        input: x, y in map frame
-        return the distance to the nearest obstacle
-        '''
-        x = pos[0]
-        y = pos[1]
-        # get the real index of the cell
-        row_index = int((y - self.map_origin.y) / self.map_resolution)  # row index = y in map frame
-        col_index = int((x - self.map_origin.x) / self.map_resolution)  # column index = x in map frame
-        return self.esdf_map[row_index, col_index]
+if __name__ == "__main__":
+    esdf_vis = ESDFVis()
 
-    def get_edt_grad(self, pos):
-        '''
-        input: x, y in map frame
-        return the gradient of the distance to the nearest obstacle
-        '''
-        x = pos[0]
-        y = pos[1]
-        # get the real index of the cell
-        row_index = int((y - self.map_origin.y) / self.map_resolution)
-        col_index = int((x - self.map_origin.x) / self.map_resolution)
-        return [self.esdf_grad_x[row_index, col_index], self.esdf_grad_y[row_index, col_index]]
+    rospy.spin()
