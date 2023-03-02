@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-02 12:11:56
+LastEditTime: 2023-03-02 20:53:27
 '''
 import math
 import pprint
@@ -45,16 +45,7 @@ class MinJerkPlanner():
         self.init_seg_len = config.init_seg_len
         self.init_T = config.init_T
 
-    # def plan_top(self, map, head_state, tail_state, int_wpts=None, seed=0):
-    #     while True:
-    #         try:
-    #             self.plan(map, head_state, tail_state, int_wpts, seed)
-    #             break
-    #         except:
-    #             print("Planning failed, retrying...")
-    #             seed += 1
-
-    def plan(self, map, head_state, tail_state, int_wpts=None, seed=0):
+    def plan(self, map, head_state, tail_state, seed=0):
         '''
         Input:
         map: map object
@@ -66,33 +57,18 @@ class MinJerkPlanner():
             pos(s=0), vel(s=1), and acc(s=2) in head_state and tail_state both.
             If you don't fill up the bounded conditions, the default will be zero.
 
-        int_wpts (Optional): (M-1,D) array, where M is the piece num of trajectory
-            Two models of planning:
-            1. left int_wpts as None, then the trajectory will be initialized as a straight line
-            2. input customed waypoints, then the planner will use the input waypoints
+        Stores the results in self.int_wpts, self.ts, self.tau, self.coeffs
         '''
         self.map = map
-
-        if int_wpts is None:
-            int_wpts = self.get_int_wpts(head_state, tail_state, seed)
-
-        ts = self.init_T * np.ones((len(int_wpts)+1,))  # allocate time for each piece
-        ts[0] *= 1.5
-        ts[-1] *= 1.5
-
         self.D = head_state.shape[1]
-        self.M = ts.shape[0]
-
         self.head_state = np.zeros((self.s, self.D))
         self.tail_state = np.zeros((self.s, self.D))
         for i in range(self.s):
             self.head_state[i] = head_state[i]
             self.tail_state[i] = tail_state[i]
 
-        self.int_wpts = int_wpts.T  # 'int' for 'intermediate', make it (D,M-1) array
-        self.ts = ts
-        self.tau = self.map_T2tau(ts)  # agent for ts
-        
+        self.set_interm_params(head_state, tail_state, seed)
+
         while True:
             try:
                 self.plan_once()
@@ -100,22 +76,36 @@ class MinJerkPlanner():
             except:
                 print("Planning failed, retrying...")
                 seed += 1
+                self.set_interm_params(head_state, tail_state, seed)
 
         self.get_coeffs(self.int_wpts, self.ts)
+        # self.print_results()
 
-        print("-----------------------Final intermediate waypoints-----------------------")
-        pprint.pprint(self.int_wpts.T)
-        print("-----------------------Final T--------------------------------------------")
-        pprint.pprint(self.ts)
+    def set_interm_params(self, head_state, tail_state, seed):
+        int_wpts = self.get_int_wpts(head_state, tail_state, seed)
+        ts = self.init_T * np.ones((len(int_wpts)+1,))  # allocate time for each piece
+        ts[0] *= 1.5
+        ts[-1] *= 1.5
+        self.M = ts.shape[0]
+        self.int_wpts = int_wpts.T  # 'int' for 'intermediate', make it (D,M-1) array
+        self.ts = ts
+        self.tau = self.map_T2tau(ts)  # agent for ts
 
-        print("-----------------------Weighted cost--------------------------------------")
-        self.weighted_cost = self.costs * self.weights
-        print("Energy cost: %f, Time cost: %f, Feasibility cost: %f, Collision cost: %f" %
-              (self.weighted_cost[0], self.weighted_cost[1], self.weighted_cost[2], self.weighted_cost[3]))
+    def get_int_wpts(self, head_state, tail_state, seed):
+        start_pos = head_state[0]
+        target_pos = tail_state[0]
+        straight_length = np.linalg.norm(target_pos - start_pos)
+        int_wpts_num = max(int(straight_length/self.init_seg_len - 1), 1)  # 2m for each intermediate waypoint
+        step_length = (tail_state[0] - head_state[0]) / (int_wpts_num + 1)
+        int_wpts = np.linspace(start_pos + step_length, target_pos, int_wpts_num, endpoint=False)
+        if seed != 0:
+            int_wpts += np.random.normal(0, 0.5, int_wpts.shape)
+
+        return int_wpts
 
     def plan_once(self):
         '''
-        Plan once using current wtps and ts profile
+        Plan once using current wtps and ts (tau) settings
         '''
         x0 = np.concatenate((np.reshape(self.int_wpts, (self.D*(self.M - 1),)), self.tau), axis=0)
 
@@ -141,17 +131,16 @@ class MinJerkPlanner():
         if collision_cost > 5:
             raise ValueError("Collision cost too large, planning failed.")
 
-    def get_int_wpts(self, head_state, tail_state, seed):
-        start_pos = head_state[0]
-        target_pos = tail_state[0]
-        straight_length = np.linalg.norm(target_pos - start_pos)
-        int_wpts_num = max(int(straight_length/self.init_seg_len - 1), 1)  # 2m for each intermediate waypoint
-        step_length = (tail_state[0] - head_state[0]) / (int_wpts_num + 1)
-        int_wpts = np.linspace(start_pos + step_length, target_pos, int_wpts_num, endpoint=False)
-        if seed != 0:
-            int_wpts += np.random.normal(0, 0.5, int_wpts.shape)
+    def print_results(self):
+        print("-----------------------Final intermediate waypoints-----------------------")
+        pprint.pprint(self.int_wpts.T)
+        print("-----------------------Final T--------------------------------------------")
+        pprint.pprint(self.ts)
 
-        return int_wpts
+        print("-----------------------Weighted cost--------------------------------------")
+        self.weighted_cost = self.costs * self.weights
+        print("Energy cost: %f, Time cost: %f, Feasibility cost: %f, Collision cost: %f" %
+              (self.weighted_cost[0], self.weighted_cost[1], self.weighted_cost[2], self.weighted_cost[3]))
 
     def get_beta_full(self):
         t_array = np.arange(0, self.T_max, self.delta_t)

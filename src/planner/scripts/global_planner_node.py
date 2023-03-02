@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-02 11:55:50
+LastEditTime: 2023-03-02 20:54:22
 '''
 import os
 import sys
@@ -133,8 +133,10 @@ class GlobalPlanner():
         rospy.loginfo("Trajectory planning...")
         drone_state_2d = self.drone_state[:, 0:2]
         self.des_pos_z = self.drone_state[0][2]  # use current height
+        time_start = time.time()
         self.planner.plan(self.map, drone_state_2d, target_state)  # 2D planning, z is fixed
-        rospy.loginfo("Trajectory planning finished!")
+        time_end = time.time()
+        rospy.loginfo("Planning finished! Time cost: %f", time_end - time_start)
 
     def warm_up(self):
         # Send a few setpoints before switching to OFFBOARD mode
