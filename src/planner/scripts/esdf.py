@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-02 21:35:13
+LastEditTime: 2023-03-03 10:55:21
 '''
 
 import numpy as np
@@ -49,6 +49,9 @@ class ESDF():
             return False
         else:
             return self.occupancy_2d[row_index, col_index]
+        
+    def has_collision(self,pos):
+        return self.get_edt_dis(pos) < 0.9
 
     def get_edt_dis(self, pos):
         '''

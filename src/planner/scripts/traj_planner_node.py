@@ -1,12 +1,11 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-03 10:32:37
+LastEditTime: 2023-03-03 20:39:56
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from std_msgs.msg import String
 from mavros_msgs.srv import SetMode, SetModeRequest
 from esdf import ESDF
 from nav_msgs.msg import Path, OccupancyGrid
@@ -22,6 +21,7 @@ from visualization_msgs.msg import MarkerArray
 from visualizer import Visualizer
 from nav_msgs.msg import Odometry
 from matplotlib import pyplot as plt
+from std_msgs.msg import String, Bool
 
 
 class Config():
@@ -42,7 +42,6 @@ class TrajPlanner():
         rospy.init_node(node_name, anonymous=False)
 
         # Members
-        self.octomap = None
         self.odom = None
         self.drone_state = np.zeros((3, 3))  # p,v,a in inertia frame
         planner_config = Config()
@@ -55,6 +54,9 @@ class TrajPlanner():
         self.map = ESDF()
         self.visualizer = Visualizer()
         self.fsm_trigger = String()
+        self.target_state = None
+        self.target_reach_threshold = 0.2
+        self.tracking_flag = False
 
         # Services
         rospy.wait_for_service("/mavros/set_mode")
@@ -65,6 +67,7 @@ class TrajPlanner():
         self.occupancy_map_sub = rospy.Subscriber('/projected_map', OccupancyGrid, self.map.occupancy_map_cb)
         self.odom_sub = rospy.Subscriber('/mavros/local_position/odom', Odometry, self.odom_cb)
         self.target_sub = rospy.Subscriber('/manager/local_target', PositionTarget, self.move, queue_size=1)  # when a new target is received, move
+        self.stop_cmd_sub = rospy.Subscriber("/manager/stop_cmd", Bool, self.stop, queue_size=1)
 
         # Publishers
         self.local_pos_cmd_pub = rospy.Publisher("/mavros/setpoint_raw/local", PositionTarget, queue_size=10)
@@ -74,6 +77,10 @@ class TrajPlanner():
         self.fsm_trigger_pub = rospy.Publisher('/manager/trigger', String, queue_size=10)
 
         rospy.loginfo("Global planner initialized")
+
+    def stop(self, data):
+        rospy.loginfo("Stop command received")
+        self.tracking_cmd_timer.shutdown()
 
     def flight_state_cb(self, data):
         self.flight_state = data
@@ -103,37 +110,36 @@ class TrajPlanner():
         self.drone_state[0] = global_pos
         self.drone_state[1] = global_vel
 
+        if (self.tracking_flag == True and np.linalg.norm(self.drone_state[0, :2] - self.target_state[0]) < self.target_reach_threshold):
+            self.tracking_cmd_timer.shutdown()
+            self.tracking_flag = False
+            rospy.loginfo("Trajectory execution finished!")
+            self.fsm_trigger.data = "reach_target"
+            self.fsm_trigger_pub.publish(self.fsm_trigger)
+
     def move(self, target):
         print(" ")
-        rospy.loginfo("Target received: x = %f, y = %f", target.position.x, target.position.y)
-        target_state = np.array([[target.position.x, target.position.y],
-                                 [target.velocity.x, target.velocity.y],
-                                 [target.acceleration_or_force.x, target.acceleration_or_force.y]])
-        
+        rospy.loginfo("Target: x = %f, y = %f, vel_x = %f, vel_y = %f",
+                      target.position.x, target.position.y, target.velocity.x, target.velocity.y)
+        self.target_state = np.array([[target.position.x, target.position.y],
+                                      [target.velocity.x, target.velocity.y],
+                                      [target.acceleration_or_force.x, target.acceleration_or_force.y]])
+
         while not self.ODOM_RECEIVED:
             time.sleep(0.01)
 
-        self.traj_plan(target_state)
-
-        # if not in OFFBOARD mode, switch to OFFBOARD mode
-        if self.flight_state.mode != "OFFBOARD":
-            self.warm_up()
-            set_offb_req = SetModeRequest()
-            set_offb_req.custom_mode = 'OFFBOARD'
-            if (self.set_mode_client.call(set_offb_req).mode_sent == True):
-                rospy.loginfo("OFFBOARD enabled")
-
+        self.traj_plan()
         self.traj_track()
         self.visualize_des_wpts()
         self.visualize_des_path()
-        self.plot_state_curve()
+        # self.plot_state_curve()
 
-    def traj_plan(self, target_state):
+    def traj_plan(self):
         rospy.loginfo("Trajectory planning...")
         drone_state_2d = self.drone_state[:, 0:2]
         self.des_pos_z = self.drone_state[0][2]  # use current height
         time_start = time.time()
-        self.planner.plan(self.map, drone_state_2d, target_state)  # 2D planning, z is fixed
+        self.planner.plan(self.map, drone_state_2d, self.target_state)  # 2D planning, z is fixed
         time_end = time.time()
         rospy.loginfo("Planning finished! Time cost: %f", time_end - time_start)
 
@@ -153,13 +159,21 @@ class TrajPlanner():
         '''
         When triggered, start to publish full state cmd
         '''
+        # if not in OFFBOARD mode, switch to OFFBOARD mode
+        if self.flight_state.mode != "OFFBOARD":
+            self.warm_up()
+            set_offb_req = SetModeRequest()
+            set_offb_req.custom_mode = 'OFFBOARD'
+            if (self.set_mode_client.call(set_offb_req).mode_sent == True):
+                rospy.loginfo("OFFBOARD enabled")
+
         rospy.loginfo("Trajectory executing...")
+        self.tracking_flag = True
         self.fsm_trigger.data = "start_tracking"
         self.fsm_trigger_pub.publish(self.fsm_trigger)
 
         self.des_state, self.traj_time, hz = self.planner.get_full_state_cmd()
         self.des_state_index = 0
-        self.start_time = rospy.get_time()
         self.tracking_cmd_timer = rospy.Timer(rospy.Duration(1/hz), self.tracking_cmd_timer_cb)
 
     def tracking_cmd_timer_cb(self, event):
@@ -182,13 +196,8 @@ class TrajPlanner():
 
         self.local_pos_cmd_pub.publish(self.state_cmd)
 
-        if self.des_state_index == len(self.des_state)-1:
-            self.tracking_cmd_timer.shutdown()
-            rospy.loginfo("Trajectory execution finished!")
-            self.fsm_trigger.data = "reach_target"
-            self.fsm_trigger_pub.publish(self.fsm_trigger)
-
-        self.des_state_index += 1
+        if self.des_state_index < len(self.des_state)-1:
+            self.des_state_index += 1
 
     def visualize_drone_snapshots(self):
         '''
