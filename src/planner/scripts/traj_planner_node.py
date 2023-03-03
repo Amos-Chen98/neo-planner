@@ -1,27 +1,27 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-02 21:31:14
+LastEditTime: 2023-03-03 10:32:37
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from matplotlib import pyplot as plt
-from nav_msgs.msg import Odometry
-from visualizer import Visualizer
-from visualization_msgs.msg import MarkerArray
-import rospy
-import numpy as np
-from geometry_msgs.msg import PoseStamped
-from mavros_msgs.msg import State, PositionTarget
-from mavros_msgs.srv import SetMode
-from traj_planner import MinJerkPlanner
-from pyquaternion import Quaternion
-import time
-from nav_msgs.msg import Path, OccupancyGrid
-from esdf import ESDF
-from mavros_msgs.srv import SetMode, SetModeRequest
 from std_msgs.msg import String
+from mavros_msgs.srv import SetMode, SetModeRequest
+from esdf import ESDF
+from nav_msgs.msg import Path, OccupancyGrid
+import time
+from pyquaternion import Quaternion
+from traj_planner import MinJerkPlanner
+from mavros_msgs.srv import SetMode
+from mavros_msgs.msg import State, PositionTarget
+from geometry_msgs.msg import PoseStamped
+import numpy as np
+import rospy
+from visualization_msgs.msg import MarkerArray
+from visualizer import Visualizer
+from nav_msgs.msg import Odometry
+from matplotlib import pyplot as plt
 
 
 class Config():
@@ -64,8 +64,7 @@ class TrajPlanner():
         self.flight_state_sub = rospy.Subscriber('/mavros/state', State, self.flight_state_cb)
         self.occupancy_map_sub = rospy.Subscriber('/projected_map', OccupancyGrid, self.map.occupancy_map_cb)
         self.odom_sub = rospy.Subscriber('/mavros/local_position/odom', Odometry, self.odom_cb)
-        self.target_sub = rospy.Subscriber('/manager/local_target', PoseStamped, self.move, queue_size=1,
-                                           buff_size=25600)  # when a new target is received, move
+        self.target_sub = rospy.Subscriber('/manager/local_target', PositionTarget, self.move, queue_size=1)  # when a new target is received, move
 
         # Publishers
         self.local_pos_cmd_pub = rospy.Publisher("/mavros/setpoint_raw/local", PositionTarget, queue_size=10)
@@ -106,11 +105,11 @@ class TrajPlanner():
 
     def move(self, target):
         print(" ")
-        rospy.loginfo("Target received: x = %f, y = %f", target.pose.position.x, target.pose.position.y)
-        target_state = np.array([[target.pose.position.x, target.pose.position.y],
-                                 [0, 0],
-                                 [0, 0],
-                                 [0, 0]])  # p,v,a,j in map frame
+        rospy.loginfo("Target received: x = %f, y = %f", target.position.x, target.position.y)
+        target_state = np.array([[target.position.x, target.position.y],
+                                 [target.velocity.x, target.velocity.y],
+                                 [target.acceleration_or_force.x, target.acceleration_or_force.y]])
+        
         while not self.ODOM_RECEIVED:
             time.sleep(0.01)
 

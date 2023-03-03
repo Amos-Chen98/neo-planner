@@ -51,7 +51,7 @@ class Manager():
 
         # Publishers
         self.local_pos_cmd_pub = rospy.Publisher("/mavros/setpoint_raw/local", PositionTarget, queue_size=10)
-        self.local_target_pub = rospy.Publisher("/manager/local_target", PoseStamped, queue_size=1)
+        self.local_target_pub = rospy.Publisher("/manager/local_target", PositionTarget, queue_size=1)
 
         # FSM
         self.fsm = GraphMachine(model=self, states=['INIT', 'TRACKING', 'HOVER', 'PLANNING'], initial='INIT')
@@ -63,6 +63,7 @@ class Manager():
         self.fsm.add_transition(trigger='start_planning', source='PLANNING', dest='PLANNING', after='print_current_state')
         # if triggered planning in state TRACKING, and the target is reached during planning, stay in PLANNING
         self.fsm.add_transition(trigger='reach_target', source='PLANNING', dest='PLANNING', after='print_current_state')
+        self.fsm.add_transition(trigger='replan_timeout', source='TRACKING', dest='PLANNING', after='print_current_state')
 
     def print_current_state(self):
         rospy.loginfo("Current state: %s", self.state)
@@ -74,8 +75,25 @@ class Manager():
             self.start_tracking()
 
     def trigger_plan(self, target):
-        self.local_target_pub.publish(target)
+        self.global_target = target
         self.start_planning()
+        self.publish_local_target()
+        # self.replan_timer = rospy.Timer(rospy.Duration(2.0), self.replan_timer_cb)
+
+    def publish_local_target(self):
+        local_target = PositionTarget()
+        local_target.position = self.global_target.pose.position
+        local_target.velocity.x = 0
+        local_target.velocity.y = 0
+        local_target.velocity.z = 0
+        local_target.acceleration_or_force.x = 0
+        local_target.acceleration_or_force.y = 0
+        local_target.acceleration_or_force.z = 0
+        self.local_target_pub.publish(local_target)
+
+    def replan_timer_cb(self, event):
+        self.replan_timeout()  # switch from TRACKING to PLANNING
+        self.publish_local_target()
 
     def flight_state_cb(self, data):
         self.flight_state = data
