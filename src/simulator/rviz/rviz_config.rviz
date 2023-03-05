@@ -69,7 +69,7 @@ Visualization Manager:
       Buffer Length: 1
       Class: rviz/Path
       Color: 52; 101; 164
-      Enabled: false
+      Enabled: true
       Head Diameter: 0.30000001192092896
       Head Length: 0.20000000298023224
       Length: 0.30000001192092896
@@ -88,7 +88,7 @@ Visualization Manager:
       Shaft Length: 0.10000000149011612
       Topic: /real_path
       Unreliable: false
-      Value: false
+      Value: true
     - Angle Tolerance: 0.10000000149011612
       Class: rviz/Odometry
       Covariance:
@@ -150,6 +150,14 @@ Visualization Manager:
         {}
       Queue Size: 1
       Value: true
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /global_target
+      Name: Marker
+      Namespaces:
+        {}
+      Queue Size: 100
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 255; 255; 255
@@ -178,7 +186,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 32.522193908691406
+      Distance: 37.39555358886719
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -186,9 +194,9 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 8.765981674194336
-        Y: -2.7034151554107666
-        Z: 4.482972621917725
+        X: 5.0161356925964355
+        Y: -1.804996371269226
+        Z: 2.467905282974243
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false

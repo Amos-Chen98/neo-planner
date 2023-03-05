@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-05 11:00:31
+LastEditTime: 2023-03-05 17:25:45
 '''
 import os
 import sys
@@ -18,7 +18,8 @@ from nav_msgs.msg import Odometry
 from mavros_msgs.srv import SetMode
 from mavros_msgs.srv import SetMode, SetModeRequest
 from nav_msgs.msg import OccupancyGrid
-from std_msgs.msg import String, Bool
+from std_msgs.msg import String
+from visualization_msgs.msg import Marker
 
 
 class Manager():
@@ -26,10 +27,9 @@ class Manager():
         # Node
         rospy.init_node(node_name, anonymous=False)
         self.flight_state = State()
-        self.exec_state = "INIT"
+        self.map = ESDF()
         self.odom_received = False
         self.hover_height = 2.0
-        self.map = ESDF()
         self.offb_req = SetModeRequest()
         self.offb_req.custom_mode = 'OFFBOARD'
         self.arm_req = CommandBoolRequest()
@@ -38,11 +38,10 @@ class Manager():
         self.pos_cmd.coordinate_frame = 1
         self.pos_cmd.position.z = self.hover_height
         self.drone_state = np.zeros((3, 3))  # p,v,a in map frame
-        self.longitu_step_dis = 4.0  # the distance forward in each replanning
+        self.replan_time = 2.0 # the time interval between two replanning
+        self.longitu_step_dis = 5.0  # the distance forward in each replanning
         self.lateral_step_length = 1.0  # if local target pos in obstacle, take lateral step
         self.move_vel = 1.0
-        # self.target_reach_threshold = 1.0
-        self.replan_time = 2.0
         self.global_target = None
 
         # Client / Service init
@@ -66,7 +65,7 @@ class Manager():
         # Publishers
         self.local_pos_cmd_pub = rospy.Publisher("/mavros/setpoint_raw/local", PositionTarget, queue_size=10)
         self.local_target_pub = rospy.Publisher("/manager/local_target", PositionTarget, queue_size=1)
-        self.stop_cmd_pub = rospy.Publisher("/manager/stop_cmd", Bool, queue_size=1)
+        self.target_vis_pub = rospy.Publisher('/global_target', Marker, queue_size=10)
 
         # FSM
         self.fsm = GraphMachine(model=self, states=['INIT', 'TRACKING', 'HOVER', 'PLANNING'], initial='INIT')
@@ -79,10 +78,34 @@ class Manager():
         self.fsm.add_transition(trigger='reach_target', source='PLANNING', dest='PLANNING', after='print_current_state')
         self.fsm.add_transition(trigger='replan_timeout', source='TRACKING', dest='PLANNING', after=['publish_local_target', 'print_current_state'])
         self.fsm.add_transition(trigger='replan_timeout', source='HOVER', dest='PLANNING', after=['publish_local_target', 'print_current_state'])
-        # self.fsm.add_transition(trigger='reach_global_target', source='*', dest='HOVER', after=['stop_drone', 'print_current_state'])
 
-    def stop_drone(self):
-        self.stop_cmd_pub.publish(True)
+    def print_current_state(self):
+        rospy.loginfo("Current state: %s", self.state)
+
+    def trigger_plan(self, target):
+        rospy.loginfo("Global target: x = %f, y = %f", target.pose.position.x, target.pose.position.y)
+        self.global_target = np.array([target.pose.position.x,
+                                       target.pose.position.y,
+                                       target.pose.position.z])
+        self.vis_target()
+        self.init_planning()
+
+    def vis_target(self):
+        marker = Marker()
+        marker.header.frame_id = "map"
+        marker.type = marker.SPHERE
+        marker.action = marker.ADD
+        marker.scale.x = 0.4
+        marker.scale.y = 0.4
+        marker.scale.z = 0.4
+        marker.color.a = 1.0
+        marker.color.r = 1.0
+        marker.color.g = 0.0
+        marker.color.b = 0.0
+        marker.pose.position.x = self.global_target[0]
+        marker.pose.position.y = self.global_target[1]
+        marker.pose.position.z = self.hover_height
+        self.target_vis_pub.publish(marker)
 
     def hover_cmd(self, event):
         if not self.flight_state.armed:
@@ -97,21 +120,11 @@ class Manager():
 
         self.local_target_pub.publish(self.pos_cmd)
 
-    def print_current_state(self):
-        rospy.loginfo("Current state: %s", self.state)
-
     def trigger_fsm(self, trigger):
         if trigger.data == "reach_target":
             self.reach_target()
         elif trigger.data == "start_tracking":
             self.start_tracking()
-
-    def trigger_plan(self, target):
-        rospy.loginfo("Global target: x = %f, y = %f", target.pose.position.x, target.pose.position.y)
-        self.global_target = np.array([target.pose.position.x,
-                                       target.pose.position.y,
-                                       target.pose.position.z])
-        self.init_planning()
 
     def start_planning(self):
         self.publish_local_target()
@@ -128,8 +141,6 @@ class Manager():
         # if current pos is close enough to global target, set local target to global target
         if np.linalg.norm(global_target_pos - current_pos) < self.longitu_step_dis:
             local_target.position.x = self.global_target[0]
-        self.des_state_index = int(self.planning_time/hz)
-        self.des_state_index = int(self.planning_time/hz)
             local_target.position.y = self.global_target[1]
             local_target.position.z = self.hover_height
             self.local_target_pub.publish(local_target)
@@ -185,10 +196,6 @@ class Manager():
 
         self.drone_state[0] = global_pos
         self.drone_state[1] = global_vel
-
-        # if (self.global_target is not None and np.linalg.norm(global_pos - self.global_target) < self.target_reach_threshold):
-        #     rospy.loginfo("Reached global target!")
-        #     self.reach_global_target()
 
     def takeoff(self):
         self.takeoff_cmd_timer = rospy.Timer(rospy.Duration(0.1), self.takeoff_cmd)

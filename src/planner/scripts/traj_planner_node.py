@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-05 11:10:14
+LastEditTime: 2023-03-05 17:25:24
 '''
 import os
 import sys
@@ -14,14 +14,13 @@ from pyquaternion import Quaternion
 from traj_planner import MinJerkPlanner
 from mavros_msgs.srv import SetMode
 from mavros_msgs.msg import State, PositionTarget
-from geometry_msgs.msg import PoseStamped
 import numpy as np
 import rospy
 from visualization_msgs.msg import MarkerArray
 from visualizer import Visualizer
 from nav_msgs.msg import Odometry
 from matplotlib import pyplot as plt
-from std_msgs.msg import String, Bool
+from std_msgs.msg import String
 
 
 class Config():
@@ -29,7 +28,7 @@ class Config():
         self.v_max = rospy.get_param("~v_max", 5.0)
         self.T_min = rospy.get_param("~T_min", 0.5)
         self.T_max = rospy.get_param("~T_max", 5.0)
-        self.safe_dis = rospy.get_param("~safe_dis", 0.9)
+        self.safe_dis = rospy.get_param("~safe_dis", 0.5)
         self.delta_t = rospy.get_param("~delta_t", 0.1)
         self.weights = rospy.get_param("~weights", [10, 1.0, 1.0, 100000])
         self.init_seg_len = rospy.get_param("~init_seg_len", 2.0)  # the initial length of each segment
@@ -56,7 +55,7 @@ class TrajPlanner():
         self.fsm_trigger = String()
         self.target_state = None
         self.target_reach_threshold = 0.2
-        self.tracking_flag = False
+        self.tracking_flag = False  # if the drone is tracking a target, this flag is True
 
         # Services
         rospy.wait_for_service("/mavros/set_mode")
@@ -67,7 +66,6 @@ class TrajPlanner():
         self.occupancy_map_sub = rospy.Subscriber('/projected_map', OccupancyGrid, self.map.occupancy_map_cb)
         self.odom_sub = rospy.Subscriber('/mavros/local_position/odom', Odometry, self.odom_cb)
         self.target_sub = rospy.Subscriber('/manager/local_target', PositionTarget, self.move, queue_size=1)  # when a new target is received, move
-        self.stop_cmd_sub = rospy.Subscriber("/manager/stop_cmd", Bool, self.stop, queue_size=1)
 
         # Publishers
         self.local_pos_cmd_pub = rospy.Publisher("/mavros/setpoint_raw/local", PositionTarget, queue_size=10)
@@ -77,10 +75,6 @@ class TrajPlanner():
         self.fsm_trigger_pub = rospy.Publisher('/manager/trigger', String, queue_size=10)
 
         rospy.loginfo("Global planner initialized")
-
-    def stop(self, data):
-        rospy.loginfo("Stop command received")
-        self.tracking_cmd_timer.shutdown()
 
     def flight_state_cb(self, data):
         self.flight_state = data
