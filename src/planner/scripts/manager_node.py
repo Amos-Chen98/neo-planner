@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-03 20:43:27
+LastEditTime: 2023-03-05 11:00:31
 '''
 import os
 import sys
@@ -38,7 +38,7 @@ class Manager():
         self.pos_cmd.coordinate_frame = 1
         self.pos_cmd.position.z = self.hover_height
         self.drone_state = np.zeros((3, 3))  # p,v,a in map frame
-        self.longitu_step_dis = 3.0  # the distance forward in each replanning
+        self.longitu_step_dis = 4.0  # the distance forward in each replanning
         self.lateral_step_length = 1.0  # if local target pos in obstacle, take lateral step
         self.move_vel = 1.0
         # self.target_reach_threshold = 1.0
@@ -128,9 +128,12 @@ class Manager():
         # if current pos is close enough to global target, set local target to global target
         if np.linalg.norm(global_target_pos - current_pos) < self.longitu_step_dis:
             local_target.position.x = self.global_target[0]
+        self.des_state_index = int(self.planning_time/hz)
+        self.des_state_index = int(self.planning_time/hz)
             local_target.position.y = self.global_target[1]
             local_target.position.z = self.hover_height
             self.local_target_pub.publish(local_target)
+            self.replan_timer.shutdown()
             return
 
         longitu_dir = (global_target_pos - current_pos)/np.linalg.norm(global_target_pos - current_pos)

@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-03 20:39:56
+LastEditTime: 2023-03-05 11:10:14
 '''
 import os
 import sys
@@ -141,7 +141,8 @@ class TrajPlanner():
         time_start = time.time()
         self.planner.plan(self.map, drone_state_2d, self.target_state)  # 2D planning, z is fixed
         time_end = time.time()
-        rospy.loginfo("Planning finished! Time cost: %f", time_end - time_start)
+        self.planning_time = time_end - time_start
+        rospy.loginfo("Planning finished! Time cost: %f", self.planning_time)
 
     def warm_up(self):
         # Send a few setpoints before switching to OFFBOARD mode
@@ -173,7 +174,7 @@ class TrajPlanner():
         self.fsm_trigger_pub.publish(self.fsm_trigger)
 
         self.des_state, self.traj_time, hz = self.planner.get_full_state_cmd()
-        self.des_state_index = 0
+        self.des_state_index = int(self.planning_time/hz)
         self.tracking_cmd_timer = rospy.Timer(rospy.Duration(1/hz), self.tracking_cmd_timer_cb)
 
     def tracking_cmd_timer_cb(self, event):
