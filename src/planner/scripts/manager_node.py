@@ -1,25 +1,25 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-05 17:25:45
+LastEditTime: 2023-03-08 10:58:57
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from esdf import ESDF
-from geometry_msgs.msg import PoseStamped
-from transitions.extensions import GraphMachine
-from transitions import Machine
-import numpy as np
-import rospy
-from mavros_msgs.srv import CommandBool, CommandBoolRequest, SetMode, SetModeRequest, CommandTOL, CommandTOLRequest
-from mavros_msgs.msg import State, PositionTarget
-from nav_msgs.msg import Odometry
-from mavros_msgs.srv import SetMode
-from mavros_msgs.srv import SetMode, SetModeRequest
-from nav_msgs.msg import OccupancyGrid
-from std_msgs.msg import String
 from visualization_msgs.msg import Marker
+from std_msgs.msg import String
+from nav_msgs.msg import OccupancyGrid
+from mavros_msgs.srv import SetMode, SetModeRequest
+from mavros_msgs.srv import SetMode
+from nav_msgs.msg import Odometry
+from mavros_msgs.msg import State, PositionTarget
+from mavros_msgs.srv import CommandBool, CommandBoolRequest, SetMode, SetModeRequest, CommandTOL, CommandTOLRequest
+import rospy
+import numpy as np
+from transitions import Machine
+from transitions.extensions import GraphMachine
+from geometry_msgs.msg import PoseStamped
+from esdf import ESDF
 
 
 class Manager():
@@ -38,11 +38,13 @@ class Manager():
         self.pos_cmd.coordinate_frame = 1
         self.pos_cmd.position.z = self.hover_height
         self.drone_state = np.zeros((3, 3))  # p,v,a in map frame
-        self.replan_time = 2.0 # the time interval between two replanning
-        self.longitu_step_dis = 5.0  # the distance forward in each replanning
+        self.replan_time = 2.0  # the time interval between two replanning
+        self.longitu_step_dis = 6.0  # the distance forward in each replanning
         self.lateral_step_length = 1.0  # if local target pos in obstacle, take lateral step
         self.move_vel = 1.0
         self.global_target = None
+        self.planning_mode = 'global'
+        # self.planning_mode = 'online'
 
         # Client / Service init
         try:
@@ -95,6 +97,13 @@ class Manager():
         marker.header.frame_id = "map"
         marker.type = marker.SPHERE
         marker.action = marker.ADD
+        marker.pose.position.x = self.global_target[0]
+        marker.pose.position.y = self.global_target[1]
+        marker.pose.position.z = self.hover_height
+        marker.pose.orientation.x = 0.0
+        marker.pose.orientation.y = 0.0
+        marker.pose.orientation.z = 0.0
+        marker.pose.orientation.w = 1.0
         marker.scale.x = 0.4
         marker.scale.y = 0.4
         marker.scale.z = 0.4
@@ -102,9 +111,6 @@ class Manager():
         marker.color.r = 1.0
         marker.color.g = 0.0
         marker.color.b = 0.0
-        marker.pose.position.x = self.global_target[0]
-        marker.pose.position.y = self.global_target[1]
-        marker.pose.position.z = self.hover_height
         self.target_vis_pub.publish(marker)
 
     def hover_cmd(self, event):
@@ -127,8 +133,14 @@ class Manager():
             self.start_tracking()
 
     def start_planning(self):
-        self.publish_local_target()
-        self.replan_timer = rospy.Timer(rospy.Duration(self.replan_time), self.replan_timer_cb)
+        if self.planning_mode == 'global':
+            global_target = PositionTarget()
+            global_target.position.x = self.global_target[0]
+            global_target.position.y = self.global_target[1]
+            self.local_target_pub.publish(global_target)
+        else:
+            self.publish_local_target()
+            self.replan_timer = rospy.Timer(rospy.Duration(self.replan_time), self.replan_timer_cb)
 
     def replan_timer_cb(self, event):
         self.replan_timeout()

@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-05 17:25:24
+LastEditTime: 2023-03-08 20:04:18
 '''
 import os
 import sys
@@ -25,7 +25,7 @@ from std_msgs.msg import String
 
 class Config():
     def __init__(self):
-        self.v_max = rospy.get_param("~v_max", 5.0)
+        self.v_max = rospy.get_param("~v_max", 1.5)
         self.T_min = rospy.get_param("~T_min", 0.5)
         self.T_max = rospy.get_param("~T_max", 5.0)
         self.safe_dis = rospy.get_param("~safe_dis", 0.5)
@@ -96,11 +96,6 @@ class TrajPlanner():
                               data.twist.twist.linear.z,
                               ])
         global_vel = local_vel
-        # quat = Quaternion(data.pose.pose.orientation.w,
-        #                   data.pose.pose.orientation.x,
-        #                   data.pose.pose.orientation.y,
-        #                   data.pose.pose.orientation.z)
-        # global_vel = quat.inverse.rotate(local_vel)
         self.drone_state[0] = global_pos
         self.drone_state[1] = global_vel
 
@@ -168,7 +163,7 @@ class TrajPlanner():
         self.fsm_trigger_pub.publish(self.fsm_trigger)
 
         self.des_state, self.traj_time, hz = self.planner.get_full_state_cmd()
-        self.des_state_index = int(self.planning_time/hz)
+        self.des_state_index = int(max((self.planning_time/hz), 1))
         self.tracking_cmd_timer = rospy.Timer(rospy.Duration(1/hz), self.tracking_cmd_timer_cb)
 
     def tracking_cmd_timer_cb(self, event):
@@ -187,7 +182,8 @@ class TrajPlanner():
         self.state_cmd.acceleration_or_force.y = self.des_state[self.des_state_index][2][1]
         self.state_cmd.acceleration_or_force.z = 0
 
-        self.state_cmd.yaw = 0
+        self.state_cmd.yaw = np.arctan2(self.des_state[self.des_state_index][0][1] - self.des_state[self.des_state_index - 1][0][1],
+                                        self.des_state[self.des_state_index][0][0] - self.des_state[self.des_state_index - 1][0][0])
 
         self.local_pos_cmd_pub.publish(self.state_cmd)
 

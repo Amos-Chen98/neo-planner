@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-02 21:20:50
+LastEditTime: 2023-03-08 19:45:49
 '''
 import math
 import pprint
@@ -582,7 +582,7 @@ class MinJerkPlanner():
         total_time = sum(self.ts)
         t_samples = np.arange(0, total_time, 1/hz)
         sample_num = t_samples.shape[0]
-        state_cmd = np.zeros((sample_num, 3, self.D))
+        state_cmd = np.zeros((sample_num, 3, self.D)) # 3*D: [pos, vel, acc] * D
 
         for i in range(sample_num):
             t = t_samples[i]

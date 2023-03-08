@@ -4,10 +4,12 @@ Panels:
     Name: Displays
     Property Tree Widget:
       Expanded:
+        - /Real path1
         - /Map1/Position1
         - /Map1/Orientation1
         - /MarkerArray1
         - /MarkerArray2
+        - /Marker1
       Splitter Ratio: 0.4067796468734741
     Tree Height: 1731
   - Class: rviz/Selection
@@ -68,7 +70,7 @@ Visualization Manager:
     - Alpha: 1
       Buffer Length: 1
       Class: rviz/Path
-      Color: 52; 101; 164
+      Color: 0; 214; 223
       Enabled: true
       Head Diameter: 0.30000001192092896
       Head Length: 0.20000000298023224
@@ -186,7 +188,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 37.39555358886719
+      Distance: 57.157325744628906
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -194,17 +196,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 5.0161356925964355
-        Y: -1.804996371269226
-        Z: 2.467905282974243
+        X: 7.920112609863281
+        Y: -1.6904423236846924
+        Z: 0.18922901153564453
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.8703984022140503
+      Pitch: 1.0047968626022339
       Target Frame: <Fixed Frame>
-      Yaw: 3.8085756301879883
+      Yaw: 3.898573875427246
     Saved: ~
 Window Geometry:
   Displays:
