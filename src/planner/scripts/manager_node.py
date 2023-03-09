@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-08 10:58:57
+LastEditTime: 2023-03-09 22:26:56
 '''
 import os
 import sys
@@ -39,12 +39,12 @@ class Manager():
         self.pos_cmd.position.z = self.hover_height
         self.drone_state = np.zeros((3, 3))  # p,v,a in map frame
         self.replan_time = 2.0  # the time interval between two replanning
-        self.longitu_step_dis = 6.0  # the distance forward in each replanning
+        self.longitu_step_dis = 5.0  # the distance forward in each replanning
         self.lateral_step_length = 1.0  # if local target pos in obstacle, take lateral step
         self.move_vel = 1.0
         self.global_target = None
-        self.planning_mode = 'global'
-        # self.planning_mode = 'online'
+        # self.planning_mode = 'global'
+        self.planning_mode = 'online'
 
         # Client / Service init
         try:

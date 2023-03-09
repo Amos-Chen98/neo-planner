@@ -1,11 +1,12 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-08 20:04:18
+LastEditTime: 2023-03-09 22:25:23
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
+import tf
 from mavros_msgs.srv import SetMode, SetModeRequest
 from esdf import ESDF
 from nav_msgs.msg import Path, OccupancyGrid
@@ -20,7 +21,8 @@ from visualization_msgs.msg import MarkerArray
 from visualizer import Visualizer
 from nav_msgs.msg import Odometry
 from matplotlib import pyplot as plt
-from std_msgs.msg import String
+from std_msgs.msg import String, Float64
+
 
 
 class Config():
@@ -73,6 +75,7 @@ class TrajPlanner():
         self.des_wpts_pub = rospy.Publisher('/des_wpts', MarkerArray, queue_size=10)
         self.des_path_pub = rospy.Publisher('/des_path', MarkerArray, queue_size=10)
         self.fsm_trigger_pub = rospy.Publisher('/manager/trigger', String, queue_size=10)
+        self.speed_plot_pub = rospy.Publisher('/drone_speed', Float64, queue_size=10)
 
         rospy.loginfo("Global planner initialized")
 
@@ -93,8 +96,7 @@ class TrajPlanner():
         global_pos = local_pos
         local_vel = np.array([data.twist.twist.linear.x,
                               data.twist.twist.linear.y,
-                              data.twist.twist.linear.z,
-                              ])
+                              data.twist.twist.linear.z])
         global_vel = local_vel
         self.drone_state[0] = global_pos
         self.drone_state[1] = global_vel
@@ -105,6 +107,8 @@ class TrajPlanner():
             rospy.loginfo("Trajectory execution finished!")
             self.fsm_trigger.data = "reach_target"
             self.fsm_trigger_pub.publish(self.fsm_trigger)
+
+        self.speed_plot_pub.publish(np.linalg.norm(global_vel))
 
     def move(self, target):
         print(" ")
@@ -127,8 +131,14 @@ class TrajPlanner():
         rospy.loginfo("Trajectory planning...")
         drone_state_2d = self.drone_state[:, 0:2]
         self.des_pos_z = self.drone_state[0][2]  # use current height
+        # _, _, drone_yaw = tf.transformations.euler_from_quaternion([self.odom.pose.pose.orientation.x,
+        #                                                             self.odom.pose.pose.orientation.y,
+        #                                                             self.odom.pose.pose.orientation.z,
+        #                                                             self.odom.pose.pose.orientation.w])
+        # rospy.loginfo("Drone yaw: %f", drone_yaw*180/np.pi)
         time_start = time.time()
-        self.planner.plan(self.map, drone_state_2d, self.target_state)  # 2D planning, z is fixed
+        self.planner.plan(self.map, np.array([drone_state_2d[0]]), self.target_state)  # 2D planning, z is fixed
+        # the head_state is set to current position without velocity, if velocity is added, the result will be poor
         time_end = time.time()
         self.planning_time = time_end - time_start
         rospy.loginfo("Planning finished! Time cost: %f", self.planning_time)
@@ -163,7 +173,17 @@ class TrajPlanner():
         self.fsm_trigger_pub.publish(self.fsm_trigger)
 
         self.des_state, self.traj_time, hz = self.planner.get_full_state_cmd()
-        self.des_state_index = int(max((self.planning_time/hz), 1))
+
+        # calculate the best index to start tracking by minimizing the distance between current state and desired state
+        current_pos = self.drone_state[0, 0:2]
+        search_idx = np.arange(0, len(self.des_state), 30)
+        pos_err = np.zeros(len(search_idx))
+        for i in range(len(search_idx)):
+            pos_err[i] = np.linalg.norm(current_pos - self.des_state[search_idx[i]][0])
+        self.des_state_index = search_idx[np.argmin(pos_err)]
+        rospy.loginfo("des_state_index: %d", self.des_state_index)
+        rospy.loginfo("Time offset: %f", self.des_state_index/hz)
+
         self.tracking_cmd_timer = rospy.Timer(rospy.Duration(1/hz), self.tracking_cmd_timer_cb)
 
     def tracking_cmd_timer_cb(self, event):

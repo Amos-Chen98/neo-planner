@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-08 19:45:49
+LastEditTime: 2023-03-08 21:02:54
 '''
 import math
 import pprint
@@ -61,10 +61,16 @@ class MinJerkPlanner():
         '''
         self.map = map
         self.D = head_state.shape[1]
+
+        input_head_shape0 = head_state.shape[0]
+        input_tail_shape0 = tail_state.shape[0]
+
         self.head_state = np.zeros((self.s, self.D))
         self.tail_state = np.zeros((self.s, self.D))
-        for i in range(self.s):
+
+        for i in range(min(self.s, input_head_shape0)):
             self.head_state[i] = head_state[i]
+        for i in range(min(self.s, input_tail_shape0)):
             self.tail_state[i] = tail_state[i]
 
         self.set_interm_params(head_state, tail_state, seed)
@@ -114,7 +120,7 @@ class MinJerkPlanner():
                                       method='L-BFGS-B',
                                       jac=self.get_grad,
                                       bounds=None,
-                                      tol=1e-8,
+                                      tol=1e-6,
                                       callback=None,
                                       options={'disp': 0,
                                                'maxcor': 10,
@@ -128,7 +134,7 @@ class MinJerkPlanner():
         self.ts = self.map_tau2T(self.tau)
         self.weighted_cost = self.costs * self.weights
         collision_cost = self.weighted_cost[3]
-        if collision_cost > 5:
+        if collision_cost > 10:
             raise ValueError("collision cost too large")
 
     def print_results(self):
