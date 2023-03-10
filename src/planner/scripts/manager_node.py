@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-09 22:26:56
+LastEditTime: 2023-03-10 21:34:35
 '''
 import os
 import sys
@@ -41,7 +41,7 @@ class Manager():
         self.replan_time = 2.0  # the time interval between two replanning
         self.longitu_step_dis = 5.0  # the distance forward in each replanning
         self.lateral_step_length = 1.0  # if local target pos in obstacle, take lateral step
-        self.move_vel = 1.0
+        self.move_vel = 0.8
         self.global_target = None
         # self.planning_mode = 'global'
         self.planning_mode = 'online'

@@ -1,12 +1,13 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-10 10:18:31
+LastEditTime: 2023-03-10 21:48:37
 '''
 import math
 import pprint
 import time
 import numpy as np
 import scipy
+import math
 
 
 class DefaultConfig():
@@ -101,7 +102,7 @@ class MinJerkPlanner():
         start_pos = head_state[0]
         target_pos = tail_state[0]
         straight_length = np.linalg.norm(target_pos - start_pos)
-        int_wpts_num = max(int(straight_length/self.init_seg_len - 1), 1)  # 2m for each intermediate waypoint
+        int_wpts_num = max(math.ceil(straight_length/self.init_seg_len - 1), 1)  # 2m for each intermediate waypoint
         step_length = (tail_state[0] - head_state[0]) / (int_wpts_num + 1)
         int_wpts = np.linspace(start_pos + step_length, target_pos, int_wpts_num, endpoint=False)
         if seed != 0:
@@ -351,7 +352,7 @@ class MinJerkPlanner():
                     self.grad_C[2*self.s*i: 2*self.s * (i+1), :] += self.weights[2] * grad_K2v * grad_v2c
                     self.grad_T[i] += self.weights[2] * (omg*violate_vel**3/sample_num + grad_K2v * grad_v2t * j/sample_num)
 
-                # Colllision
+                # Collision
                 pos_projected = pos[:2]
                 edt_dis = self.map.get_edt_dis(pos_projected)
                 violate_dis = self.safe_dis - edt_dis
@@ -588,7 +589,7 @@ class MinJerkPlanner():
         total_time = sum(self.ts)
         t_samples = np.arange(0, total_time, 1/hz)
         sample_num = t_samples.shape[0]
-        state_cmd = np.zeros((sample_num, 3, self.D)) # 3*D: [pos, vel, acc] * D
+        state_cmd = np.zeros((sample_num, 3, self.D)) # 3*D: [pos, vel, acc].T * D
 
         for i in range(sample_num):
             t = t_samples[i]

@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-10 10:52:16
+LastEditTime: 2023-03-10 22:12:47
 '''
 import os
 import sys
@@ -26,14 +26,14 @@ import tf
 
 class Config():
     def __init__(self):
-        self.v_max = rospy.get_param("~v_max", 1.5)
+        self.v_max = rospy.get_param("~v_max", 1.0)
         self.T_min = rospy.get_param("~T_min", 0.5)
         self.T_max = rospy.get_param("~T_max", 5.0)
         self.safe_dis = rospy.get_param("~safe_dis", 0.5)
         self.delta_t = rospy.get_param("~delta_t", 0.1)
-        self.weights = rospy.get_param("~weights", [10, 1.0, 1.0, 100000])
+        self.weights = rospy.get_param("~weights", [1, 1, 1, 10000])
         self.init_seg_len = rospy.get_param("~init_seg_len", 2.0)  # the initial length of each segment
-        self.init_T = rospy.get_param("~init_T", 2.0)  # the initial T of each segment
+        self.init_T = rospy.get_param("~init_T", 2.5)  # the initial T of each segment
 
 
 class TrajPlanner():
@@ -133,11 +133,6 @@ class TrajPlanner():
     def traj_plan(self):
         drone_state_2d = self.drone_state[:, 0:2]
         self.des_pos_z = self.drone_state[0][2]  # use current height
-        # _, _, drone_yaw = tf.transformations.euler_from_quaternion([self.odom.pose.pose.orientation.x,
-        #                                                             self.odom.pose.pose.orientation.y,
-        #                                                             self.odom.pose.pose.orientation.z,
-        #                                                             self.odom.pose.pose.orientation.w])
-        # rospy.loginfo("Drone yaw: %f", drone_yaw*180/np.pi)
         time_start = time.time()
         self.planner.plan(self.map, drone_state_2d, self.target_state)  # 2D planning, z is fixed
         time_end = time.time()
@@ -183,7 +178,9 @@ class TrajPlanner():
         self.des_state_index = search_idx[np.argmin(pos_err)]
         rospy.loginfo("Trajectory duration: %f", len(self.des_state)/hz)
         rospy.loginfo("Start time offset: %f", self.des_state_index/hz)
-
+        # print the first element of des vel
+        rospy.loginfo("Init vel in traj: %f", np.linalg.norm(self.des_state[0][1]))
+        rospy.loginfo("Terminal vel in traj: %f", np.linalg.norm(self.des_state[-1][1]))
         self.tracking_cmd_timer = rospy.Timer(rospy.Duration(1/hz), self.tracking_cmd_timer_cb)
 
     def tracking_cmd_timer_cb(self, event):
