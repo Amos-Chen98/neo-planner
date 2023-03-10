@@ -1,28 +1,27 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-09 22:25:23
+LastEditTime: 2023-03-10 10:52:16
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-import tf
-from mavros_msgs.srv import SetMode, SetModeRequest
-from esdf import ESDF
-from nav_msgs.msg import Path, OccupancyGrid
-import time
-from pyquaternion import Quaternion
-from traj_planner import MinJerkPlanner
-from mavros_msgs.srv import SetMode
-from mavros_msgs.msg import State, PositionTarget
-import numpy as np
-import rospy
-from visualization_msgs.msg import MarkerArray
-from visualizer import Visualizer
-from nav_msgs.msg import Odometry
-from matplotlib import pyplot as plt
 from std_msgs.msg import String, Float64
-
+from matplotlib import pyplot as plt
+from nav_msgs.msg import Odometry
+from visualizer import Visualizer
+from visualization_msgs.msg import MarkerArray
+import rospy
+import numpy as np
+from mavros_msgs.msg import State, PositionTarget
+from mavros_msgs.srv import SetMode
+from traj_planner import MinJerkPlanner
+from pyquaternion import Quaternion
+import time
+from nav_msgs.msg import Path, OccupancyGrid
+from esdf import ESDF
+from mavros_msgs.srv import SetMode, SetModeRequest
+import tf
 
 
 class Config():
@@ -97,7 +96,11 @@ class TrajPlanner():
         local_vel = np.array([data.twist.twist.linear.x,
                               data.twist.twist.linear.y,
                               data.twist.twist.linear.z])
-        global_vel = local_vel
+        quat = Quaternion(data.pose.pose.orientation.w,
+                          data.pose.pose.orientation.x,
+                          data.pose.pose.orientation.y,
+                          data.pose.pose.orientation.z)
+        global_vel = quat.rotate(local_vel)
         self.drone_state[0] = global_pos
         self.drone_state[1] = global_vel
 
@@ -128,7 +131,6 @@ class TrajPlanner():
         # self.plot_state_curve()
 
     def traj_plan(self):
-        rospy.loginfo("Trajectory planning...")
         drone_state_2d = self.drone_state[:, 0:2]
         self.des_pos_z = self.drone_state[0][2]  # use current height
         # _, _, drone_yaw = tf.transformations.euler_from_quaternion([self.odom.pose.pose.orientation.x,
@@ -137,8 +139,7 @@ class TrajPlanner():
         #                                                             self.odom.pose.pose.orientation.w])
         # rospy.loginfo("Drone yaw: %f", drone_yaw*180/np.pi)
         time_start = time.time()
-        self.planner.plan(self.map, np.array([drone_state_2d[0]]), self.target_state)  # 2D planning, z is fixed
-        # the head_state is set to current position without velocity, if velocity is added, the result will be poor
+        self.planner.plan(self.map, drone_state_2d, self.target_state)  # 2D planning, z is fixed
         time_end = time.time()
         self.planning_time = time_end - time_start
         rospy.loginfo("Planning finished! Time cost: %f", self.planning_time)
@@ -167,7 +168,6 @@ class TrajPlanner():
             if (self.set_mode_client.call(set_offb_req).mode_sent == True):
                 rospy.loginfo("OFFBOARD enabled")
 
-        rospy.loginfo("Trajectory executing...")
         self.tracking_flag = True
         self.fsm_trigger.data = "start_tracking"
         self.fsm_trigger_pub.publish(self.fsm_trigger)
@@ -181,8 +181,8 @@ class TrajPlanner():
         for i in range(len(search_idx)):
             pos_err[i] = np.linalg.norm(current_pos - self.des_state[search_idx[i]][0])
         self.des_state_index = search_idx[np.argmin(pos_err)]
-        rospy.loginfo("des_state_index: %d", self.des_state_index)
-        rospy.loginfo("Time offset: %f", self.des_state_index/hz)
+        rospy.loginfo("Trajectory duration: %f", len(self.des_state)/hz)
+        rospy.loginfo("Start time offset: %f", self.des_state_index/hz)
 
         self.tracking_cmd_timer = rospy.Timer(rospy.Duration(1/hz), self.tracking_cmd_timer_cb)
 
