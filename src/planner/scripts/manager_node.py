@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-10 21:34:35
+LastEditTime: 2023-03-31 16:37:47
 '''
 import os
 import sys
@@ -43,8 +43,8 @@ class Manager():
         self.lateral_step_length = 1.0  # if local target pos in obstacle, take lateral step
         self.move_vel = 0.8
         self.global_target = None
-        # self.planning_mode = 'global'
-        self.planning_mode = 'online'
+        self.planning_mode = 'global'
+        # self.planning_mode = 'online'
 
         # Client / Service init
         try:
