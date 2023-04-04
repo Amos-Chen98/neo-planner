@@ -7,6 +7,10 @@
     <arg name="R" default="0"/>
     <arg name="P" default="0"/>
     <arg name="Y" default="0"/>
+    <!-- fixed frame id -->
+    <arg name="frame_id" default="map"/>
+    <!-- pcl topic name -->
+    <arg name="pcl_topic" default="/camera/depth/points"/>
 
     <!-- PX4 SITL, Gazebo, and MAVROS -->
     <include file="$(find simulator)/launch/px4_utils.launch">
@@ -18,8 +22,11 @@
         <arg name="Y" value="$(arg Y)"/>
     </include>
 
-    <!-- map server -->
-    <include file="$(find simulator)/launch/map_server_onboard.launch" />
+    <!-- map_server -->
+    <include file="$(find simulator)/launch/map_server.launch">
+        <arg name="frame_id" value="$(arg frame_id)"/>
+        <arg name="pcl_topic" value="$(arg pcl_topic)"/>
+    </include>
 
     <!-- TF -->
     <include file="$(find simulator)/launch/tf_server.launch">
