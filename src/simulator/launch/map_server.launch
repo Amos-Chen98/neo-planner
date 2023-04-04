@@ -16,7 +16,7 @@
         <param name="resolution" value="0.1" />
 
         <!-- max range / depth resolution of the kinect in meter -->
-        <param name="sensor_model/max_range" value="100.0" />
+        <param name="sensor_model/max_range" value="3.0" />
         <param name="latch" value="false" />
 
         <param name="filter_ground" value="ture" />
