@@ -34,6 +34,7 @@
     <include file="$(find simulator)/launch/map_server.launch">
         <arg name="frame_id" value="$(arg frame_id)"/>
         <arg name="pcl_topic" value="$(arg pcl_topic)"/>
+        <arg name="sensor_max_range" value="inf" />
     </include>
 
     <!-- TF -->
@@ -57,5 +58,5 @@
 
     <!-- rqt plot -->
     <!-- <node pkg="rqt_plot" type="rqt_plot" name="pos_vel_plot" args="/drone_speed" /> -->
-    
+
 </launch>
