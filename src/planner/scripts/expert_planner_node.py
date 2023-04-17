@@ -1,27 +1,29 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-04-17 16:40:01
+LastEditTime: 2023-04-17 23:04:31
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from std_msgs.msg import String, Float64
-from matplotlib import pyplot as plt
-from nav_msgs.msg import Odometry
-from visualizer import Visualizer
-from visualization_msgs.msg import MarkerArray
-import rospy
-import numpy as np
-from mavros_msgs.msg import State, PositionTarget
-from mavros_msgs.srv import SetMode
-from traj_planner import MinJerkPlanner
-from pyquaternion import Quaternion
-import time
-from nav_msgs.msg import Path, OccupancyGrid
-from esdf import ESDF
-from mavros_msgs.srv import SetMode, SetModeRequest
+import datetime
+import pandas as pd
 import tf
+from mavros_msgs.srv import SetMode, SetModeRequest
+from esdf import ESDF
+from nav_msgs.msg import Path, OccupancyGrid
+import time
+from pyquaternion import Quaternion
+from traj_planner import MinJerkPlanner
+from mavros_msgs.srv import SetMode
+from mavros_msgs.msg import State, PositionTarget
+import numpy as np
+import rospy
+from visualization_msgs.msg import MarkerArray
+from visualizer import Visualizer
+from nav_msgs.msg import Odometry
+from matplotlib import pyplot as plt
+from std_msgs.msg import String, Float64
 
 
 class Config():
@@ -78,6 +80,27 @@ class TrajPlanner():
 
         rospy.loginfo("Global planner initialized")
 
+        # Initialize the csv file collecting training data
+        self.table_header = ['id',
+                             'drone_vel_x',
+                             'drone_vel_y',
+                             'drone_vel_z',
+                             'drone_attitude_w',
+                             'drone_attitude_x',
+                             'drone_attitude_y',
+                             'drone_attitude_z',
+                             'target_pos_x',
+                             'target_pos_y',
+                             'target_pos_z',
+                             'target_vel_x',
+                             'target_vel_y',
+                             'target_vel_z',
+                             ]
+
+        # create a blank csv file, with (1+3+4+3+3) columns
+        df = pd.DataFrame(columns=self.table_header)
+        df.to_csv('train.csv', index=False)
+
     def flight_state_cb(self, data):
         self.flight_state = data
 
@@ -104,8 +127,6 @@ class TrajPlanner():
         self.drone_state[0] = global_pos
         self.drone_state[1] = global_vel
         self.drone_vel_local = local_vel
-        # self.drone_pos_global = global_pos
-        # self.drone_vel_local = local_vel
         self.drone_quat = quat
 
         if (self.tracking_flag == True and np.linalg.norm(self.drone_state[0, :2] - self.target_state[0]) < self.target_reach_threshold):
@@ -145,22 +166,27 @@ class TrajPlanner():
 
     def record_train_input(self):
         '''
-        Record: 1. depth image, 2. drone state (body frame), 3. target state (body_frame)
-        Store the data locally
+        Record training data and write to csv file
         '''
-        drone_vel_local = self.drone_vel_local
+        now = datetime.datetime.now()
+        timestamp = int(now.strftime("%Y%m%d%H%M%S"))
+
+        # get training data
+        drone_vel_local = self.drone_vel_local  # size: (3,)
         drone_quat = self.drone_quat
-        drone_attitude = np.array([drone_quat.w, drone_quat.x, drone_quat.y, drone_quat.z])
+        drone_attitude = np.array([drone_quat.w, drone_quat.x, drone_quat.y, drone_quat.z])  # size: (4,)
         target_state_3d = np.zeros((2, 3))
         target_state_3d[:, 0:2] = self.target_state
         target_state_3d[0, 2] = self.des_pos_z
-        target_pos_local = drone_quat.inverse.rotate(target_state_3d[0] - self.drone_state[0])
-        target_vel_local = drone_quat.inverse.rotate(target_state_3d[1] - self.drone_state[1])
-        # print the above variables
-        rospy.loginfo("drone_vel_local: %s", drone_vel_local)
-        rospy.loginfo("drone attitude: %s", drone_attitude)
-        rospy.loginfo("target_pos_local: %s", target_pos_local)
-        rospy.loginfo("target_vel_local: %s", target_vel_local)
+        target_pos_local = drone_quat.inverse.rotate(target_state_3d[0] - self.drone_state[0])  # size: (3,)
+        target_vel_local = drone_quat.inverse.rotate(target_state_3d[1] - self.drone_state[1])  # size: (3,)
+
+        # write the data to local file
+        train_data = np.concatenate((np.array([timestamp]), drone_vel_local, drone_attitude, target_pos_local, target_vel_local), axis=0)
+        df = pd.read_csv('train.csv')
+        df = pd.concat([df, pd.DataFrame(train_data.reshape(1, -1), columns=self.table_header)], ignore_index=True)
+        df.to_csv('train.csv', index=False)
+        rospy.loginfo("Training data (ID: %d) saved!", timestamp)
 
     def warm_up(self):
         # Send a few setpoints before switching to OFFBOARD mode
