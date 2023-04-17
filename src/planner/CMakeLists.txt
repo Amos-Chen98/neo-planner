@@ -167,6 +167,7 @@ catkin_install_python(PROGRAMS
     scripts/traj_planner.py
     scripts/visualizer.py
     scripts/manager_node.py
+    scripts/expert_planner_node.py
     DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

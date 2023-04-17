@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-04-17 15:37:26
+LastEditTime: 2023-04-17 16:40:01
 '''
 import os
 import sys
@@ -99,10 +99,14 @@ class TrajPlanner():
         quat = Quaternion(data.pose.pose.orientation.w,
                           data.pose.pose.orientation.x,
                           data.pose.pose.orientation.y,
-                          data.pose.pose.orientation.z)
+                          data.pose.pose.orientation.z)  # from local to global
         global_vel = quat.rotate(local_vel)
         self.drone_state[0] = global_pos
         self.drone_state[1] = global_vel
+        self.drone_vel_local = local_vel
+        # self.drone_pos_global = global_pos
+        # self.drone_vel_local = local_vel
+        self.drone_quat = quat
 
         if (self.tracking_flag == True and np.linalg.norm(self.drone_state[0, :2] - self.target_state[0]) < self.target_reach_threshold):
             self.tracking_cmd_timer.shutdown()
@@ -132,11 +136,31 @@ class TrajPlanner():
     def traj_plan(self):
         drone_state_2d = self.drone_state[:, 0:2]
         self.des_pos_z = self.drone_state[0][2]  # use current height
+        self.record_train_input()
         time_start = time.time()
         self.planner.plan(self.map, drone_state_2d, self.target_state)  # 2D planning, z is fixed
         time_end = time.time()
         self.planning_time = time_end - time_start
         rospy.loginfo("Planning finished! Time cost: %f", self.planning_time)
+
+    def record_train_input(self):
+        '''
+        Record: 1. depth image, 2. drone state (body frame), 3. target state (body_frame)
+        Store the data locally
+        '''
+        drone_vel_local = self.drone_vel_local
+        drone_quat = self.drone_quat
+        drone_attitude = np.array([drone_quat.w, drone_quat.x, drone_quat.y, drone_quat.z])
+        target_state_3d = np.zeros((2, 3))
+        target_state_3d[:, 0:2] = self.target_state
+        target_state_3d[0, 2] = self.des_pos_z
+        target_pos_local = drone_quat.inverse.rotate(target_state_3d[0] - self.drone_state[0])
+        target_vel_local = drone_quat.inverse.rotate(target_state_3d[1] - self.drone_state[1])
+        # print the above variables
+        rospy.loginfo("drone_vel_local: %s", drone_vel_local)
+        rospy.loginfo("drone attitude: %s", drone_attitude)
+        rospy.loginfo("target_pos_local: %s", target_pos_local)
+        rospy.loginfo("target_vel_local: %s", target_vel_local)
 
     def warm_up(self):
         # Send a few setpoints before switching to OFFBOARD mode
