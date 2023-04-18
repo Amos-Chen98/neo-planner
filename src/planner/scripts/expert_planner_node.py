@@ -1,29 +1,29 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-04-17 23:04:31
+LastEditTime: 2023-04-18 10:54:52
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-import datetime
-import pandas as pd
-import tf
-from mavros_msgs.srv import SetMode, SetModeRequest
-from esdf import ESDF
-from nav_msgs.msg import Path, OccupancyGrid
-import time
-from pyquaternion import Quaternion
-from traj_planner import MinJerkPlanner
-from mavros_msgs.srv import SetMode
-from mavros_msgs.msg import State, PositionTarget
-import numpy as np
-import rospy
-from visualization_msgs.msg import MarkerArray
-from visualizer import Visualizer
-from nav_msgs.msg import Odometry
-from matplotlib import pyplot as plt
 from std_msgs.msg import String, Float64
+from matplotlib import pyplot as plt
+from nav_msgs.msg import Odometry
+from visualizer import Visualizer
+from visualization_msgs.msg import MarkerArray
+import rospy
+import numpy as np
+from mavros_msgs.msg import State, PositionTarget
+from mavros_msgs.srv import SetMode
+from traj_planner import MinJerkPlanner
+from pyquaternion import Quaternion
+import time
+from nav_msgs.msg import Path, OccupancyGrid
+from esdf import ESDF
+from mavros_msgs.srv import SetMode, SetModeRequest
+import tf
+import pandas as pd
+import datetime
 
 
 class Config():
@@ -38,6 +38,14 @@ class Config():
         self.init_T = rospy.get_param("~init_T", 2.5)  # the initial T of each segment
 
 
+class DroneState():
+    def __init__(self):
+        self.global_pos = np.zeros(3)
+        self.global_vel = np.zeros(3)
+        self.local_vel = np.zeros(3)
+        self.attitude = np.zeros(4)
+
+
 class TrajPlanner():
     def __init__(self, node_name="traj_planner"):
         # Node
@@ -45,7 +53,7 @@ class TrajPlanner():
 
         # Members
         self.odom = None
-        self.drone_state = np.zeros((3, 3))  # p,v,a in inertia frame
+        self.drone_state = DroneState()
         planner_config = Config()
         self.planner = MinJerkPlanner(planner_config)
         self.state_cmd = PositionTarget()
@@ -124,12 +132,12 @@ class TrajPlanner():
                           data.pose.pose.orientation.y,
                           data.pose.pose.orientation.z)  # from local to global
         global_vel = quat.rotate(local_vel)
-        self.drone_state[0] = global_pos
-        self.drone_state[1] = global_vel
-        self.drone_vel_local = local_vel
-        self.drone_quat = quat
+        self.drone_state.global_pos = global_pos
+        self.drone_state.global_vel = global_vel
+        self.drone_state.local_vel = local_vel
+        self.drone_state.attitude = quat
 
-        if (self.tracking_flag == True and np.linalg.norm(self.drone_state[0, :2] - self.target_state[0]) < self.target_reach_threshold):
+        if (self.tracking_flag == True and np.linalg.norm(self.drone_state.global_pos[:2] - self.target_state[0]) < self.target_reach_threshold):
             self.tracking_cmd_timer.shutdown()
             self.tracking_flag = False
             rospy.loginfo("Trajectory execution finished!")
@@ -155,16 +163,23 @@ class TrajPlanner():
         # self.plot_state_curve()
 
     def traj_plan(self):
-        drone_state_2d = self.drone_state[:, 0:2]
-        self.des_pos_z = self.drone_state[0][2]  # use current height
-        self.record_train_input()
+        drone_state = self.drone_state
+        drone_state_2d = np.array([drone_state.global_pos[:2],
+                                   drone_state.global_vel[:2]])
+        self.des_pos_z = drone_state.global_pos[2]  # use current height
+
+        self.record_train_input(drone_state) # record training data
+
         time_start = time.time()
         self.planner.plan(self.map, drone_state_2d, self.target_state)  # 2D planning, z is fixed
         time_end = time.time()
         self.planning_time = time_end - time_start
+        # int_wpts = self.planner.int_wpts
+        # ts = self.planner.ts
+        # convert int_wpts to body frame
         rospy.loginfo("Planning finished! Time cost: %f", self.planning_time)
 
-    def record_train_input(self):
+    def record_train_input(self, drone_state):
         '''
         Record training data and write to csv file
         '''
@@ -172,14 +187,14 @@ class TrajPlanner():
         timestamp = int(now.strftime("%Y%m%d%H%M%S"))
 
         # get training data
-        drone_vel_local = self.drone_vel_local  # size: (3,)
-        drone_quat = self.drone_quat
+        drone_vel_local = drone_state.local_vel  # size: (3,)
+        drone_quat = drone_state.attitude  # size: (4,)
         drone_attitude = np.array([drone_quat.w, drone_quat.x, drone_quat.y, drone_quat.z])  # size: (4,)
         target_state_3d = np.zeros((2, 3))
         target_state_3d[:, 0:2] = self.target_state
         target_state_3d[0, 2] = self.des_pos_z
-        target_pos_local = drone_quat.inverse.rotate(target_state_3d[0] - self.drone_state[0])  # size: (3,)
-        target_vel_local = drone_quat.inverse.rotate(target_state_3d[1] - self.drone_state[1])  # size: (3,)
+        target_pos_local = drone_quat.inverse.rotate(target_state_3d[0] - drone_state.global_pos)  # size: (3,)
+        target_vel_local = drone_quat.inverse.rotate(target_state_3d[1] - drone_state.global_vel)  # size: (3,)
 
         # write the data to local file
         train_data = np.concatenate((np.array([timestamp]), drone_vel_local, drone_attitude, target_pos_local, target_vel_local), axis=0)
@@ -190,9 +205,9 @@ class TrajPlanner():
 
     def warm_up(self):
         # Send a few setpoints before switching to OFFBOARD mode
-        self.state_cmd.position.x = self.drone_state[0][0]
-        self.state_cmd.position.y = self.drone_state[0][1]
-        self.state_cmd.position.z = self.drone_state[0][2]
+        self.state_cmd.position.x = self.drone_state.global_pos[0]
+        self.state_cmd.position.y = self.drone_state.global_pos[1]
+        self.state_cmd.position.z = self.drone_state.global_pos[2]
         rate = rospy.Rate(100)
         for _ in range(5):  # set 5 points
             if (rospy.is_shutdown()):
@@ -219,7 +234,7 @@ class TrajPlanner():
         self.des_state, self.traj_time, hz = self.planner.get_full_state_cmd()
 
         # calculate the best index to start tracking by minimizing the distance between current state and desired state
-        current_pos = self.drone_state[0, 0:2]
+        current_pos = self.drone_state.global_pos[:2]
         search_idx = np.arange(0, len(self.des_state), 30)
         pos_err = np.zeros(len(search_idx))
         for i in range(len(search_idx)):
