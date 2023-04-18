@@ -1,29 +1,30 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-04-18 10:54:52
+LastEditTime: 2023-04-18 11:43:59
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from std_msgs.msg import String, Float64
-from matplotlib import pyplot as plt
-from nav_msgs.msg import Odometry
-from visualizer import Visualizer
-from visualization_msgs.msg import MarkerArray
-import rospy
-import numpy as np
-from mavros_msgs.msg import State, PositionTarget
-from mavros_msgs.srv import SetMode
-from traj_planner import MinJerkPlanner
-from pyquaternion import Quaternion
-import time
-from nav_msgs.msg import Path, OccupancyGrid
-from esdf import ESDF
-from mavros_msgs.srv import SetMode, SetModeRequest
-import tf
-import pandas as pd
 import datetime
+import pandas as pd
+import tf
+from mavros_msgs.srv import SetMode, SetModeRequest
+from esdf import ESDF
+from nav_msgs.msg import Path, OccupancyGrid
+import time
+from pyquaternion import Quaternion
+from traj_planner import MinJerkPlanner
+from mavros_msgs.srv import SetMode
+from mavros_msgs.msg import State, PositionTarget
+import numpy as np
+import rospy
+from visualization_msgs.msg import MarkerArray
+from visualizer import Visualizer
+from nav_msgs.msg import Odometry
+from matplotlib import pyplot as plt
+from std_msgs.msg import String, Float64
+import pprint
 
 
 class Config():
@@ -168,16 +169,27 @@ class TrajPlanner():
                                    drone_state.global_vel[:2]])
         self.des_pos_z = drone_state.global_pos[2]  # use current height
 
-        self.record_train_input(drone_state) # record training data
-
         time_start = time.time()
         self.planner.plan(self.map, drone_state_2d, self.target_state)  # 2D planning, z is fixed
         time_end = time.time()
         self.planning_time = time_end - time_start
-        # int_wpts = self.planner.int_wpts
-        # ts = self.planner.ts
-        # convert int_wpts to body frame
         rospy.loginfo("Planning finished! Time cost: %f", self.planning_time)
+
+        # get planning results
+        int_wpts = self.planner.int_wpts
+        ts = self.planner.ts
+
+        # convert int_wpts to body frame
+        int_wpts_num = int_wpts.shape[1]
+        int_wpts_local = np.zeros((3, int_wpts_num))
+        for i in range(int_wpts_num):
+            int_wpts_3d = np.array([int_wpts[0, i], int_wpts[1, i], self.des_pos_z])
+            int_wpts_local[:, i] = drone_state.attitude.inverse.rotate(int_wpts_3d - drone_state.global_pos)
+
+        print("int_wpts_local: ", int_wpts_local.T)
+        print("ts: ", ts)
+
+        self.record_train_input(drone_state)  # record training data
 
     def record_train_input(self, drone_state):
         '''
@@ -187,17 +199,17 @@ class TrajPlanner():
         timestamp = int(now.strftime("%Y%m%d%H%M%S"))
 
         # get training data
-        drone_vel_local = drone_state.local_vel  # size: (3,)
+        drone_local_vel = drone_state.local_vel  # size: (3,)
         drone_quat = drone_state.attitude  # size: (4,)
         drone_attitude = np.array([drone_quat.w, drone_quat.x, drone_quat.y, drone_quat.z])  # size: (4,)
         target_state_3d = np.zeros((2, 3))
         target_state_3d[:, 0:2] = self.target_state
         target_state_3d[0, 2] = self.des_pos_z
-        target_pos_local = drone_quat.inverse.rotate(target_state_3d[0] - drone_state.global_pos)  # size: (3,)
-        target_vel_local = drone_quat.inverse.rotate(target_state_3d[1] - drone_state.global_vel)  # size: (3,)
+        target_local_pos = drone_quat.inverse.rotate(target_state_3d[0] - drone_state.global_pos)  # size: (3,)
+        target_local_vel = drone_quat.inverse.rotate(target_state_3d[1] - drone_state.global_vel)  # size: (3,)
 
         # write the data to local file
-        train_data = np.concatenate((np.array([timestamp]), drone_vel_local, drone_attitude, target_pos_local, target_vel_local), axis=0)
+        train_data = np.concatenate((np.array([timestamp]), drone_local_vel, drone_attitude, target_local_pos, target_local_vel), axis=0)
         df = pd.read_csv('train.csv')
         df = pd.concat([df, pd.DataFrame(train_data.reshape(1, -1), columns=self.table_header)], ignore_index=True)
         df.to_csv('train.csv', index=False)
