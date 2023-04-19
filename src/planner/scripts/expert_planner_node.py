@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-04-19 11:31:07
+LastEditTime: 2023-04-19 11:39:25
 '''
 import os
 import sys
@@ -109,8 +109,9 @@ class TrajPlanner():
 
         # create a blank csv file, with (1+3+4+3+3) columns
         self.table_filename = 'training_data/train.csv'
-        df = pd.DataFrame(columns=self.table_header)
-        df.to_csv(self.table_filename, index=False)
+        if not os.path.isfile(self.table_filename):
+            df = pd.DataFrame(columns=self.table_header)
+            df.to_csv(self.table_filename, index=False)
 
     def flight_state_cb(self, data):
         self.flight_state = data
