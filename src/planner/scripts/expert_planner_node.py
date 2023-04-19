@@ -1,30 +1,29 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-04-18 11:43:59
+LastEditTime: 2023-04-19 11:31:07
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
+from nav_msgs.msg import Odometry, Path, OccupancyGrid
 import datetime
 import pandas as pd
-import tf
-from mavros_msgs.srv import SetMode, SetModeRequest
 from esdf import ESDF
-from nav_msgs.msg import Path, OccupancyGrid
 import time
 from pyquaternion import Quaternion
 from traj_planner import MinJerkPlanner
-from mavros_msgs.srv import SetMode
+from mavros_msgs.srv import SetMode, SetModeRequest
 from mavros_msgs.msg import State, PositionTarget
 import numpy as np
 import rospy
 from visualization_msgs.msg import MarkerArray
 from visualizer import Visualizer
-from nav_msgs.msg import Odometry
 from matplotlib import pyplot as plt
 from std_msgs.msg import String, Float64
-import pprint
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
+import cv2
 
 
 class Config():
@@ -68,6 +67,7 @@ class TrajPlanner():
         self.target_state = None
         self.target_reach_threshold = 0.2
         self.tracking_flag = False  # if the drone is tracking a target, this flag is True
+        self.cv_bridge = CvBridge()
 
         # Services
         rospy.wait_for_service("/mavros/set_mode")
@@ -77,6 +77,7 @@ class TrajPlanner():
         self.flight_state_sub = rospy.Subscriber('/mavros/state', State, self.flight_state_cb)
         self.occupancy_map_sub = rospy.Subscriber('/projected_map', OccupancyGrid, self.map.occupancy_map_cb)
         self.odom_sub = rospy.Subscriber('/mavros/local_position/odom', Odometry, self.odom_cb)
+        self.depth_img_sub = rospy.Subscriber('/camera/depth/image_raw', Image, self.depth_img_cb, queue_size=1)
         self.target_sub = rospy.Subscriber('/manager/local_target', PositionTarget, self.move, queue_size=1)  # when a new target is received, move
 
         # Publishers
@@ -107,8 +108,9 @@ class TrajPlanner():
                              ]
 
         # create a blank csv file, with (1+3+4+3+3) columns
+        self.table_filename = 'training_data/train.csv'
         df = pd.DataFrame(columns=self.table_header)
-        df.to_csv('train.csv', index=False)
+        df.to_csv(self.table_filename, index=False)
 
     def flight_state_cb(self, data):
         self.flight_state = data
@@ -147,6 +149,9 @@ class TrajPlanner():
 
         self.speed_plot_pub.publish(np.linalg.norm(global_vel))
 
+    def depth_img_cb(self, img):
+        self.depth_img = self.cv_bridge.imgmsg_to_cv2(img, desired_encoding="passthrough")
+
     def move(self, target):
         print(" ")
         rospy.loginfo("Target: x = %f, y = %f, vel_x = %f, vel_y = %f",
@@ -164,6 +169,7 @@ class TrajPlanner():
         # self.plot_state_curve()
 
     def traj_plan(self):
+        depth_image = self.depth_img
         drone_state = self.drone_state
         drone_state_2d = np.array([drone_state.global_pos[:2],
                                    drone_state.global_vel[:2]])
@@ -186,19 +192,21 @@ class TrajPlanner():
             int_wpts_3d = np.array([int_wpts[0, i], int_wpts[1, i], self.des_pos_z])
             int_wpts_local[:, i] = drone_state.attitude.inverse.rotate(int_wpts_3d - drone_state.global_pos)
 
-        print("int_wpts_local: ", int_wpts_local.T)
-        print("ts: ", ts)
+        self.record_train_input(drone_state, depth_image)  # record training data
 
-        self.record_train_input(drone_state)  # record training data
-
-    def record_train_input(self, drone_state):
+    def record_train_input(self, drone_state, depth_image):
         '''
         Record training data and write to csv file
         '''
         now = datetime.datetime.now()
         timestamp = int(now.strftime("%Y%m%d%H%M%S"))
 
-        # get training data
+        # scale and save depth_iamge
+        rospy.loginfo("Range of depth image: %f, %f", np.min(depth_image), np.max(depth_image))
+        depth_image = depth_image*255.0/np.max(depth_image)
+        cv2.imwrite(f'training_data/depth_img/{timestamp}.png', depth_image)
+
+        # save drone_local_vel, drone_attitude, target_local_pos, target_local_vel
         drone_local_vel = drone_state.local_vel  # size: (3,)
         drone_quat = drone_state.attitude  # size: (4,)
         drone_attitude = np.array([drone_quat.w, drone_quat.x, drone_quat.y, drone_quat.z])  # size: (4,)
@@ -208,11 +216,10 @@ class TrajPlanner():
         target_local_pos = drone_quat.inverse.rotate(target_state_3d[0] - drone_state.global_pos)  # size: (3,)
         target_local_vel = drone_quat.inverse.rotate(target_state_3d[1] - drone_state.global_vel)  # size: (3,)
 
-        # write the data to local file
         train_data = np.concatenate((np.array([timestamp]), drone_local_vel, drone_attitude, target_local_pos, target_local_vel), axis=0)
-        df = pd.read_csv('train.csv')
+        df = pd.read_csv(self.table_filename)
         df = pd.concat([df, pd.DataFrame(train_data.reshape(1, -1), columns=self.table_header)], ignore_index=True)
-        df.to_csv('train.csv', index=False)
+        df.to_csv(self.table_filename, index=False)
         rospy.loginfo("Training data (ID: %d) saved!", timestamp)
 
     def warm_up(self):
