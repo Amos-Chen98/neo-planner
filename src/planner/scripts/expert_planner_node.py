@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-04-19 11:39:25
+LastEditTime: 2023-04-20 13:36:48
 '''
 import os
 import sys
@@ -47,7 +47,7 @@ class DroneState():
 
 
 class TrajPlanner():
-    def __init__(self, node_name="traj_planner"):
+    def __init__(self, node_name="expert_planner"):
         # Node
         rospy.init_node(node_name, anonymous=False)
 
@@ -164,12 +164,26 @@ class TrajPlanner():
             time.sleep(0.01)
 
         self.traj_plan()
+        # self.traj_plan_record()
         self.traj_track()
         self.visualize_des_wpts()
         self.visualize_des_path()
         # self.plot_state_curve()
 
     def traj_plan(self):
+        drone_state = self.drone_state
+        drone_state_2d = np.array([drone_state.global_pos[:2],
+                                   drone_state.global_vel[:2]])
+        self.des_pos_z = drone_state.global_pos[2]  # use current height
+
+        time_start = time.time()
+        self.planner.plan(self.map, drone_state_2d, self.target_state)  # 2D planning, z is fixed
+        time_end = time.time()
+        self.planning_time = time_end - time_start
+        rospy.loginfo("Planning finished! Time cost: %f", self.planning_time)
+
+
+    def traj_plan_record(self):
         depth_image = self.depth_img
         drone_state = self.drone_state
         drone_state_2d = np.array([drone_state.global_pos[:2],
