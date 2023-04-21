@@ -1,29 +1,30 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-04-20 13:36:48
+LastEditTime: 2023-04-21 20:55:12
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from nav_msgs.msg import Odometry, Path, OccupancyGrid
-import datetime
-import pandas as pd
-from esdf import ESDF
-import time
-from pyquaternion import Quaternion
-from traj_planner import MinJerkPlanner
-from mavros_msgs.srv import SetMode, SetModeRequest
-from mavros_msgs.msg import State, PositionTarget
-import numpy as np
-import rospy
-from visualization_msgs.msg import MarkerArray
-from visualizer import Visualizer
-from matplotlib import pyplot as plt
-from std_msgs.msg import String, Float64
-from sensor_msgs.msg import Image
-from cv_bridge import CvBridge
+from geometry_msgs.msg import PoseStamped
 import cv2
+from cv_bridge import CvBridge
+from sensor_msgs.msg import Image
+from std_msgs.msg import String
+from matplotlib import pyplot as plt
+from visualizer import Visualizer
+from visualization_msgs.msg import MarkerArray
+import rospy
+import numpy as np
+from mavros_msgs.msg import State, PositionTarget
+from mavros_msgs.srv import SetMode, SetModeRequest
+from traj_planner import MinJerkPlanner
+from pyquaternion import Quaternion
+import time
+from esdf import ESDF
+import pandas as pd
+import datetime
+from nav_msgs.msg import Odometry, Path, OccupancyGrid
 
 
 class Config():
@@ -52,22 +53,31 @@ class TrajPlanner():
         rospy.init_node(node_name, anonymous=False)
 
         # Members
-        self.odom = None
+        self.cv_bridge = CvBridge()
+        self.des_path = Path()
+        self.map = ESDF()
+        self.visualizer = Visualizer()
+        self.fsm_trigger = String()
         self.drone_state = DroneState()
         planner_config = Config()
         self.planner = MinJerkPlanner(planner_config)
         self.state_cmd = PositionTarget()
         self.state_cmd.coordinate_frame = 1
+        self.cmd_hz = 300
         self.ODOM_RECEIVED = False
-        self.des_path = Path()
-        self.real_path = Path()
-        self.map = ESDF()
-        self.visualizer = Visualizer()
-        self.fsm_trigger = String()
+        self.odom = None
         self.target_state = None
         self.target_reach_threshold = 0.2
-        self.tracking_flag = False  # if the drone is tracking a target, this flag is True
-        self.cv_bridge = CvBridge()
+        self.has_traj = False
+        self.planning_time_ahead = 1.0  # the time ahead of the current time to plan the trajectory
+        self.des_state_index = 0
+        self.des_pos_z = 2.0
+        # self.planning_mode = 'global'
+        self.planning_mode = 'online'
+        self.longitu_step_dis = 5.0  # the distance forward in each replanning
+        self.lateral_step_length = 1.0  # if local target pos in obstacle, take lateral step
+        self.move_vel = 0.8
+        self.execute_mission = False
 
         # Services
         rospy.wait_for_service("/mavros/set_mode")
@@ -78,15 +88,13 @@ class TrajPlanner():
         self.occupancy_map_sub = rospy.Subscriber('/projected_map', OccupancyGrid, self.map.occupancy_map_cb)
         self.odom_sub = rospy.Subscriber('/mavros/local_position/odom', Odometry, self.odom_cb)
         self.depth_img_sub = rospy.Subscriber('/camera/depth/image_raw', Image, self.depth_img_cb, queue_size=1)
-        self.target_sub = rospy.Subscriber('/manager/local_target', PositionTarget, self.move, queue_size=1)  # when a new target is received, move
+        self.target_sub = rospy.Subscriber("/manager/global_target", PoseStamped, self.trigger_plan, queue_size=1)
 
         # Publishers
         self.local_pos_cmd_pub = rospy.Publisher("/mavros/setpoint_raw/local", PositionTarget, queue_size=10)
         self.drone_snapshots_pub = rospy.Publisher('/robotMarker', MarkerArray, queue_size=10)
         self.des_wpts_pub = rospy.Publisher('/des_wpts', MarkerArray, queue_size=10)
         self.des_path_pub = rospy.Publisher('/des_path', MarkerArray, queue_size=10)
-        self.fsm_trigger_pub = rospy.Publisher('/manager/trigger', String, queue_size=10)
-        self.speed_plot_pub = rospy.Publisher('/drone_speed', Float64, queue_size=10)
 
         rospy.loginfo("Global planner initialized")
 
@@ -141,49 +149,126 @@ class TrajPlanner():
         self.drone_state.local_vel = local_vel
         self.drone_state.attitude = quat
 
-        if (self.tracking_flag == True and np.linalg.norm(self.drone_state.global_pos[:2] - self.target_state[0]) < self.target_reach_threshold):
+        if self.execute_mission and np.linalg.norm(self.drone_state.global_pos[:2] - self.global_target) < self.target_reach_threshold:
+            rospy.loginfo("Global target reached!")
             self.tracking_cmd_timer.shutdown()
-            self.tracking_flag = False
-            rospy.loginfo("Trajectory execution finished!")
-            self.fsm_trigger.data = "reach_target"
-            self.fsm_trigger_pub.publish(self.fsm_trigger)
-
-        self.speed_plot_pub.publish(np.linalg.norm(global_vel))
+            self.execute_mission = False
 
     def depth_img_cb(self, img):
         self.depth_img = self.cv_bridge.imgmsg_to_cv2(img, desired_encoding="passthrough")
 
-    def move(self, target):
-        print(" ")
-        rospy.loginfo("Target: x = %f, y = %f, vel_x = %f, vel_y = %f",
-                      target.position.x, target.position.y, target.velocity.x, target.velocity.y)
-        self.target_state = np.array([[target.position.x, target.position.y],
-                                      [target.velocity.x, target.velocity.y]])
+    def trigger_plan(self, target):
+        self.execute_mission = True
+        rospy.loginfo("Global target: x = %f, y = %f", target.pose.position.x, target.pose.position.y)
+        self.global_target = np.array([target.pose.position.x,
+                                       target.pose.position.y])
 
+        if self.planning_mode == 'global':
+            self.global_planning()
+        else:
+            self.online_planning()
+
+    def global_planning(self):
+        self.target_state = np.zeros((2, 2))
+        self.target_state[0] = self.global_target
+        self.move()
+        self.visualize_des_wpts()
+        self.visualize_des_path()
+
+    def online_planning(self):
+        while self.execute_mission:
+            self.set_local_target()
+            self.move()
+            self.visualize_des_wpts()
+            self.visualize_des_path()
+
+    def set_local_target(self):
+        self.target_state = np.zeros((2, 2))
+        current_pos = self.drone_state.global_pos[:2]
+        global_target_pos = self.global_target
+
+        # if current pos is close enough to global target, set local target as global target
+        if np.linalg.norm(global_target_pos - current_pos) < self.longitu_step_dis:
+            self.target_state[0] = global_target_pos
+            return
+
+        longitu_dir = (global_target_pos - current_pos)/np.linalg.norm(global_target_pos - current_pos)
+        lateral_dir = np.array([[longitu_dir[1], -longitu_dir[0]],
+                                [-longitu_dir[1], longitu_dir[0]]])
+        lateral_dir_flag = 0
+        lateral_move_dis = self.lateral_step_length
+
+        # get local target pos
+        local_target_pos = current_pos + self.longitu_step_dis * longitu_dir
+        while self.map.has_collision(local_target_pos):
+            local_target_pos += lateral_move_dis * lateral_dir[lateral_dir_flag]
+            lateral_dir_flag = 1 - lateral_dir_flag
+            lateral_move_dis += self.lateral_step_length
+
+        # get local target vel
+        goal_dir = (global_target_pos - local_target_pos)/np.linalg.norm(global_target_pos - local_target_pos)
+        local_target_vel = np.array([self.move_vel * goal_dir[0], self.move_vel * goal_dir[1]])
+
+        local_target = np.array([local_target_pos,
+                                 local_target_vel])
+
+        self.target_state = local_target
+
+        print(" ")
+        rospy.loginfo("Local target: x = %f, y = %f, vel_x = %f, vel_y = %f",
+                      local_target[0][0], local_target[0][1], local_target[1][0], local_target[1][1])
+
+    def move(self):  # sourcery skip: extract-duplicate-method
         while not self.ODOM_RECEIVED:
             time.sleep(0.01)
 
-        self.traj_plan()
-        # self.traj_plan_record()
-        self.traj_track()
-        self.visualize_des_wpts()
-        self.visualize_des_path()
-        # self.plot_state_curve()
+        if not self.has_traj:
+            self.first_plan()
+            self.start_tracking()
+        else:  # plan ahead 1s
+            self.replan()
 
-    def traj_plan(self):
-        drone_state = self.drone_state
-        drone_state_2d = np.array([drone_state.global_pos[:2],
-                                   drone_state.global_vel[:2]])
-        self.des_pos_z = drone_state.global_pos[2]  # use current height
+    def first_plan(self):
+        self.traj_plan(self.drone_state)
+        # First planning! Set the des_state_array as des_state
+        self.des_state_array = self.des_state
+        self.has_traj = True
 
+    def get_drone_state_ahead(self):
+        '''
+        get the drone state after 1s from self.des_state
+        '''
+        self.future_index = int(self.planning_time_ahead * self.cmd_hz) + self.des_state_index
+        drone_state_ahead = DroneState()
+        drone_state_ahead.global_pos = np.append(self.des_state_array[self.future_index, 0, :], self.des_pos_z)
+        drone_state_ahead.global_vel = np.append(self.des_state_array[self.future_index, 1, :], 0)
+
+        return drone_state_ahead
+
+    def replan(self):
+        drone_state_ahead = self.get_drone_state_ahead()
+        self.traj_plan(drone_state_ahead)
+        # Concatenate the new trajectory to the old one, at index self.future_index
+        self.des_state_array = np.concatenate((self.des_state_array[:self.future_index+1], self.des_state), axis=0)
+
+    def traj_plan(self, drone_init_state):
+        '''
+        trajectory planning, store the full state cmd in self.des_state
+        '''
         time_start = time.time()
+        drone_state_2d = np.array([drone_init_state.global_pos[:2],
+                                   drone_init_state.global_vel[:2]])
+        self.des_pos_z = drone_init_state.global_pos[2]  # use current height
         self.planner.plan(self.map, drone_state_2d, self.target_state)  # 2D planning, z is fixed
+        self.des_state, self.traj_time, self.cmd_hz = self.planner.get_full_state_cmd()
         time_end = time.time()
-        self.planning_time = time_end - time_start
-        rospy.loginfo("Planning finished! Time cost: %f", self.planning_time)
-
+        planning_time = time_end - time_start
+        rospy.loginfo("Planning finished! Time cost: %f", planning_time)
 
     def traj_plan_record(self):
+        '''
+        trajectory planning + store the training data
+        '''
         depth_image = self.depth_img
         drone_state = self.drone_state
         drone_state_2d = np.array([drone_state.global_pos[:2],
@@ -249,11 +334,14 @@ class TrajPlanner():
             self.local_pos_cmd_pub.publish(self.state_cmd)
             rate.sleep()
 
-    def traj_track(self):
+    def enter_offboard(self):
         '''
-        When triggered, start to publish full state cmd
+        if not in OFFBOARD mode, switch to OFFBOARD mode
         '''
-        # if not in OFFBOARD mode, switch to OFFBOARD mode
+        rospy.loginfo("Tracking started!")
+        rospy.loginfo("Current drone position: %f, %f, %f",
+                      self.drone_state.global_pos[0], self.drone_state.global_pos[1], self.drone_state.global_pos[2])
+
         if self.flight_state.mode != "OFFBOARD":
             self.warm_up()
             set_offb_req = SetModeRequest()
@@ -261,49 +349,36 @@ class TrajPlanner():
             if (self.set_mode_client.call(set_offb_req).mode_sent == True):
                 rospy.loginfo("OFFBOARD enabled")
 
-        self.tracking_flag = True
-        self.fsm_trigger.data = "start_tracking"
-        self.fsm_trigger_pub.publish(self.fsm_trigger)
+    def start_tracking(self):
+        '''
+        When triggered, start to publish full state cmd
+        '''
+        self.enter_offboard()
 
-        self.des_state, self.traj_time, hz = self.planner.get_full_state_cmd()
-
-        # calculate the best index to start tracking by minimizing the distance between current state and desired state
-        current_pos = self.drone_state.global_pos[:2]
-        search_idx = np.arange(0, len(self.des_state), 30)
-        pos_err = np.zeros(len(search_idx))
-        for i in range(len(search_idx)):
-            pos_err[i] = np.linalg.norm(current_pos - self.des_state[search_idx[i]][0])
-        self.des_state_index = search_idx[np.argmin(pos_err)]
-        rospy.loginfo("Trajectory duration: %f", len(self.des_state)/hz)
-        rospy.loginfo("Start time offset: %f", self.des_state_index/hz)
-        # print the first element of des vel
-        rospy.loginfo("Init vel in traj: %f", np.linalg.norm(self.des_state[0][1]))
-        rospy.loginfo("Terminal vel in traj: %f", np.linalg.norm(self.des_state[-1][1]))
-        self.tracking_cmd_timer = rospy.Timer(rospy.Duration(1/hz), self.tracking_cmd_timer_cb)
+        self.tracking_cmd_timer = rospy.Timer(rospy.Duration(1/self.cmd_hz), self.tracking_cmd_timer_cb)
 
     def tracking_cmd_timer_cb(self, event):
         '''
         Publish state cmd, height is fixed to current height
         '''
-        self.state_cmd.position.x = self.des_state[self.des_state_index][0][0]
-        self.state_cmd.position.y = self.des_state[self.des_state_index][0][1]
+        self.state_cmd.position.x = self.des_state_array[self.des_state_index][0][0]
+        self.state_cmd.position.y = self.des_state_array[self.des_state_index][0][1]
         self.state_cmd.position.z = self.des_pos_z
 
-        self.state_cmd.velocity.x = self.des_state[self.des_state_index][1][0]
-        self.state_cmd.velocity.y = self.des_state[self.des_state_index][1][1]
+        self.state_cmd.velocity.x = self.des_state_array[self.des_state_index][1][0]
+        self.state_cmd.velocity.y = self.des_state_array[self.des_state_index][1][1]
         self.state_cmd.velocity.z = 0
 
-        self.state_cmd.acceleration_or_force.x = self.des_state[self.des_state_index][2][0]
-        self.state_cmd.acceleration_or_force.y = self.des_state[self.des_state_index][2][1]
+        self.state_cmd.acceleration_or_force.x = self.des_state_array[self.des_state_index][2][0]
+        self.state_cmd.acceleration_or_force.y = self.des_state_array[self.des_state_index][2][1]
         self.state_cmd.acceleration_or_force.z = 0
 
-        self.state_cmd.yaw = np.arctan2(self.des_state[self.des_state_index][0][1] - self.des_state[self.des_state_index - 1][0][1],
-                                        self.des_state[self.des_state_index][0][0] - self.des_state[self.des_state_index - 1][0][0])
+        self.state_cmd.yaw = np.arctan2(self.des_state_array[self.des_state_index][0][1] - self.des_state_array[self.des_state_index - 1][0][1],
+                                        self.des_state_array[self.des_state_index][0][0] - self.des_state_array[self.des_state_index - 1][0][0])
 
         self.local_pos_cmd_pub.publish(self.state_cmd)
 
-        if self.des_state_index < len(self.des_state)-1:
-            self.des_state_index += 1
+        self.des_state_index += 1
 
     def visualize_drone_snapshots(self):
         '''

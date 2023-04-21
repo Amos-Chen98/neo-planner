@@ -56,7 +56,7 @@
     <!-- FSM Manager -->
     <!-- <node pkg="planner" type="manager_node.py" name="manager" /> -->
 
-    <!-- rqt plot -->
-    <!-- <node pkg="rqt_plot" type="rqt_plot" name="pos_vel_plot" args="/drone_speed" /> -->
+    <!-- plotjunggler -->
+    <node pkg="plotjuggler" type="plotjuggler" name="plotjuggler" args="-l $(find simulator)/rviz/plotjuggler_config.xml" />
 
 </launch>

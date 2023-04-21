@@ -1,25 +1,23 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-04-19 11:26:39
+LastEditTime: 2023-04-21 20:48:35
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from visualization_msgs.msg import Marker
-from std_msgs.msg import String
-from nav_msgs.msg import OccupancyGrid
-from mavros_msgs.srv import SetMode, SetModeRequest
-from mavros_msgs.srv import SetMode
-from nav_msgs.msg import Odometry
-from mavros_msgs.msg import State, PositionTarget
-from mavros_msgs.srv import CommandBool, CommandBoolRequest, SetMode, SetModeRequest, CommandTOL, CommandTOLRequest
-import rospy
-import numpy as np
-from transitions import Machine
-from transitions.extensions import GraphMachine
-from geometry_msgs.msg import PoseStamped
 from esdf import ESDF
+from geometry_msgs.msg import PoseStamped
+from transitions.extensions import GraphMachine
+from transitions import Machine
+import numpy as np
+import rospy
+from mavros_msgs.srv import CommandBool, CommandBoolRequest, SetMode, SetModeRequest, CommandTOL, CommandTOLRequest
+from mavros_msgs.msg import State, PositionTarget
+from nav_msgs.msg import Odometry
+from mavros_msgs.srv import SetMode
+from mavros_msgs.srv import SetMode, SetModeRequest
+from visualization_msgs.msg import Marker
 
 
 class Manager():
@@ -38,13 +36,7 @@ class Manager():
         self.pos_cmd.coordinate_frame = 1
         self.pos_cmd.position.z = self.hover_height
         self.drone_state = np.zeros((3, 3))  # p,v,a in map frame
-        self.replan_time = 2.0  # the time interval between two replanning
-        self.longitu_step_dis = 5.0  # the distance forward in each replanning
-        self.lateral_step_length = 1.0  # if local target pos in obstacle, take lateral step
-        self.move_vel = 0.8
         self.global_target = None
-        self.planning_mode = 'global'
-        # self.planning_mode = 'online'
 
         # Client / Service init
         try:
@@ -61,25 +53,17 @@ class Manager():
         self.flight_state_sub = rospy.Subscriber('/mavros/state', State, self.flight_state_cb)
         self.odom_sub = rospy.Subscriber('/mavros/local_position/odom', Odometry, self.odom_cb)
         self.target_sub = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.trigger_plan)
-        self.fsm_trigger_sub = rospy.Subscriber('/manager/trigger', String, self.trigger_fsm)
-        self.occupancy_map_sub = rospy.Subscriber('/projected_map', OccupancyGrid, self.map.occupancy_map_cb)
 
         # Publishers
         self.local_pos_cmd_pub = rospy.Publisher("/mavros/setpoint_raw/local", PositionTarget, queue_size=10)
-        self.local_target_pub = rospy.Publisher("/manager/local_target", PositionTarget, queue_size=1)
+        self.target_pub = rospy.Publisher("/manager/global_target", PoseStamped, queue_size=1)
         self.target_vis_pub = rospy.Publisher('/global_target', Marker, queue_size=10)
 
         # FSM
-        self.fsm = GraphMachine(model=self, states=['INIT', 'TRACKING', 'HOVER', 'PLANNING'], initial='INIT')
-        self.fsm.add_transition(trigger='launch', source='INIT', dest='TRACKING', before="get_odom", after=['takeoff', 'print_current_state'])
-        self.fsm.add_transition(trigger='reach_target', source='TRACKING', dest='HOVER', after=['print_current_state'])
-        self.fsm.add_transition(trigger='init_planning', source='HOVER', dest='PLANNING', after=['start_planning', 'print_current_state'])
-        self.fsm.add_transition(trigger='init_planning', source='TRACKING', dest='PLANNING', after=['start_planning', 'print_current_state'])
-        self.fsm.add_transition(trigger='start_tracking', source='PLANNING', dest='TRACKING', after=['print_current_state'])
-        # if triggered planning in state TRACKING, and the target is reached during planning, stay in PLANNING
-        self.fsm.add_transition(trigger='reach_target', source='PLANNING', dest='PLANNING', after='print_current_state')
-        self.fsm.add_transition(trigger='replan_timeout', source='TRACKING', dest='PLANNING', after=['publish_local_target', 'print_current_state'])
-        self.fsm.add_transition(trigger='replan_timeout', source='HOVER', dest='PLANNING', after=['publish_local_target', 'print_current_state'])
+        self.fsm = GraphMachine(model=self, states=['INIT', 'TAKINGOFF', 'HOVER', 'MISSION'], initial='INIT')
+        self.fsm.add_transition(trigger='launch', source='INIT', dest='TAKINGOFF', before="get_odom", after=['takeoff', 'print_current_state'])
+        self.fsm.add_transition(trigger='reach_target', source='TAKINGOFF', dest='HOVER', after=['print_current_state'])
+        self.fsm.add_transition(trigger='init_planning', source='HOVER', dest='MISSION', after=['print_current_state'])
 
     def print_current_state(self):
         rospy.loginfo("Current state: %s", self.state)
@@ -91,6 +75,7 @@ class Manager():
                                        target.pose.position.z])
         self.vis_target()
         self.init_planning()
+        self.target_pub.publish(target)
 
     def vis_target(self):
         marker = Marker()
@@ -124,63 +109,7 @@ class Manager():
         self.pos_cmd.position.y = self.drone_state[0, 1]
         self.pos_cmd.position.z = self.drone_state[0, 2]
 
-        self.local_target_pub.publish(self.pos_cmd)
-
-    def trigger_fsm(self, trigger):
-        if trigger.data == "reach_target":
-            self.reach_target()
-        elif trigger.data == "start_tracking":
-            self.start_tracking()
-
-    def start_planning(self):
-        if self.planning_mode == 'global':
-            global_target = PositionTarget()
-            global_target.position.x = self.global_target[0]
-            global_target.position.y = self.global_target[1]
-            self.local_target_pub.publish(global_target)
-        else:
-            self.publish_local_target()
-            self.replan_timer = rospy.Timer(rospy.Duration(self.replan_time), self.replan_timer_cb)
-
-    def replan_timer_cb(self, event):
-        self.replan_timeout()
-
-    def publish_local_target(self):
-        local_target = PositionTarget()
-        current_pos = self.drone_state[0, :2]  # np.array
-        global_target_pos = self.global_target[:2]
-
-        # if current pos is close enough to global target, set local target to global target
-        if np.linalg.norm(global_target_pos - current_pos) < self.longitu_step_dis:
-            local_target.position.x = self.global_target[0]
-            local_target.position.y = self.global_target[1]
-            local_target.position.z = self.hover_height
-            self.local_target_pub.publish(local_target)
-            self.replan_timer.shutdown()
-            return
-
-        longitu_dir = (global_target_pos - current_pos)/np.linalg.norm(global_target_pos - current_pos)
-        lateral_dir = np.array([[longitu_dir[1], -longitu_dir[0]],
-                                [-longitu_dir[1], longitu_dir[0]]])
-        lateral_dir_flag = 0
-        lateral_move_dis = self.lateral_step_length
-
-        # get local target pos
-        local_target_pos = current_pos + self.longitu_step_dis * longitu_dir
-        while self.map.has_collision(local_target_pos):
-            local_target_pos += lateral_move_dis * lateral_dir[lateral_dir_flag]
-            lateral_dir_flag = 1 - lateral_dir_flag
-            lateral_move_dis += self.lateral_step_length
-
-        local_target.position.x = local_target_pos[0]
-        local_target.position.y = local_target_pos[1]
-
-        # get local target vel
-        goal_dir = (global_target_pos - local_target_pos)/np.linalg.norm(global_target_pos - local_target_pos)
-        local_target.velocity.x = self.move_vel * goal_dir[0]
-        local_target.velocity.y = self.move_vel * goal_dir[1]
-
-        self.local_target_pub.publish(local_target)
+        self.global_target_pub.publish(self.pos_cmd)
 
     def flight_state_cb(self, data):
         self.flight_state = data
