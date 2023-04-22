@@ -1,30 +1,31 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-04-21 20:55:12
+LastEditTime: 2023-04-22 14:22:43
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from geometry_msgs.msg import PoseStamped
-import cv2
-from cv_bridge import CvBridge
-from sensor_msgs.msg import Image
-from std_msgs.msg import String
-from matplotlib import pyplot as plt
-from visualizer import Visualizer
-from visualization_msgs.msg import MarkerArray
-import rospy
-import numpy as np
-from mavros_msgs.msg import State, PositionTarget
-from mavros_msgs.srv import SetMode, SetModeRequest
-from traj_planner import MinJerkPlanner
-from pyquaternion import Quaternion
-import time
-from esdf import ESDF
-import pandas as pd
-import datetime
+from planner.msg import *
+import actionlib
 from nav_msgs.msg import Odometry, Path, OccupancyGrid
+import datetime
+import pandas as pd
+from esdf import ESDF
+import time
+from pyquaternion import Quaternion
+from traj_planner import MinJerkPlanner
+from mavros_msgs.srv import SetMode, SetModeRequest
+from mavros_msgs.msg import State, PositionTarget
+import numpy as np
+import rospy
+from visualization_msgs.msg import MarkerArray
+from visualizer import Visualizer
+from matplotlib import pyplot as plt
+from std_msgs.msg import String
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
+import cv2
 
 
 class Config():
@@ -77,7 +78,13 @@ class TrajPlanner():
         self.longitu_step_dis = 5.0  # the distance forward in each replanning
         self.lateral_step_length = 1.0  # if local target pos in obstacle, take lateral step
         self.move_vel = 0.8
-        self.execute_mission = False
+        self.mission_executing = False
+        self.plan_success = False
+
+        # Server
+        self.plan_server = actionlib.SimpleActionServer('plan', PlanAction, self.plan_cb, False)
+        self.plan_server.start()
+        rospy.loginfo("Action server started")
 
         # Services
         rospy.wait_for_service("/mavros/set_mode")
@@ -88,7 +95,6 @@ class TrajPlanner():
         self.occupancy_map_sub = rospy.Subscriber('/projected_map', OccupancyGrid, self.map.occupancy_map_cb)
         self.odom_sub = rospy.Subscriber('/mavros/local_position/odom', Odometry, self.odom_cb)
         self.depth_img_sub = rospy.Subscriber('/camera/depth/image_raw', Image, self.depth_img_cb, queue_size=1)
-        self.target_sub = rospy.Subscriber("/manager/global_target", PoseStamped, self.trigger_plan, queue_size=1)
 
         # Publishers
         self.local_pos_cmd_pub = rospy.Publisher("/mavros/setpoint_raw/local", PositionTarget, queue_size=10)
@@ -149,24 +155,30 @@ class TrajPlanner():
         self.drone_state.local_vel = local_vel
         self.drone_state.attitude = quat
 
-        if self.execute_mission and np.linalg.norm(self.drone_state.global_pos[:2] - self.global_target) < self.target_reach_threshold:
+        if self.mission_executing and np.linalg.norm(self.drone_state.global_pos[:2] - self.global_target) < self.target_reach_threshold:
             rospy.loginfo("Global target reached!")
+            self.mission_executing = False
             self.tracking_cmd_timer.shutdown()
-            self.execute_mission = False
+            self.plan_success = True
+            self.has_traj = False
 
     def depth_img_cb(self, img):
         self.depth_img = self.cv_bridge.imgmsg_to_cv2(img, desired_encoding="passthrough")
 
-    def trigger_plan(self, target):
-        self.execute_mission = True
+    def plan_cb(self, goal):
+        self.mission_executing = True
+        target = goal.target
         rospy.loginfo("Global target: x = %f, y = %f", target.pose.position.x, target.pose.position.y)
-        self.global_target = np.array([target.pose.position.x,
-                                       target.pose.position.y])
+        self.global_target = np.array([target.pose.position.x, target.pose.position.y])
 
         if self.planning_mode == 'global':
             self.global_planning()
         else:
             self.online_planning()
+
+        result = PlanResult()
+        result.result = self.plan_success
+        self.plan_server.set_succeeded(result)
 
     def global_planning(self):
         self.target_state = np.zeros((2, 2))
@@ -176,7 +188,7 @@ class TrajPlanner():
         self.visualize_des_path()
 
     def online_planning(self):
-        while self.execute_mission:
+        while self.mission_executing:
             self.set_local_target()
             self.move()
             self.visualize_des_wpts()
@@ -218,7 +230,7 @@ class TrajPlanner():
         rospy.loginfo("Local target: x = %f, y = %f, vel_x = %f, vel_y = %f",
                       local_target[0][0], local_target[0][1], local_target[1][0], local_target[1][1])
 
-    def move(self):  # sourcery skip: extract-duplicate-method
+    def move(self):
         while not self.ODOM_RECEIVED:
             time.sleep(0.01)
 
@@ -263,7 +275,7 @@ class TrajPlanner():
         self.des_state, self.traj_time, self.cmd_hz = self.planner.get_full_state_cmd()
         time_end = time.time()
         planning_time = time_end - time_start
-        rospy.loginfo("Planning finished! Time cost: %f", planning_time)
+        rospy.loginfo("Planning finished in %f s", planning_time)
 
     def traj_plan_record(self):
         '''

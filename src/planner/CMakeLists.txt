@@ -7,10 +7,14 @@ project(planner)
 # # Find catkin macros and libraries
 # # if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 # # is used, also find other catkin packages
-find_package(catkin REQUIRED COMPONENTS
+find_package(
+    catkin REQUIRED COMPONENTS
     roscpp
     rospy
     octomap_ros
+    geometry_msgs
+    actionlib
+    actionlib_msgs
 )
 
 # # System dependencies are found with CMake's conventions
@@ -60,17 +64,17 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 # # Generate actions in the 'action' folder
-# add_action_files(
-# FILES
-# Action1.action
-# Action2.action
-# )
+add_action_files(
+    FILES
+    Plan.action
+)
 
 # # Generate added messages and services with any dependencies listed here
-# generate_messages(
-# DEPENDENCIES
-# std_msgs  # Or other packages containing msgs
-# )
+generate_messages(
+    DEPENDENCIES
+    geometry_msgs
+    actionlib_msgs
+)
 
 # ###############################################
 # # Declare ROS dynamic reconfigure parameters ##
@@ -101,13 +105,14 @@ find_package(catkin REQUIRED COMPONENTS
 # # LIBRARIES: libraries you create in this project that dependent projects also need
 # # CATKIN_DEPENDS: catkin_packages dependent projects also need
 # # DEPENDS: system dependencies of this project that dependent projects also need
-catkin_package(
+# catkin_package(
 
-    # INCLUDE_DIRS include
-    # LIBRARIES planner
-    # CATKIN_DEPENDS roscpp rospy
-    # DEPENDS system_lib
-)
+#     # INCLUDE_DIRS include
+#     # LIBRARIES planner
+#     CATKIN_DEPENDS roscpp rospy std_msgs geometry_msgs actionlib actionlib_msgs
+
+#     # DEPENDS system_lib
+# )
 
 # ##########
 # # Build ##
@@ -163,11 +168,10 @@ include_directories(
 catkin_install_python(PROGRAMS
     scripts/draft.py
     scripts/esdf_vis_node.py
-    scripts/traj_planner_node.py
+    scripts/expert_planner_node.py
     scripts/traj_planner.py
     scripts/visualizer.py
     scripts/manager_node.py
-    scripts/expert_planner_node.py
     DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

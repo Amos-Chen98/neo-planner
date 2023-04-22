@@ -1,0 +1,5 @@
+geometry_msgs/PoseStamped target
+---
+bool result
+---
+float64 state
