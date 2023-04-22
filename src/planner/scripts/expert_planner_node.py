@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-04-22 14:49:09
+LastEditTime: 2023-04-22 15:57:57
 '''
 import os
 import sys
@@ -65,7 +65,7 @@ class TrajPlanner():
         self.state_cmd = PositionTarget()
         self.state_cmd.coordinate_frame = 1
         self.cmd_hz = 300
-        self.ODOM_RECEIVED = False
+        self.odom_received = False
         self.odom = None
         self.target_state = None
         self.target_reach_threshold = 0.2
@@ -79,12 +79,12 @@ class TrajPlanner():
         self.lateral_step_length = 1.0  # if local target pos in obstacle, take lateral step
         self.move_vel = 0.8
         self.mission_executing = False
-        self.plan_success = False
+        self.near_global_target = False
+        self.reached_target = False
 
         # Server
-        self.plan_server = actionlib.SimpleActionServer('plan', PlanAction, self.plan_cb, False)
+        self.plan_server = actionlib.SimpleActionServer('plan', PlanAction, self.execute_mission, False)
         self.plan_server.start()
-        rospy.loginfo("Action server started")
 
         # Services
         rospy.wait_for_service("/mavros/set_mode")
@@ -136,7 +136,7 @@ class TrajPlanner():
         2. publish dynamic tf transform from map frame to camera frame
         (Currently, regard camera frame as drone body frame)
         '''
-        self.ODOM_RECEIVED = True
+        self.odom_received = True
         self.odom = data
         local_pos = np.array([data.pose.pose.position.x,
                               data.pose.pose.position.y,
@@ -156,19 +156,23 @@ class TrajPlanner():
         self.drone_state.attitude = quat
 
         if self.mission_executing and np.linalg.norm(self.drone_state.global_pos[:2] - self.global_target) < self.target_reach_threshold:
-            rospy.loginfo("Global target reached!")
-            self.mission_executing = False
-            self.tracking_cmd_timer.shutdown()
-            self.des_state_index = 0
-            self.plan_success = True
-            self.has_traj = False
+            self.end_mission()
+
+    def end_mission(self):
+        rospy.loginfo("Global target reached!")
+        self.reached_target = True
+        self.mission_executing = False
+        self.near_global_target = False
+        self.has_traj = False
+        self.tracking_cmd_timer.shutdown()
+        self.des_state_index = 0
 
     def depth_img_cb(self, img):
         self.depth_img = self.cv_bridge.imgmsg_to_cv2(img, desired_encoding="passthrough")
 
-    def plan_cb(self, goal):
+    def execute_mission(self, goal):
         self.mission_executing = True
-
+        self.reached_target = False
         target = goal.target
         rospy.loginfo("Global target: x = %f, y = %f", target.pose.position.x, target.pose.position.y)
         self.global_target = np.array([target.pose.position.x, target.pose.position.y])
@@ -178,21 +182,36 @@ class TrajPlanner():
         else:
             self.online_planning()
 
+        while not self.reached_target:
+            time.sleep(0.01)
+
         result = PlanResult()
-        result.result = self.plan_success
+        result.success = True
         self.plan_server.set_succeeded(result)
 
     def global_planning(self):
+        while not self.odom_received:
+            time.sleep(0.01)
+
         self.target_state = np.zeros((2, 2))
         self.target_state[0] = self.global_target
-        self.move()
+        self.first_plan()
+        self.start_tracking()
         self.visualize_des_wpts()
         self.visualize_des_path()
 
     def online_planning(self):
-        while self.mission_executing:
+        while self.mission_executing and not self.near_global_target:
+            while not self.odom_received:
+                time.sleep(0.01)
+
             self.set_local_target()
-            self.move()
+            if not self.has_traj:
+                self.first_plan()
+                self.start_tracking()
+            else:  # plan ahead 1s
+                self.replan()
+
             self.visualize_des_wpts()
             self.visualize_des_path()
 
@@ -204,6 +223,7 @@ class TrajPlanner():
         # if current pos is close enough to global target, set local target as global target
         if np.linalg.norm(global_target_pos - current_pos) < self.longitu_step_dis:
             self.target_state[0] = global_target_pos
+            self.near_global_target = True
             return
 
         longitu_dir = (global_target_pos - current_pos)/np.linalg.norm(global_target_pos - current_pos)
@@ -231,16 +251,6 @@ class TrajPlanner():
         print(" ")
         rospy.loginfo("Local target: x = %f, y = %f, vel_x = %f, vel_y = %f",
                       local_target[0][0], local_target[0][1], local_target[1][0], local_target[1][1])
-
-    def move(self):
-        while not self.ODOM_RECEIVED:
-            time.sleep(0.01)
-
-        if not self.has_traj:
-            self.first_plan()
-            self.start_tracking()
-        else:  # plan ahead 1s
-            self.replan()
 
     def first_plan(self):
         self.traj_plan(self.drone_state)
