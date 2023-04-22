@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-04-22 15:57:57
+LastEditTime: 2023-04-22 16:47:27
 '''
 import os
 import sys
@@ -155,7 +155,7 @@ class TrajPlanner():
         self.drone_state.local_vel = local_vel
         self.drone_state.attitude = quat
 
-        if self.mission_executing and np.linalg.norm(self.drone_state.global_pos[:2] - self.global_target) < self.target_reach_threshold:
+        if self.mission_executing and np.linalg.norm(global_pos[:2] - self.global_target) < self.target_reach_threshold:
             self.end_mission()
 
     def end_mission(self):
@@ -224,6 +224,8 @@ class TrajPlanner():
         if np.linalg.norm(global_target_pos - current_pos) < self.longitu_step_dis:
             self.target_state[0] = global_target_pos
             self.near_global_target = True
+            print(" ")
+            rospy.loginfo("Last target: x = %f, y = %f", global_target_pos[0], global_target_pos[1])
             return
 
         longitu_dir = (global_target_pos - current_pos)/np.linalg.norm(global_target_pos - current_pos)
