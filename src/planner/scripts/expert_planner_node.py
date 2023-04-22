@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-04-22 14:22:43
+LastEditTime: 2023-04-22 14:49:09
 '''
 import os
 import sys
@@ -159,6 +159,7 @@ class TrajPlanner():
             rospy.loginfo("Global target reached!")
             self.mission_executing = False
             self.tracking_cmd_timer.shutdown()
+            self.des_state_index = 0
             self.plan_success = True
             self.has_traj = False
 
@@ -167,6 +168,7 @@ class TrajPlanner():
 
     def plan_cb(self, goal):
         self.mission_executing = True
+
         target = goal.target
         rospy.loginfo("Global target: x = %f, y = %f", target.pose.position.x, target.pose.position.y)
         self.global_target = np.array([target.pose.position.x, target.pose.position.y])
