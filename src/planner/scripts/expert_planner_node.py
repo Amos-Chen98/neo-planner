@@ -1,34 +1,34 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-04-22 16:47:27
+LastEditTime: 2023-04-22 17:23:40
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from planner.msg import *
-import actionlib
-from nav_msgs.msg import Odometry, Path, OccupancyGrid
-import datetime
-import pandas as pd
-from esdf import ESDF
-import time
-from pyquaternion import Quaternion
-from traj_planner import MinJerkPlanner
-from mavros_msgs.srv import SetMode, SetModeRequest
-from mavros_msgs.msg import State, PositionTarget
-import numpy as np
-import rospy
-from visualization_msgs.msg import MarkerArray
-from visualizer import Visualizer
-from matplotlib import pyplot as plt
-from std_msgs.msg import String
-from sensor_msgs.msg import Image
-from cv_bridge import CvBridge
 import cv2
+from cv_bridge import CvBridge
+from sensor_msgs.msg import Image
+from std_msgs.msg import String
+from matplotlib import pyplot as plt
+from visualizer import Visualizer
+from visualization_msgs.msg import MarkerArray
+import rospy
+import numpy as np
+from mavros_msgs.msg import State, PositionTarget
+from mavros_msgs.srv import SetMode, SetModeRequest
+from traj_planner import MinJerkPlanner
+from pyquaternion import Quaternion
+import time
+from esdf import ESDF
+import pandas as pd
+import datetime
+from nav_msgs.msg import Odometry, Path, OccupancyGrid
+import actionlib
+from planner.msg import *
 
 
-class Config():
+class PlannerConfig():
     def __init__(self):
         self.v_max = rospy.get_param("~v_max", 1.0)
         self.T_min = rospy.get_param("~T_min", 0.5)
@@ -38,6 +38,17 @@ class Config():
         self.weights = rospy.get_param("~weights", [1, 1, 1, 10000])
         self.init_seg_len = rospy.get_param("~init_seg_len", 2.0)  # the initial length of each segment
         self.init_T = rospy.get_param("~init_T", 2.5)  # the initial T of each segment
+
+
+class MissionConfig():
+    def __init__(self):
+        self.planning_mode = rospy.get_param("~planning_mode", 'online') # 'online' or 'global (plan once)'
+        self.planning_time_ahead = rospy.get_param("~planning_time_ahead", 1.0)  # the time ahead of the current time to plan the trajectory
+        self.des_pos_z = rospy.get_param("~des_pos_z", 2.0)
+        self.longitu_step_dis = rospy.get_param("~longitu_step_dis", 5.0)  # the distance forward in each replanning
+        self.lateral_step_length = rospy.get_param("~lateral_step_length", 1.0)  # if local target pos in obstacle, take lateral step
+        self.target_reach_threshold = rospy.get_param("~target_reach_threshold", 0.2)
+        self.cmd_hz = rospy.get_param("~cmd_hz", 300)
 
 
 class DroneState():
@@ -58,29 +69,30 @@ class TrajPlanner():
         self.des_path = Path()
         self.map = ESDF()
         self.visualizer = Visualizer()
-        self.fsm_trigger = String()
         self.drone_state = DroneState()
-        planner_config = Config()
+        planner_config = PlannerConfig()
+        mission_config = MissionConfig()
         self.planner = MinJerkPlanner(planner_config)
         self.state_cmd = PositionTarget()
         self.state_cmd.coordinate_frame = 1
-        self.cmd_hz = 300
-        self.odom_received = False
-        self.odom = None
-        self.target_state = None
-        self.target_reach_threshold = 0.2
-        self.has_traj = False
-        self.planning_time_ahead = 1.0  # the time ahead of the current time to plan the trajectory
-        self.des_state_index = 0
-        self.des_pos_z = 2.0
-        # self.planning_mode = 'global'
-        self.planning_mode = 'online'
-        self.longitu_step_dis = 5.0  # the distance forward in each replanning
-        self.lateral_step_length = 1.0  # if local target pos in obstacle, take lateral step
-        self.move_vel = 0.8
+
+        # Parameters
+        self.planning_mode = mission_config.planning_mode
+        self.planning_time_ahead = mission_config.planning_time_ahead
+        self.des_pos_z = mission_config.des_pos_z
+        self.longitu_step_dis = mission_config.longitu_step_dis
+        self.lateral_step_length = mission_config.lateral_step_length
+        self.target_reach_threshold = mission_config.target_reach_threshold
+        self.cmd_hz = mission_config.cmd_hz
+        self.move_vel = planner_config.v_max*0.8
+
+        # Flags and counters
         self.mission_executing = False
         self.near_global_target = False
         self.reached_target = False
+        self.odom_received = False
+        self.has_traj = False
+        self.des_state_index = 0
 
         # Server
         self.plan_server = actionlib.SimpleActionServer('plan', PlanAction, self.execute_mission, False)
