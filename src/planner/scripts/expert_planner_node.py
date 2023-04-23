@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-04-22 17:23:40
+LastEditTime: 2023-04-23 20:27:42
 '''
 import os
 import sys
@@ -287,7 +287,7 @@ class TrajPlanner():
         drone_state_ahead = self.get_drone_state_ahead()
         self.traj_plan(drone_state_ahead)
         # Concatenate the new trajectory to the old one, at index self.future_index
-        self.des_state_array = np.concatenate((self.des_state_array[:self.future_index+1], self.des_state), axis=0)
+        self.des_state_array = np.concatenate((self.des_state_array[:self.future_index], self.des_state), axis=0)
 
     def traj_plan(self, drone_init_state):
         '''
