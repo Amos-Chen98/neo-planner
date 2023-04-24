@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-10 21:48:37
+LastEditTime: 2023-04-23 23:00:07
 '''
 import math
 import pprint
@@ -18,7 +18,9 @@ class DefaultConfig():
         self.safe_dis = 0.5  # the safe distance to the obstacle
         self.delta_t = 0.1  # the time interval of sampling
         self.weights = [1.0, 1.0, 0.001, 10000]  # the weights of different costs: [energy, time, feasibility, collision]
-        self.init_seg_len = 2.0  # the initial length of each segment
+        self.init_wpts_mode = 'fixed'  # options: 'fixed', 'adaptive'
+        self.init_seg_len = 2.0  # (valid when init_wpts_mode = 'adaptive') the initial length of each segment
+        self.init_wpts_num = 2  # (valid when init_wpts_mode = 'fixed') the number of intermediate waypoints
         self.init_T = 2.0  # the initial T of each segment
 
 
@@ -43,7 +45,9 @@ class MinJerkPlanner():
         self.get_beta_full()
 
         # Initial conditions
+        self.init_wpts_mode = config.init_wpts_mode
         self.init_seg_len = config.init_seg_len
+        self.init_wpts_num = config.init_wpts_num
         self.init_T = config.init_T
 
     def plan(self, map, head_state, tail_state, seed=0):
@@ -102,7 +106,10 @@ class MinJerkPlanner():
         start_pos = head_state[0]
         target_pos = tail_state[0]
         straight_length = np.linalg.norm(target_pos - start_pos)
-        int_wpts_num = max(math.ceil(straight_length/self.init_seg_len - 1), 1)  # 2m for each intermediate waypoint
+        if self.init_wpts_mode == 'adaptive':
+            int_wpts_num = max(math.ceil(straight_length/self.init_seg_len - 1), 1)  # 2m for each intermediate waypoint
+        elif self.init_wpts_mode == 'fixed':
+            int_wpts_num = self.init_wpts_num
         step_length = (tail_state[0] - head_state[0]) / (int_wpts_num + 1)
         int_wpts = np.linspace(start_pos + step_length, target_pos, int_wpts_num, endpoint=False)
         if seed != 0:
@@ -589,7 +596,7 @@ class MinJerkPlanner():
         total_time = sum(self.ts)
         t_samples = np.arange(0, total_time, 1/hz)
         sample_num = t_samples.shape[0]
-        state_cmd = np.zeros((sample_num, 3, self.D)) # 3*D: [pos, vel, acc].T * D
+        state_cmd = np.zeros((sample_num, 3, self.D))  # 3*D: [pos, vel, acc].T * D
 
         for i in range(sample_num):
             t = t_samples[i]

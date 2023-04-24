@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-04-23 20:27:42
+LastEditTime: 2023-04-24 10:30:33
 '''
 import os
 import sys
@@ -36,7 +36,9 @@ class PlannerConfig():
         self.safe_dis = rospy.get_param("~safe_dis", 0.5)
         self.delta_t = rospy.get_param("~delta_t", 0.1)
         self.weights = rospy.get_param("~weights", [1, 1, 1, 10000])
+        self.init_wpts_mode = rospy.get_param("~init_wpts_mode", 'fixed')  # 'fixed' or 'adaptive'
         self.init_seg_len = rospy.get_param("~init_seg_len", 2.0)  # the initial length of each segment
+        self.init_wpts_num = rospy.get_param("~init_wpts_num", 2)  # the initial number of waypoints
         self.init_T = rospy.get_param("~init_T", 2.5)  # the initial T of each segment
 
 
