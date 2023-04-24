@@ -1,31 +1,31 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-04-24 10:30:33
+LastEditTime: 2023-04-24 15:18:03
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-import cv2
-from cv_bridge import CvBridge
-from sensor_msgs.msg import Image
-from std_msgs.msg import String
-from matplotlib import pyplot as plt
-from visualizer import Visualizer
-from visualization_msgs.msg import MarkerArray
-import rospy
-import numpy as np
-from mavros_msgs.msg import State, PositionTarget
-from mavros_msgs.srv import SetMode, SetModeRequest
-from traj_planner import MinJerkPlanner
-from pyquaternion import Quaternion
-import time
-from esdf import ESDF
-import pandas as pd
-import datetime
-from nav_msgs.msg import Odometry, Path, OccupancyGrid
-import actionlib
 from planner.msg import *
+import actionlib
+from nav_msgs.msg import Odometry, Path, OccupancyGrid
+import datetime
+import pandas as pd
+from esdf import ESDF
+import time
+from pyquaternion import Quaternion
+from traj_planner import MinJerkPlanner
+from mavros_msgs.srv import SetMode, SetModeRequest
+from mavros_msgs.msg import State, PositionTarget
+import numpy as np
+import rospy
+from visualization_msgs.msg import MarkerArray
+from visualizer import Visualizer
+from matplotlib import pyplot as plt
+from std_msgs.msg import String
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
+import cv2
 
 
 class PlannerConfig():
@@ -44,7 +44,7 @@ class PlannerConfig():
 
 class MissionConfig():
     def __init__(self):
-        self.planning_mode = rospy.get_param("~planning_mode", 'online') # 'online' or 'global (plan once)'
+        self.planning_mode = rospy.get_param("~planning_mode", 'online')  # 'online' or 'global (plan once)'
         self.planning_time_ahead = rospy.get_param("~planning_time_ahead", 1.0)  # the time ahead of the current time to plan the trajectory
         self.des_pos_z = rospy.get_param("~des_pos_z", 2.0)
         self.longitu_step_dis = rospy.get_param("~longitu_step_dis", 5.0)  # the distance forward in each replanning
@@ -95,6 +95,7 @@ class TrajPlanner():
         self.odom_received = False
         self.has_traj = False
         self.des_state_index = 0
+        self.future_index = 99999
 
         # Server
         self.plan_server = actionlib.SimpleActionServer('plan', PlanAction, self.execute_mission, False)
@@ -418,7 +419,8 @@ class TrajPlanner():
 
         self.local_pos_cmd_pub.publish(self.state_cmd)
 
-        self.des_state_index += 1
+        if self.des_state_index < self.future_index or self.near_global_target:
+            self.des_state_index += 1
 
     def visualize_drone_snapshots(self):
         '''

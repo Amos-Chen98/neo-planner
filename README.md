@@ -138,7 +138,7 @@ Step 2: use the Virtual Joystick to move the drone to generate octomap.
 
 ### 4. Trajectory planning and tracking on ground truth map
 
-updated 03/02/2023.
+updated 04/242023.
 
 Step 1: launch QGC, and launch the simulator and Mavros using the following command.
 
@@ -151,16 +151,16 @@ Step 2:
 In one terminal:
 
 ```
-rosrun planner manager_node.py
+rosrun planner expert_planner_node.py 
 ```
-
-The above command will take the drone off and run the FSM.
 
 In another terminal: 
 
 ```
-rosrun planner traj_planner_node.py
+rosrun planner manager_node.py
 ```
+
+The above command will take the drone off and run the FSM.
 
 Step 3: Set goal point with `2D Nav Goal` in RViz, and you will see the drone perform trajectory planning and tracking.
 

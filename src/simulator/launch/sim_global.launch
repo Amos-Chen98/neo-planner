@@ -57,6 +57,6 @@
     <!-- <node pkg="planner" type="manager_node.py" name="manager" /> -->
 
     <!-- plotjunggler -->
-    <node pkg="plotjuggler" type="plotjuggler" name="plotjuggler" args="-l $(find simulator)/rviz/plotjuggler_config.xml" />
+    <!-- <node pkg="plotjuggler" type="plotjuggler" name="plotjuggler" args="-l $(find simulator)/rviz/plotjuggler_config.xml" /> -->
 
 </launch>
