@@ -136,17 +136,27 @@ roslaunch simulator sim_onboard.launch
 
 Step 2: use the Virtual Joystick to move the drone to generate octomap.
 
-### 4. Trajectory planning and tracking on ground truth map
+### 4. Trajectory planning and tracking
 
-updated 04/242023.
+updated 04/24/2023.
 
-Step 1: launch QGC, and launch the simulator and Mavros using the following command.
+Step 1: launch QGC, 
+
+Step 2: Launch Gazebo simulator, Mavros, and other related nodes.
+
+​	Use globally known maps:
 
 ```bash
 roslaunch simulator sim_global.launch 
 ```
 
-Step 2: 
+​	Or, construct the map incrementally based on onboard senseing:
+
+```
+roslaunch simulator sim_onboard.launch 
+```
+
+Step 3: 
 
 In one terminal:
 
@@ -162,5 +172,10 @@ rosrun planner manager_node.py
 
 The above command will take the drone off and run the FSM.
 
-Step 3: Set goal point with `2D Nav Goal` in RViz, and you will see the drone perform trajectory planning and tracking.
+Step 4: Set goal point with `2D Nav Goal` in RViz, and you will see the drone perform trajectory planning and tracking.
 
+
+
+`rqt_graph` when using onboard senseing:
+
+![](https://raw.githubusercontent.com/Amos-Chen98/Image_bed/main/2023/202304262012099.png)
