@@ -1,25 +1,25 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-04-22 14:33:00
+LastEditTime: 2023-04-26 19:09:52
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from planner.msg import *
-import actionlib
-from visualization_msgs.msg import Marker
-from mavros_msgs.srv import SetMode, SetModeRequest
-from mavros_msgs.srv import SetMode
-from nav_msgs.msg import Odometry
-from mavros_msgs.msg import State, PositionTarget
-from mavros_msgs.srv import CommandBool, CommandBoolRequest, SetMode, SetModeRequest, CommandTOL, CommandTOLRequest
-import rospy
-import numpy as np
-from transitions import Machine
-from transitions.extensions import GraphMachine
-from geometry_msgs.msg import PoseStamped
 from esdf import ESDF
+from geometry_msgs.msg import PoseStamped
+from transitions.extensions import GraphMachine
+from transitions import Machine
+import numpy as np
+import rospy
+from mavros_msgs.srv import CommandBool, CommandBoolRequest, SetMode, SetModeRequest, CommandTOL, CommandTOLRequest
+from mavros_msgs.msg import State, PositionTarget
+from nav_msgs.msg import Odometry
+from mavros_msgs.srv import SetMode
+from mavros_msgs.srv import SetMode, SetModeRequest
+from visualization_msgs.msg import Marker
+import actionlib
+from planner.msg import *
 
 
 class Manager():
@@ -39,6 +39,7 @@ class Manager():
         self.pos_cmd.position.z = self.hover_height
         self.drone_state = np.zeros((3, 3))  # p,v,a in map frame
         self.global_target = None
+        self.has_goal = False
 
         # Client / Service init
         self.arming_client = rospy.ServiceProxy("mavros/cmd/arming", CommandBool)
@@ -69,7 +70,8 @@ class Manager():
         self.fsm = GraphMachine(model=self, states=['INIT', 'TAKINGOFF', 'HOVER', 'MISSION'], initial='INIT')
         self.fsm.add_transition(trigger='launch', source='INIT', dest='TAKINGOFF', before="get_odom", after=['takeoff', 'print_current_state'])
         self.fsm.add_transition(trigger='reach_height', source='TAKINGOFF', dest='HOVER', after=['print_current_state'])
-        self.fsm.add_transition(trigger='init_planning', source='HOVER', dest='MISSION', after=['print_current_state'])
+        self.fsm.add_transition(trigger='set_target', source='HOVER', dest='MISSION', after=['print_current_state'])
+        self.fsm.add_transition(trigger='set_target', source='MISSION', dest='MISSION', after=['print_current_state'])
         self.fsm.add_transition(trigger='reach_goal', source='MISSION', dest='HOVER', after=['print_current_state'])
 
     def print_current_state(self):
@@ -81,10 +83,14 @@ class Manager():
                                        target.pose.position.y,
                                        target.pose.position.z])
         self.vis_target()
-        self.init_planning()
-
+        self.set_target()
         goal_msg = PlanGoal()
         goal_msg.target = target
+        if self.has_goal == True:
+            self.plan_client.cancel_goal()
+        else:
+            self.has_goal = True
+
         self.plan_client.send_goal(goal_msg, done_cb=self.finish_planning_cb)
 
     def finish_planning_cb(self, state, result):

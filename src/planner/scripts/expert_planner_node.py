@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-04-24 15:18:03
+LastEditTime: 2023-04-26 19:07:59
 '''
 import os
 import sys
@@ -171,25 +171,31 @@ class TrajPlanner():
         self.drone_state.attitude = quat
 
         if self.mission_executing and np.linalg.norm(global_pos[:2] - self.global_target) < self.target_reach_threshold:
+            rospy.loginfo("Global target reached!")
             self.end_mission()
 
-    def end_mission(self):
-        rospy.loginfo("Global target reached!")
-        self.reached_target = True
-        self.mission_executing = False
+    def init_mission(self):
+        self.mission_executing = True
+        self.reached_target = False
         self.near_global_target = False
         self.has_traj = False
+        self.des_state_index = 0
+
+    def end_mission(self):
         self.tracking_cmd_timer.shutdown()
+        self.mission_executing = False
+        self.reached_target = True
+        self.near_global_target = False
+        self.has_traj = False
         self.des_state_index = 0
 
     def depth_img_cb(self, img):
         self.depth_img = self.cv_bridge.imgmsg_to_cv2(img, desired_encoding="passthrough")
 
     def execute_mission(self, goal):
-        self.mission_executing = True
-        self.reached_target = False
+        self.init_mission()
         target = goal.target
-        rospy.loginfo("Global target: x = %f, y = %f", target.pose.position.x, target.pose.position.y)
+        rospy.loginfo("Target received: x = %f, y = %f", target.pose.position.x, target.pose.position.y)
         self.global_target = np.array([target.pose.position.x, target.pose.position.y])
 
         if self.planning_mode == 'global':
@@ -197,12 +203,20 @@ class TrajPlanner():
         else:
             self.online_planning()
 
-        while not self.reached_target:
-            time.sleep(0.01)
+        self.report_planning_result()
 
-        result = PlanResult()
-        result.success = True
-        self.plan_server.set_succeeded(result)
+    def report_planning_result(self):
+        if self.plan_server.is_preempt_requested():
+            rospy.loginfo("Planning preempted!")
+            self.end_mission()
+            self.plan_server.set_preempted()
+        else:
+            while not self.reached_target:  # when planning is finished, traj tracking will continue to run for a while
+                time.sleep(0.01)
+
+            result = PlanResult()
+            result.success = True
+            self.plan_server.set_succeeded(result)
 
     def global_planning(self):
         while not self.odom_received:
@@ -216,7 +230,11 @@ class TrajPlanner():
         self.visualize_des_path()
 
     def online_planning(self):
-        while self.mission_executing and not self.near_global_target:
+        while (
+            self.mission_executing
+            and not self.near_global_target
+            and not self.plan_server.is_preempt_requested()
+        ):
             while not self.odom_received:
                 time.sleep(0.01)
 
@@ -240,7 +258,7 @@ class TrajPlanner():
             self.target_state[0] = global_target_pos
             self.near_global_target = True
             print(" ")
-            rospy.loginfo("Last target: x = %f, y = %f", global_target_pos[0], global_target_pos[1])
+            # rospy.loginfo("Last target: x = %f, y = %f", global_target_pos[0], global_target_pos[1])
             return
 
         longitu_dir = (global_target_pos - current_pos)/np.linalg.norm(global_target_pos - current_pos)
@@ -265,9 +283,9 @@ class TrajPlanner():
 
         self.target_state = local_target
 
-        print(" ")
-        rospy.loginfo("Local target: x = %f, y = %f, vel_x = %f, vel_y = %f",
-                      local_target[0][0], local_target[0][1], local_target[1][0], local_target[1][1])
+        # print(" ")
+        # rospy.loginfo("Local target: x = %f, y = %f, vel_x = %f, vel_y = %f",
+        #               local_target[0][0], local_target[0][1], local_target[1][0], local_target[1][1])
 
     def first_plan(self):
         self.traj_plan(self.drone_state)
@@ -304,7 +322,7 @@ class TrajPlanner():
         self.des_state, self.traj_time, self.cmd_hz = self.planner.get_full_state_cmd()
         time_end = time.time()
         planning_time = time_end - time_start
-        rospy.loginfo("Planning finished in %f s", planning_time)
+        # rospy.loginfo("Planning finished in %f s", planning_time)
 
     def traj_plan_record(self):
         '''
@@ -379,10 +397,6 @@ class TrajPlanner():
         '''
         if not in OFFBOARD mode, switch to OFFBOARD mode
         '''
-        rospy.loginfo("Tracking started!")
-        rospy.loginfo("Current drone position: %f, %f, %f",
-                      self.drone_state.global_pos[0], self.drone_state.global_pos[1], self.drone_state.global_pos[2])
-
         if self.flight_state.mode != "OFFBOARD":
             self.warm_up()
             set_offb_req = SetModeRequest()
