@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-04-26 19:07:59
+LastEditTime: 2023-04-26 19:34:37
 '''
 import os
 import sys
@@ -22,7 +22,6 @@ import rospy
 from visualization_msgs.msg import MarkerArray
 from visualizer import Visualizer
 from matplotlib import pyplot as plt
-from std_msgs.msg import String
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import cv2
