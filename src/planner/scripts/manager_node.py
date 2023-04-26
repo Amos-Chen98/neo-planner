@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-04-26 19:09:52
+LastEditTime: 2023-04-26 19:40:39
 '''
 import os
 import sys
@@ -70,8 +70,8 @@ class Manager():
         self.fsm = GraphMachine(model=self, states=['INIT', 'TAKINGOFF', 'HOVER', 'MISSION'], initial='INIT')
         self.fsm.add_transition(trigger='launch', source='INIT', dest='TAKINGOFF', before="get_odom", after=['takeoff', 'print_current_state'])
         self.fsm.add_transition(trigger='reach_height', source='TAKINGOFF', dest='HOVER', after=['print_current_state'])
-        self.fsm.add_transition(trigger='set_target', source='HOVER', dest='MISSION', after=['print_current_state'])
-        self.fsm.add_transition(trigger='set_target', source='MISSION', dest='MISSION', after=['print_current_state'])
+        self.fsm.add_transition(trigger='set_goal', source='HOVER', dest='MISSION', after=['print_current_state'])
+        self.fsm.add_transition(trigger='set_goal', source='MISSION', dest='MISSION', after=['print_current_state'])
         self.fsm.add_transition(trigger='reach_goal', source='MISSION', dest='HOVER', after=['print_current_state'])
 
     def print_current_state(self):
@@ -83,7 +83,7 @@ class Manager():
                                        target.pose.position.y,
                                        target.pose.position.z])
         self.vis_target()
-        self.set_target()
+        self.set_goal()
         goal_msg = PlanGoal()
         goal_msg.target = target
         if self.has_goal == True:

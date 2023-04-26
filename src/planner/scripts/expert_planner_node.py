@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-04-26 19:34:37
+LastEditTime: 2023-04-26 19:36:17
 '''
 import os
 import sys
@@ -170,7 +170,7 @@ class TrajPlanner():
         self.drone_state.attitude = quat
 
         if self.mission_executing and np.linalg.norm(global_pos[:2] - self.global_target) < self.target_reach_threshold:
-            rospy.loginfo("Global target reached!")
+            rospy.loginfo("Global target reached!\n")
             self.end_mission()
 
     def init_mission(self):
@@ -206,7 +206,7 @@ class TrajPlanner():
 
     def report_planning_result(self):
         if self.plan_server.is_preempt_requested():
-            rospy.loginfo("Planning preempted!")
+            rospy.loginfo("Planning preempted!\n")
             self.end_mission()
             self.plan_server.set_preempted()
         else:
@@ -256,7 +256,6 @@ class TrajPlanner():
         if np.linalg.norm(global_target_pos - current_pos) < self.longitu_step_dis:
             self.target_state[0] = global_target_pos
             self.near_global_target = True
-            print(" ")
             # rospy.loginfo("Last target: x = %f, y = %f", global_target_pos[0], global_target_pos[1])
             return
 
