@@ -1,30 +1,30 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-04-26 19:36:17
+LastEditTime: 2023-04-27 20:01:13
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from planner.msg import *
-import actionlib
-from nav_msgs.msg import Odometry, Path, OccupancyGrid
-import datetime
-import pandas as pd
-from esdf import ESDF
-import time
-from pyquaternion import Quaternion
-from traj_planner import MinJerkPlanner
-from mavros_msgs.srv import SetMode, SetModeRequest
-from mavros_msgs.msg import State, PositionTarget
-import numpy as np
-import rospy
-from visualization_msgs.msg import MarkerArray
-from visualizer import Visualizer
-from matplotlib import pyplot as plt
-from sensor_msgs.msg import Image
-from cv_bridge import CvBridge
 import cv2
+from cv_bridge import CvBridge
+from sensor_msgs.msg import Image
+from matplotlib import pyplot as plt
+from visualizer import Visualizer
+from visualization_msgs.msg import MarkerArray
+import rospy
+import numpy as np
+from mavros_msgs.msg import State, PositionTarget
+from mavros_msgs.srv import SetMode, SetModeRequest
+from traj_planner import MinJerkPlanner
+from pyquaternion import Quaternion
+import time
+from esdf import ESDF
+import pandas as pd
+import datetime
+from nav_msgs.msg import Odometry, Path, OccupancyGrid
+import actionlib
+from planner.msg import *
 
 
 class PlannerConfig():
@@ -50,6 +50,7 @@ class MissionConfig():
         self.lateral_step_length = rospy.get_param("~lateral_step_length", 1.0)  # if local target pos in obstacle, take lateral step
         self.target_reach_threshold = rospy.get_param("~target_reach_threshold", 0.2)
         self.cmd_hz = rospy.get_param("~cmd_hz", 300)
+        self.recording_data = True
 
 
 class DroneState():
@@ -57,7 +58,7 @@ class DroneState():
         self.global_pos = np.zeros(3)
         self.global_vel = np.zeros(3)
         self.local_vel = np.zeros(3)
-        self.attitude = np.zeros(4)
+        self.attitude = Quaternion()
 
 
 class TrajPlanner():
@@ -86,6 +87,7 @@ class TrajPlanner():
         self.target_reach_threshold = mission_config.target_reach_threshold
         self.cmd_hz = mission_config.cmd_hz
         self.move_vel = planner_config.v_max*0.8
+        self.recording_data = mission_config.recording_data
 
         # Flags and counters
         self.mission_executing = False
@@ -127,12 +129,27 @@ class TrajPlanner():
                              'drone_attitude_x',
                              'drone_attitude_y',
                              'drone_attitude_z',
+                             'init_pos_x',
+                             'init_pos_y',
+                             'init_pos_z',
+                             'init_vel_x',
+                             'init_vel_y',
+                             'init_vel_z',
                              'target_pos_x',
                              'target_pos_y',
                              'target_pos_z',
                              'target_vel_x',
                              'target_vel_y',
                              'target_vel_z',
+                             'wpts1_x',
+                             'wpts1_y',
+                             'wpts1_z',
+                             'wpts2_x',
+                             'wpts2_y',
+                             'wpts2_z',
+                             'ts1',
+                             'ts2',
+                             'ts3'
                              ]
 
         # create a blank csv file, with (1+3+4+3+3) columns
@@ -286,7 +303,10 @@ class TrajPlanner():
         #               local_target[0][0], local_target[0][1], local_target[1][0], local_target[1][1])
 
     def first_plan(self):
-        self.traj_plan(self.drone_state)
+        if self.recording_data:
+            self.traj_plan_record(self.drone_state, self.target_state)
+        else:
+            self.traj_plan(self.drone_state, self.target_state)
         # First planning! Set the des_state_array as des_state
         self.des_state_array = self.des_state
         self.has_traj = True
@@ -304,36 +324,43 @@ class TrajPlanner():
 
     def replan(self):
         drone_state_ahead = self.get_drone_state_ahead()
-        self.traj_plan(drone_state_ahead)
+        if self.recording_data:
+            self.traj_plan_record(drone_state_ahead, self.target_state)
+        else:
+            self.traj_plan(drone_state_ahead, self.target_state)
         # Concatenate the new trajectory to the old one, at index self.future_index
         self.des_state_array = np.concatenate((self.des_state_array[:self.future_index], self.des_state), axis=0)
 
-    def traj_plan(self, drone_init_state):
+    def traj_plan(self, plan_init_state, target_state):
         '''
         trajectory planning, store the full state cmd in self.des_state
         '''
         time_start = time.time()
-        drone_state_2d = np.array([drone_init_state.global_pos[:2],
-                                   drone_init_state.global_vel[:2]])
-        self.des_pos_z = drone_init_state.global_pos[2]  # use current height
-        self.planner.plan(self.map, drone_state_2d, self.target_state)  # 2D planning, z is fixed
+        drone_state_2d = np.array([plan_init_state.global_pos[:2],
+                                   plan_init_state.global_vel[:2]])
+        self.des_pos_z = plan_init_state.global_pos[2]  # use current height
+        self.planner.plan(self.map, drone_state_2d, target_state)  # 2D planning, z is fixed
         self.des_state, self.traj_time, self.cmd_hz = self.planner.get_full_state_cmd()
         time_end = time.time()
         planning_time = time_end - time_start
         # rospy.loginfo("Planning finished in %f s", planning_time)
 
-    def traj_plan_record(self):
+    def traj_plan_record(self, plan_init_state, target_state):
         '''
         trajectory planning + store the training data
         '''
+        # current state
         depth_image = self.depth_img
         drone_state = self.drone_state
-        drone_state_2d = np.array([drone_state.global_pos[:2],
-                                   drone_state.global_vel[:2]])
-        self.des_pos_z = drone_state.global_pos[2]  # use current height
+
+        # state ahead of 1s
+        drone_state_2d = np.array([plan_init_state.global_pos[:2],
+                                   plan_init_state.global_vel[:2]])
+        self.des_pos_z = plan_init_state.global_pos[2]  # use current height
 
         time_start = time.time()
-        self.planner.plan(self.map, drone_state_2d, self.target_state)  # 2D planning, z is fixed
+        self.planner.plan(self.map, drone_state_2d, target_state)  # 2D planning, z is fixed
+        self.des_state, self.traj_time, self.cmd_hz = self.planner.get_full_state_cmd()
         time_end = time.time()
         self.planning_time = time_end - time_start
         rospy.loginfo("Planning finished! Time cost: %f", self.planning_time)
@@ -342,38 +369,61 @@ class TrajPlanner():
         int_wpts = self.planner.int_wpts
         ts = self.planner.ts
 
-        # convert int_wpts to body frame
+        self.save_training_data(depth_image, drone_state, plan_init_state, target_state, int_wpts, ts)  # record training data
+
+    def save_training_data(self, depth_image, drone_state, plan_init_state, target_state, int_wpts, ts):
+        '''
+        Record training data and write to csv file
+        '''
+        # timestamp
+        now = datetime.datetime.now()
+        timestamp = int(now.strftime("%Y%m%d%H%M%S%f")[:-3])
+        # year-mon-day-hour-min-sec-ms, [:-3] because the last 3 digits are microsecond
+
+        # scale and save depth_image
+        # rospy.loginfo("Range of depth image: %f, %f", np.min(depth_image), np.max(depth_image))
+        depth_image = depth_image*255.0/np.max(depth_image)
+        cv2.imwrite(f'training_data/depth_img/{timestamp}.png', depth_image)
+
+        # current drone state
+        drone_local_vel = drone_state.local_vel  # size: (3,)
+        drone_quat = drone_state.attitude  # size: (4,)
+        drone_attitude = np.array([drone_quat.w, drone_quat.x, drone_quat.y, drone_quat.z])  # size: (4,)
+
+        # plan_init_state, in body frame
+        plan_init_state_3d = np.zeros((2, 3))
+        plan_init_state_3d[:, 0:2] = plan_init_state.global_pos[:2]
+        plan_init_state_3d[0, 2] = self.des_pos_z
+        plan_init_pos = drone_quat.inverse.rotate(plan_init_state_3d[0] - drone_state.global_pos)  # size: (3,)
+        plan_init_vel = drone_quat.inverse.rotate(plan_init_state_3d[1] - drone_state.global_vel)  # size: (3,)
+
+        # target_state, in body frame
+        target_state_3d = np.zeros((2, 3))
+        target_state_3d[:, 0:2] = target_state
+        target_state_3d[0, 2] = self.des_pos_z
+        plan_target_pos = drone_quat.inverse.rotate(target_state_3d[0] - drone_state.global_pos)  # size: (3,)
+        plan_target_vel = drone_quat.inverse.rotate(target_state_3d[1] - drone_state.global_vel)  # size: (3,)
+
+        # result: int_wpts, in body frame
         int_wpts_num = int_wpts.shape[1]
         int_wpts_local = np.zeros((3, int_wpts_num))
         for i in range(int_wpts_num):
             int_wpts_3d = np.array([int_wpts[0, i], int_wpts[1, i], self.des_pos_z])
-            int_wpts_local[:, i] = drone_state.attitude.inverse.rotate(int_wpts_3d - drone_state.global_pos)
+            int_wpts_local[:, i] = drone_quat.inverse.rotate(int_wpts_3d - drone_state.global_pos)
 
-        self.record_train_input(drone_state, depth_image)  # record training data
+        int_wpts_local = int_wpts_local.T.reshape(-1)  # size: (3*int_wpts_num,)
 
-    def record_train_input(self, drone_state, depth_image):
-        '''
-        Record training data and write to csv file
-        '''
-        now = datetime.datetime.now()
-        timestamp = int(now.strftime("%Y%m%d%H%M%S"))
+        train_data = np.concatenate((np.array([timestamp]),
+                                     drone_local_vel,
+                                     drone_attitude,
+                                     plan_init_pos,
+                                     plan_init_vel,
+                                     plan_target_pos,
+                                     plan_target_vel,
+                                     int_wpts_local,
+                                     ts), axis=0)  # size: (1+3+4+3*4+3*int_wpts_num + int_wpts_num+1,)
+        rospy.loginfo("Shape of training data: %s", str(train_data.shape))
 
-        # scale and save depth_iamge
-        rospy.loginfo("Range of depth image: %f, %f", np.min(depth_image), np.max(depth_image))
-        depth_image = depth_image*255.0/np.max(depth_image)
-        cv2.imwrite(f'training_data/depth_img/{timestamp}.png', depth_image)
-
-        # save drone_local_vel, drone_attitude, target_local_pos, target_local_vel
-        drone_local_vel = drone_state.local_vel  # size: (3,)
-        drone_quat = drone_state.attitude  # size: (4,)
-        drone_attitude = np.array([drone_quat.w, drone_quat.x, drone_quat.y, drone_quat.z])  # size: (4,)
-        target_state_3d = np.zeros((2, 3))
-        target_state_3d[:, 0:2] = self.target_state
-        target_state_3d[0, 2] = self.des_pos_z
-        target_local_pos = drone_quat.inverse.rotate(target_state_3d[0] - drone_state.global_pos)  # size: (3,)
-        target_local_vel = drone_quat.inverse.rotate(target_state_3d[1] - drone_state.global_vel)  # size: (3,)
-
-        train_data = np.concatenate((np.array([timestamp]), drone_local_vel, drone_attitude, target_local_pos, target_local_vel), axis=0)
         df = pd.read_csv(self.table_filename)
         df = pd.concat([df, pd.DataFrame(train_data.reshape(1, -1), columns=self.table_header)], ignore_index=True)
         df.to_csv(self.table_filename, index=False)
