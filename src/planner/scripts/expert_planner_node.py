@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-04-27 20:01:13
+LastEditTime: 2023-04-30 20:43:06
 '''
 import os
 import sys
@@ -125,10 +125,15 @@ class TrajPlanner():
                              'drone_vel_x',
                              'drone_vel_y',
                              'drone_vel_z',
-                             'drone_attitude_w',
-                             'drone_attitude_x',
-                             'drone_attitude_y',
-                             'drone_attitude_z',
+                             'R11',
+                             'R12',
+                             'R13',
+                             'R21',
+                             'R22',
+                             'R23',
+                             'R31',
+                             'R32',
+                             'R33',
                              'init_pos_x',
                              'init_pos_y',
                              'init_pos_z',
@@ -388,7 +393,8 @@ class TrajPlanner():
         # current drone state
         drone_local_vel = drone_state.local_vel  # size: (3,)
         drone_quat = drone_state.attitude  # size: (4,)
-        drone_attitude = np.array([drone_quat.w, drone_quat.x, drone_quat.y, drone_quat.z])  # size: (4,)
+        # drone_attitude = np.array([drone_quat.w, drone_quat.x, drone_quat.y, drone_quat.z])  # size: (4,)
+        drone_attitude = drone_state.attitude.rotation_matrix.reshape(-1) # size: (9, ), expand by Row
 
         # plan_init_state, in body frame
         plan_init_state_3d = np.zeros((2, 3))
@@ -421,7 +427,7 @@ class TrajPlanner():
                                      plan_target_pos,
                                      plan_target_vel,
                                      int_wpts_local,
-                                     ts), axis=0)  # size: (1+3+4+3*4+3*int_wpts_num + int_wpts_num+1,)
+                                     ts), axis=0)  # size: (1+3+9+3*4+3*int_wpts_num + int_wpts_num+1,)
         rospy.loginfo("Shape of training data: %s", str(train_data.shape))
 
         df = pd.read_csv(self.table_filename)
