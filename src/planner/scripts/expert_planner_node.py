@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-05-01 11:31:57
+LastEditTime: 2023-05-01 20:12:51
 '''
 import os
 import sys
@@ -382,8 +382,8 @@ class TrajPlanner():
         '''
         # timestamp
         now = datetime.datetime.now()
-        timestamp = int(now.strftime("%Y%m%d%H%M%S%f")[:-3])
-        # year-mon-day-hour-min-sec-ms, [:-3] because the last 3 digits are microsecond
+        timestamp = int(now.strftime("%m%d%H%M%S%f")[:-3])
+        # mon-day-hour-min-sec-ms, [:-3] because the last 3 digits are microsecond
 
         # scale and save depth_image
         # rospy.loginfo("Range of depth image: %f, %f", np.min(depth_image), np.max(depth_image))
