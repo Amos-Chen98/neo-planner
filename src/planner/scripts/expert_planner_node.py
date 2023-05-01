@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-05-01 20:12:51
+LastEditTime: 2023-05-01 21:21:23
 '''
 import os
 import sys
@@ -157,7 +157,7 @@ class TrajPlanner():
                              'ts3'
                              ]
 
-        # create a blank csv file, with (1+3+4+3+3) columns
+        # create a blank csv file
         self.table_filename = 'training_data/train.csv'
         if not os.path.isfile(self.table_filename):
             df = pd.DataFrame(columns=self.table_header)
