@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-04-30 20:43:06
+LastEditTime: 2023-05-01 11:31:57
 '''
 import os
 import sys
@@ -428,7 +428,6 @@ class TrajPlanner():
                                      plan_target_vel,
                                      int_wpts_local,
                                      ts), axis=0)  # size: (1+3+9+3*4+3*int_wpts_num + int_wpts_num+1,)
-        rospy.loginfo("Shape of training data: %s", str(train_data.shape))
 
         df = pd.read_csv(self.table_filename)
         df = pd.concat([df, pd.DataFrame(train_data.reshape(1, -1), columns=self.table_header)], ignore_index=True)
