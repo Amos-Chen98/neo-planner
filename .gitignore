@@ -58,3 +58,4 @@ CATKIN_IGNORE
 # large files
 rosbag/
 training_data/
+saved_net/
