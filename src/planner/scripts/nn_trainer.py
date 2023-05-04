@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-05-04 10:55:54
+LastEditTime: 2023-05-04 11:32:13
 '''
 import torch
 import numpy as np
@@ -18,6 +18,7 @@ VECTOR_SIZE = 24
 OUTPUT_SIZE = 9
 IMG_WIDTH = 160
 IMG_HEIGHT = 120
+BATCH_SIZE = 16
 
 
 class DataReader():
@@ -25,7 +26,7 @@ class DataReader():
         self.img_path = img_path
         self.csv_path = csv_path
 
-    def load_data(self):
+    def load_data(self):  # sourcery skip: avoid-builtin-shadow
         csv_data = pd.read_csv(self.csv_path)
         inputs = []
         outputs = []
@@ -39,13 +40,14 @@ class DataReader():
                 transforms.ToTensor(),
             ])
             img_tensor = transform(depth_img)
+            img_flatten = img_tensor.reshape(-1)  # flatten the image tensor
 
             # read csv data and convert it to tensor
             vector = torch.tensor(row[1:-9].values.astype(np.float32))  # 1:-9 means from 1 to -9 (not included)
+            input = torch.cat((img_flatten, vector))  # concatenate the two tensors and form the input
             output = torch.tensor(row[-9:].values.astype(np.float32))  # len: 9
 
-            # concatenate the two tensors and form the input and output
-            inputs.append((img_tensor, vector))  # inputs[i][0] is the image, inputs[i][1] is the vector
+            inputs.append(input)
             outputs.append(output)
 
         return inputs, outputs
@@ -120,10 +122,9 @@ class PlannerNet(nn.Module):
         )
 
     def forward(self, input):
-        # print("Shape of input: ", input.shape)
-        # print("Shape of input: ", input[0].shape, input[1].shape)
-        img = input[0]
-        vector = input[1]
+        # retrieve the image and vector from the input
+        img = input[:, :IMG_WIDTH * IMG_HEIGHT].reshape(-1, 1, IMG_WIDTH, IMG_HEIGHT)
+        vector = input[:, IMG_WIDTH * IMG_HEIGHT:]
 
         x = self.conv1(img)
         x = self.conv2(x)
@@ -159,8 +160,8 @@ class NetOperator():
         print("Len of val dataset: ", len(test_set))
 
         # generate the dataloader
-        self.train_dataloader = DataLoader(train_set, batch_size=4, shuffle=True, num_workers=4)
-        self.test_dataloader = DataLoader(test_set, batch_size=4, shuffle=True, num_workers=4)
+        self.train_dataloader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=True, num_workers=4)
+        self.test_dataloader = DataLoader(test_set, batch_size=BATCH_SIZE, shuffle=True, num_workers=4)
 
     def train_and_save_net(self):
         self.planner_net = PlannerNet()
