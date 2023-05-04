@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-05-03 22:31:45
+LastEditTime: 2023-05-04 10:55:54
 '''
 import torch
 import numpy as np
@@ -11,6 +11,8 @@ from PIL import Image
 from torchvision import transforms
 import torch.nn as nn
 import torch.optim as optim
+from torchsummary import summary
+import time
 
 VECTOR_SIZE = 24
 OUTPUT_SIZE = 9
@@ -118,6 +120,8 @@ class PlannerNet(nn.Module):
         )
 
     def forward(self, input):
+        # print("Shape of input: ", input.shape)
+        # print("Shape of input: ", input[0].shape, input[1].shape)
         img = input[0]
         vector = input[1]
 
@@ -134,9 +138,9 @@ class PlannerNet(nn.Module):
         return x
 
 
-class Trainer():
+class NetOperator():
     def __init__(self):
-        pass
+        self.criterion = nn.MSELoss()
 
     def build_dataset(self):
         # read data from local files
@@ -145,22 +149,22 @@ class Trainer():
 
         # generate the dataset
         plan_dataset = PlanDataset(inputs, outputs)
-        print("shape of plan_dataset: ", len(plan_dataset))
+        print("Len of whole dataset: ", len(plan_dataset))
 
         # split the dataset into training set and validation set
         train_size = int(0.8 * len(plan_dataset))
-        val_size = len(plan_dataset) - train_size
-        train_dataset, val_dataset = torch.utils.data.random_split(plan_dataset, [train_size, val_size])
-        print("shape of train_dataset: ", len(train_dataset))
-        print("shape of val_dataset: ", len(val_dataset))
+        test_size = len(plan_dataset) - train_size
+        train_set, test_set = torch.utils.data.random_split(plan_dataset, [train_size, test_size])
+        print("Len of train dataset: ", len(train_set))
+        print("Len of val dataset: ", len(test_set))
 
         # generate the dataloader
-        self.train_dataloader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=4)
-        self.val_dataloader = DataLoader(val_dataset, batch_size=4, shuffle=True, num_workers=4)
+        self.train_dataloader = DataLoader(train_set, batch_size=4, shuffle=True, num_workers=4)
+        self.test_dataloader = DataLoader(test_set, batch_size=4, shuffle=True, num_workers=4)
 
-    def train(self):
+    def train_and_save_net(self):
         self.planner_net = PlannerNet()
-        self.criterion = nn.MSELoss()
+        # summary(self.planner_net, input_size=[(1, IMG_WIDTH, IMG_HEIGHT), (VECTOR_SIZE, )])
         optimizer = optim.Adam(self.planner_net.parameters(), lr=0.001)
         num_epochs = 3
 
@@ -188,34 +192,32 @@ class Trainer():
         # save the trained model
         torch.save(self.planner_net.state_dict(), 'saved_net/planner_net.pth')
 
-    def test(self):
+    def load_and_test_net(self):
         planner_net_test = PlannerNet()
         planner_net_test.load_state_dict(torch.load('saved_net/planner_net.pth'))
         total_loss = 0.0
-        for i, data in enumerate(self.val_dataloader, 0):
+        for i, data in enumerate(self.test_dataloader, 0):
             inputs, expert_outputs = data
             outputs = planner_net_test(inputs)
             loss = self.criterion(outputs, expert_outputs)
             total_loss += loss.item()
 
-        print('Validation loss: %.3f' % (total_loss / len(self.val_dataloader)))
+        print('Test loss: %.3f' % (total_loss / len(self.test_dataloader)))
 
 
 if __name__ == '__main__':
 
-    trainer = Trainer()
-    trainer.build_dataset()
-    trainer.train()
-    trainer.test()
+    net_operator = NetOperator()
+    net_operator.build_dataset()
+    net_operator.train_and_save_net()
+    net_operator.load_and_test_net()
 
     # generate a random input
-    # input = torch.randn(1, 1, IMG_WIDTH, IMG_HEIGHT)
+    # planner_net = PlannerNet()
+    # img = torch.randn(1, 1, IMG_WIDTH, IMG_HEIGHT)
     # vector = torch.randn(1, VECTOR_SIZE)
     # time_start = time.time()
-    # output = self.planner_net((input, vector))
+    # output = planner_net((img, vector))
     # time_end = time.time()
     # print("time cost: ", time_end - time_start)
     # print("output shape: ", output.shape)
-
-    # load the trained model
-    #
