@@ -1,30 +1,30 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-05-17 20:32:05
+LastEditTime: 2023-05-17 21:01:08
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from planner.msg import *
-import actionlib
-from nav_msgs.msg import Odometry, Path, OccupancyGrid
-import datetime
-import pandas as pd
-from esdf import ESDF
-import time
-from pyquaternion import Quaternion
-from traj_planner import MinJerkPlanner
-from mavros_msgs.srv import SetMode, SetModeRequest
-from mavros_msgs.msg import State, PositionTarget
-import numpy as np
-import rospy
-from visualization_msgs.msg import MarkerArray
-from visualizer import Visualizer
-from matplotlib import pyplot as plt
-from sensor_msgs.msg import Image
-from cv_bridge import CvBridge
 import cv2
+from cv_bridge import CvBridge
+from sensor_msgs.msg import Image
+from matplotlib import pyplot as plt
+from visualizer import Visualizer
+from visualization_msgs.msg import MarkerArray
+import rospy
+import numpy as np
+from mavros_msgs.msg import State, PositionTarget
+from mavros_msgs.srv import SetMode, SetModeRequest
+from traj_planner import MinJerkPlanner
+from pyquaternion import Quaternion
+import time
+from esdf import ESDF
+import pandas as pd
+import datetime
+from nav_msgs.msg import Odometry, Path, OccupancyGrid
+import actionlib
+from planner.msg import *
 
 
 class PlannerConfig():
@@ -50,7 +50,7 @@ class MissionConfig():
         self.lateral_step_length = rospy.get_param("~lateral_step_length", 1.0)  # if local target pos in obstacle, take lateral step
         self.target_reach_threshold = rospy.get_param("~target_reach_threshold", 0.2)
         self.cmd_hz = rospy.get_param("~cmd_hz", 300)
-        self.recording_data = False
+        self.recording_data = True
 
 
 class DroneState():
@@ -401,7 +401,14 @@ class TrajPlanner():
         plan_target_pos = drone_quat.inverse.rotate(target_state_3d[0] - drone_state.global_pos)  # size: (3,)
         plan_target_vel = drone_quat.inverse.rotate(target_state_3d[1] - drone_state.global_vel)  # size: (3,)
 
-        return depth_image_norm, drone_local_vel, drone_attitude, plan_init_pos, plan_init_vel, plan_target_pos, plan_target_vel
+        motion_info = np.concatenate((drone_local_vel,
+                                      drone_attitude,
+                                      plan_init_pos,
+                                      plan_init_vel,
+                                      plan_target_pos,
+                                      plan_target_vel), axis=0)
+
+        return depth_image_norm, motion_info
 
     def save_training_data(self, depth_image, drone_state, plan_init_state, target_state, int_wpts, ts):
         '''
@@ -413,8 +420,7 @@ class TrajPlanner():
         # mon-day-hour-min-sec-ms, [:-3] because the last 3 digits are microsecond
 
         # process input data
-        depth_image_norm, drone_local_vel, drone_attitude, plan_init_pos, plan_init_vel, plan_target_pos, plan_target_vel = self.process_nn_input(
-            depth_image, drone_state, plan_init_state, target_state)
+        depth_image_norm, motion_info = self.process_nn_input(depth_image, drone_state, plan_init_state, target_state)
 
         # process output result: int_wpts, in body frame
         drone_quat = drone_state.attitude  # size: (4,)
@@ -427,15 +433,10 @@ class TrajPlanner():
         int_wpts_local = int_wpts_local.T.reshape(-1)  # size: (3*int_wpts_num,)
 
         train_data = np.concatenate((np.array([timestamp]),
-                                     drone_local_vel,
-                                     drone_attitude,
-                                     plan_init_pos,
-                                     plan_init_vel,
-                                     plan_target_pos,
-                                     plan_target_vel,
+                                     motion_info,
                                      int_wpts_local,
                                      ts), axis=0)  # size: (1+3+9+3*4+3*int_wpts_num + int_wpts_num+1,)
-        
+
         df = pd.read_csv(self.table_filename)
         df = pd.concat([df, pd.DataFrame(train_data.reshape(1, -1), columns=self.table_header)], ignore_index=True)
         df.to_csv(self.table_filename, index=False)
