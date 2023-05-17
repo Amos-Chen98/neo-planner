@@ -1,30 +1,30 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-05-17 14:40:04
+LastEditTime: 2023-05-17 20:32:05
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-import cv2
-from cv_bridge import CvBridge
-from sensor_msgs.msg import Image
-from matplotlib import pyplot as plt
-from visualizer import Visualizer
-from visualization_msgs.msg import MarkerArray
-import rospy
-import numpy as np
-from mavros_msgs.msg import State, PositionTarget
-from mavros_msgs.srv import SetMode, SetModeRequest
-from traj_planner import MinJerkPlanner
-from pyquaternion import Quaternion
-import time
-from esdf import ESDF
-import pandas as pd
-import datetime
-from nav_msgs.msg import Odometry, Path, OccupancyGrid
-import actionlib
 from planner.msg import *
+import actionlib
+from nav_msgs.msg import Odometry, Path, OccupancyGrid
+import datetime
+import pandas as pd
+from esdf import ESDF
+import time
+from pyquaternion import Quaternion
+from traj_planner import MinJerkPlanner
+from mavros_msgs.srv import SetMode, SetModeRequest
+from mavros_msgs.msg import State, PositionTarget
+import numpy as np
+import rospy
+from visualization_msgs.msg import MarkerArray
+from visualizer import Visualizer
+from matplotlib import pyplot as plt
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
+import cv2
 
 
 class PlannerConfig():
@@ -376,25 +376,16 @@ class TrajPlanner():
 
         self.save_training_data(depth_image, drone_state, plan_init_state, target_state, int_wpts, ts)  # record training data
 
-    def save_training_data(self, depth_image, drone_state, plan_init_state, target_state, int_wpts, ts):
-        '''
-        Record training data and write to csv file
-        '''
-        # timestamp
-        now = datetime.datetime.now()
-        timestamp = int(now.strftime("%m%d%H%M%S%f")[:-3])
-        # mon-day-hour-min-sec-ms, [:-3] because the last 3 digits are microsecond
-
-        # scale and save depth_image
+    def process_nn_input(self, depth_image, drone_state, plan_init_state, target_state):
+        # scale depth_image
         # rospy.loginfo("Range of depth image: %f, %f", np.min(depth_image), np.max(depth_image))
-        depth_image = depth_image*255.0/np.max(depth_image)
-        cv2.imwrite(f'training_data/depth_img/{timestamp}.png', depth_image)
+        depth_image_norm = depth_image*255.0/np.max(depth_image)
 
         # current drone state
         drone_local_vel = drone_state.local_vel  # size: (3,)
         drone_quat = drone_state.attitude  # size: (4,)
         # drone_attitude = np.array([drone_quat.w, drone_quat.x, drone_quat.y, drone_quat.z])  # size: (4,)
-        drone_attitude = drone_state.attitude.rotation_matrix.reshape(-1) # size: (9, ), expand by Row
+        drone_attitude = drone_state.attitude.rotation_matrix.reshape(-1)  # size: (9, ), expand by Row
 
         # plan_init_state, in body frame
         plan_init_state_3d = np.zeros((2, 3))
@@ -410,7 +401,23 @@ class TrajPlanner():
         plan_target_pos = drone_quat.inverse.rotate(target_state_3d[0] - drone_state.global_pos)  # size: (3,)
         plan_target_vel = drone_quat.inverse.rotate(target_state_3d[1] - drone_state.global_vel)  # size: (3,)
 
-        # result: int_wpts, in body frame
+        return depth_image_norm, drone_local_vel, drone_attitude, plan_init_pos, plan_init_vel, plan_target_pos, plan_target_vel
+
+    def save_training_data(self, depth_image, drone_state, plan_init_state, target_state, int_wpts, ts):
+        '''
+        Record training data and write to csv file
+        '''
+        # timestamp
+        now = datetime.datetime.now()
+        timestamp = int(now.strftime("%m%d%H%M%S%f")[:-3])
+        # mon-day-hour-min-sec-ms, [:-3] because the last 3 digits are microsecond
+
+        # process input data
+        depth_image_norm, drone_local_vel, drone_attitude, plan_init_pos, plan_init_vel, plan_target_pos, plan_target_vel = self.process_nn_input(
+            depth_image, drone_state, plan_init_state, target_state)
+
+        # process output result: int_wpts, in body frame
+        drone_quat = drone_state.attitude  # size: (4,)
         int_wpts_num = int_wpts.shape[1]
         int_wpts_local = np.zeros((3, int_wpts_num))
         for i in range(int_wpts_num):
@@ -428,10 +435,11 @@ class TrajPlanner():
                                      plan_target_vel,
                                      int_wpts_local,
                                      ts), axis=0)  # size: (1+3+9+3*4+3*int_wpts_num + int_wpts_num+1,)
-
+        
         df = pd.read_csv(self.table_filename)
         df = pd.concat([df, pd.DataFrame(train_data.reshape(1, -1), columns=self.table_header)], ignore_index=True)
         df.to_csv(self.table_filename, index=False)
+        cv2.imwrite(f'training_data/depth_img/{timestamp}.png', depth_image_norm)
         rospy.loginfo("Training data (ID: %d) saved!", timestamp)
 
     def warm_up(self):
