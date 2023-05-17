@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-05-04 11:32:13
+LastEditTime: 2023-05-06 21:48:48
 '''
 import torch
 import numpy as np
@@ -13,6 +13,8 @@ import torch.nn as nn
 import torch.optim as optim
 from torchsummary import summary
 import time
+import torch.onnx
+
 
 VECTOR_SIZE = 24
 OUTPUT_SIZE = 9
@@ -32,6 +34,7 @@ class DataReader():
         outputs = []
         for index, row in csv_data.iterrows():
             timestamp = int(row['id'])
+
             # read depth image and convert it to tensor
             img_file_name = os.path.join(self.img_path, f'{timestamp}.png')
             depth_img = Image.open(img_file_name)
@@ -152,7 +155,7 @@ class NetOperator():
         plan_dataset = PlanDataset(inputs, outputs)
         print("Len of whole dataset: ", len(plan_dataset))
 
-        # split the dataset into training set and validation set
+        # split the dataset into training set and test set
         train_size = int(0.8 * len(plan_dataset))
         test_size = len(plan_dataset) - train_size
         train_set, test_set = torch.utils.data.random_split(plan_dataset, [train_size, test_size])
@@ -163,9 +166,11 @@ class NetOperator():
         self.train_dataloader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=True, num_workers=4)
         self.test_dataloader = DataLoader(test_set, batch_size=BATCH_SIZE, shuffle=True, num_workers=4)
 
-    def train_and_save_net(self):
+    def init_net(self):
         self.planner_net = PlannerNet()
-        # summary(self.planner_net, input_size=[(1, IMG_WIDTH, IMG_HEIGHT), (VECTOR_SIZE, )])
+        print(self.planner_net)
+
+    def train_and_save_net(self):
         optimizer = optim.Adam(self.planner_net.parameters(), lr=0.001)
         num_epochs = 3
 
@@ -191,7 +196,18 @@ class NetOperator():
             print('Epoch %d loss: %.3f' % (epoch + 1, running_loss / len(self.train_dataloader)))
 
         # save the trained model
-        torch.save(self.planner_net.state_dict(), 'saved_net/planner_net.pth')
+        torch.save(self.planner_net.state_dict(), 'saved_net/planner_net.pth')  # save a pth model
+        self.save_onnx()  # save an onnx model
+
+    def save_onnx(self):
+        dummy_input = torch.randn(1, IMG_WIDTH*IMG_HEIGHT+VECTOR_SIZE)
+        torch.onnx.export(self.planner_net,
+                          dummy_input,
+                          "saved_net/planner_net.onnx",
+                          input_names=['input'],
+                          output_names=['output']
+                          )
+        print("planner_net.onnx saved!")
 
     def load_and_test_net(self):
         planner_net_test = PlannerNet()
@@ -210,6 +226,7 @@ if __name__ == '__main__':
 
     net_operator = NetOperator()
     net_operator.build_dataset()
+    net_operator.init_net()
     net_operator.train_and_save_net()
     net_operator.load_and_test_net()
 

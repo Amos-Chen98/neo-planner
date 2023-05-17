@@ -45,7 +45,13 @@ pip install scipy
 pip install transitions
 ```
 
-3. Download all Gazebo models (optional)
+3. Install dependencies for neural network
+
+```
+pip install onnx onnxruntime
+```
+
+4. Download all Gazebo models (optional)
 
 ```
 cd ~/.gazebo/

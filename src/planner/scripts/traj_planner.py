@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-04-23 23:00:07
+LastEditTime: 2023-05-17 14:47:04
 '''
 import math
 import pprint
@@ -8,6 +8,7 @@ import time
 import numpy as np
 import scipy
 import math
+from traj_utils import TrajUtils
 
 
 class DefaultConfig():
@@ -24,12 +25,13 @@ class DefaultConfig():
         self.init_T = 2.0  # the initial T of each segment
 
 
-class MinJerkPlanner():
+class MinJerkPlanner(TrajUtils):
     '''
     Minimum-jerk trajectory planner using MINCO class
     '''
 
     def __init__(self, config=DefaultConfig()):
+        super().__init__()
         # Mission conditions
         self.s = 3
 
@@ -492,172 +494,3 @@ class MinJerkPlanner():
         # print("\n")
 
         return grad
-
-    def get_pos(self, t):
-        '''
-        get position at time t
-        return a (1,D) array
-        '''
-        if t > sum(self.ts):
-            return self.get_pos(sum(self.ts))
-
-        if self.coeffs == []:
-            self.get_coeffs(self.int_wpts, self.ts)
-
-        # Locate piece index
-        piece_idx = 0
-        while sum(self.ts[:piece_idx+1]) < t:
-            piece_idx += 1
-
-        T = t - sum(self.ts[:piece_idx])
-
-        c_block = self.coeffs[2*self.s*piece_idx:2*self.s*(piece_idx+1), :]
-
-        beta = np.array([1, T, T**2, T**3, T**4, T**5])
-
-        return np.dot(c_block.T, np.array([beta]).T).T
-
-    def get_vel(self, t):
-        '''
-        get velocity at time t
-        return a (1,D) array
-        '''
-        if t > sum(self.ts):
-            return self.get_vel(sum(self.ts))
-
-        if self.coeffs == []:
-            self.get_coeffs(self.int_wpts, self.ts)
-
-        # Locate piece index
-        piece_idx = 0
-        while sum(self.ts[:piece_idx+1]) < t:
-            piece_idx += 1
-
-        T = t - sum(self.ts[:piece_idx])
-
-        c_block = self.coeffs[2*self.s*piece_idx:2*self.s*(piece_idx+1), :]
-
-        beta = np.array([0, 1, 2*T, 3*T**2, 4*T**3, 5*T**4])
-
-        return np.dot(c_block.T, np.array([beta]).T).T
-
-    def get_acc(self, t):
-        '''
-        get acceleration at time t
-        return a (1,D) array
-        '''
-        if t > sum(self.ts):
-            return self.get_acc(sum(self.ts))
-
-        if self.coeffs == []:
-            self.get_coeffs(self.int_wpts, self.ts)
-
-        # Locate piece index
-        piece_idx = 0
-        while sum(self.ts[:piece_idx+1]) < t:
-            piece_idx += 1
-
-        T = t - sum(self.ts[:piece_idx])
-
-        c_block = self.coeffs[2*self.s*piece_idx:2*self.s*(piece_idx+1), :]
-
-        beta = np.array([0, 0, 2, 6*T, 12*T**2, 20*T**3])
-
-        return np.dot(c_block.T, np.array([beta]).T).T
-
-    def get_jerk(self, t):
-        '''
-        get jerk at time t
-        return a (1,D) array
-        '''
-        if t > sum(self.ts):
-            return self.get_jerk(sum(self.ts))
-
-        if self.coeffs == []:
-            self.get_coeffs(self.int_wpts, self.ts)
-
-        # Locate piece index
-        piece_idx = 0
-        while sum(self.ts[:piece_idx+1]) < t:
-            piece_idx += 1
-
-        T = t - sum(self.ts[:piece_idx])
-
-        c_block = self.coeffs[2*self.s*piece_idx:2*self.s*(piece_idx+1), :]
-
-        beta = np.array([0, 0, 0, 6, 24*T, 60*T**2])
-
-        return np.dot(c_block.T, np.array([beta]).T).T
-
-    def get_full_state_cmd(self, hz=300):
-        if self.coeffs == []:
-            self.get_coeffs(self.int_wpts, self.ts)
-
-        total_time = sum(self.ts)
-        t_samples = np.arange(0, total_time, 1/hz)
-        sample_num = t_samples.shape[0]
-        state_cmd = np.zeros((sample_num, 3, self.D))  # 3*D: [pos, vel, acc].T * D
-
-        for i in range(sample_num):
-            t = t_samples[i]
-            state_cmd[i][0] = self.get_pos(t)
-            state_cmd[i][1] = self.get_vel(t)
-            state_cmd[i][2] = self.get_acc(t)
-
-        return state_cmd, total_time, hz
-
-    def get_pos_array(self):
-        '''
-        return the full pos array
-        '''
-        if self.coeffs == []:
-            self.get_coeffs(self.int_wpts, self.ts)
-
-        t_samples = np.arange(0, sum(self.ts), 0.1)
-        pos_array = np.zeros((t_samples.shape[0], self.D))
-        for i in range(t_samples.shape[0]):
-            pos_array[i] = self.get_pos(t_samples[i])
-
-        return pos_array
-
-    def get_vel_array(self):
-        '''
-        return the full vel array
-        '''
-        if self.coeffs == []:
-            self.get_coeffs(self.int_wpts, self.ts)
-
-        t_samples = np.arange(0, sum(self.ts), 0.1)
-        vel_array = np.zeros((t_samples.shape[0], self.D))
-        for i in range(t_samples.shape[0]):
-            vel_array[i] = self.get_vel(t_samples[i])
-
-        return vel_array
-
-    def get_acc_array(self):
-        '''
-        return the full acc array
-        '''
-        if self.coeffs == []:
-            self.get_coeffs(self.int_wpts, self.ts)
-
-        t_samples = np.arange(0, sum(self.ts), 0.1)
-        acc_array = np.zeros((t_samples.shape[0], self.D))
-        for i in range(t_samples.shape[0]):
-            acc_array[i] = self.get_acc(t_samples[i])
-
-        return acc_array
-
-    def get_jer_array(self):
-        '''
-        return the full jer array
-        '''
-        if self.coeffs == []:
-            self.get_coeffs(self.int_wpts, self.ts)
-
-        t_samples = np.arange(0, sum(self.ts), 0.1)
-        jer_array = np.zeros((t_samples.shape[0], self.D))
-        for i in range(t_samples.shape[0]):
-            jer_array[i] = self.get_jerk(t_samples[i])
-
-        return jer_array

@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-05-01 21:21:23
+LastEditTime: 2023-05-17 14:40:04
 '''
 import os
 import sys
@@ -50,7 +50,7 @@ class MissionConfig():
         self.lateral_step_length = rospy.get_param("~lateral_step_length", 1.0)  # if local target pos in obstacle, take lateral step
         self.target_reach_threshold = rospy.get_param("~target_reach_threshold", 0.2)
         self.cmd_hz = rospy.get_param("~cmd_hz", 300)
-        self.recording_data = True
+        self.recording_data = False
 
 
 class DroneState():

@@ -2,7 +2,7 @@
 <launch>
     <arg name="frame_id" default="map"/>
     <arg name="pcl_topic" default="/camera/depth/points"/>
-    <arg name="sensor_max_range" default="3.0"/>
+    <arg name="sensor_max_range" default="4.0"/>
 
     <!-- Load ocotmap launch -->
     <node pkg="octomap_server" type="octomap_server_node" name="octomap_server">
