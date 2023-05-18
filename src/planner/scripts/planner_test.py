@@ -5,7 +5,7 @@ LastEditTime: 2023-03-08 10:20:52
 
 import matplotlib.pyplot as plt
 import numpy as np
-from traj_planner import MinJerkPlanner
+from expert_planner import MinJerkPlanner
 import cProfile
 
 

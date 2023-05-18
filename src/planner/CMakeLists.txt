@@ -166,12 +166,9 @@ include_directories(
 # # Mark executable scripts (Python etc.) for installation
 # # in contrast to setup.py, you can choose the destination
 catkin_install_python(PROGRAMS
-    scripts/draft.py
     scripts/esdf_vis_node.py
-    scripts/expert_planner_node.py
-    scripts/traj_planner.py
-    scripts/visualizer.py
     scripts/manager_node.py
+    scripts/traj_planner_node.py
     DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

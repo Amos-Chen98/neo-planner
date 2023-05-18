@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-05-18 16:56:56
+LastEditTime: 2023-05-18 17:16:26
 '''
 import os
 import sys
@@ -16,7 +16,7 @@ import rospy
 import numpy as np
 from mavros_msgs.msg import State, PositionTarget
 from mavros_msgs.srv import SetMode, SetModeRequest
-from traj_planner import MinJerkPlanner
+from expert_planner import MinJerkPlanner
 from pyquaternion import Quaternion
 import time
 from esdf import ESDF
@@ -63,7 +63,7 @@ class DroneState():
 
 
 class TrajPlanner():
-    def __init__(self, node_name="expert_planner"):
+    def __init__(self, node_name="traj_planner"):
         # Node
         rospy.init_node(node_name, anonymous=False)
 
@@ -314,7 +314,7 @@ class TrajPlanner():
             self.traj_plan_record(self.drone_state, self.target_state)
         elif self.planner_mode == 'expert':
             self.traj_plan(self.drone_state, self.target_state)
-            self.nn_traj_plan(self.drone_state, self.target_state) # NOTE: just for test
+            # self.nn_traj_plan(self.drone_state, self.target_state) # NOTE: just for test
         elif self.planner_mode == 'nn':
             self.nn_traj_plan(self.drone_state, self.target_state)
         else:
@@ -342,7 +342,7 @@ class TrajPlanner():
             self.traj_plan_record(drone_state_ahead, self.target_state)
         elif self.planner_mode == 'expert':
             self.traj_plan(drone_state_ahead, self.target_state)
-            self.nn_traj_plan(drone_state_ahead, self.target_state)  # NOTE: just for test
+            # self.nn_traj_plan(drone_state_ahead, self.target_state)  # NOTE: just for test
         elif self.planner_mode == 'nn':
             self.nn_traj_plan(drone_state_ahead, self.target_state)
         else:

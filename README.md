@@ -144,7 +144,7 @@ Step 2: use the Virtual Joystick to move the drone to generate octomap.
 
 ### 4. Trajectory planning and tracking
 
-updated 04/24/2023.
+updated 05/18/2023.
 
 Step 1: launch QGC, 
 
@@ -167,7 +167,7 @@ Step 3:
 In one terminal:
 
 ```
-rosrun planner expert_planner_node.py 
+rosrun planner traj_planner_node.py 
 ```
 
 In another terminal: 

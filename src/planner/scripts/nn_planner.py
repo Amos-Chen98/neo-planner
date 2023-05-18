@@ -78,4 +78,4 @@ class NNPlanner(TrajUtils):
         print("ts: ", self.ts)
         print("NN planning finished!!")
 
-    # TODO: add a function to convert the output from body frame to world frame
+    # TODO: add a function to convert the output from body frame to world frametraj_planner_node
