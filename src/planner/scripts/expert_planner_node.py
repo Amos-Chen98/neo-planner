@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-05-17 21:01:08
+LastEditTime: 2023-05-18 16:56:56
 '''
 import os
 import sys
@@ -25,6 +25,7 @@ import datetime
 from nav_msgs.msg import Odometry, Path, OccupancyGrid
 import actionlib
 from planner.msg import *
+from nn_planner import NNPlanner
 
 
 class PlannerConfig():
@@ -50,7 +51,7 @@ class MissionConfig():
         self.lateral_step_length = rospy.get_param("~lateral_step_length", 1.0)  # if local target pos in obstacle, take lateral step
         self.target_reach_threshold = rospy.get_param("~target_reach_threshold", 0.2)
         self.cmd_hz = rospy.get_param("~cmd_hz", 300)
-        self.recording_data = True
+        self.planner_mode = 'expert'  # 'expert', 'record', or 'nn'
 
 
 class DroneState():
@@ -75,6 +76,7 @@ class TrajPlanner():
         planner_config = PlannerConfig()
         mission_config = MissionConfig()
         self.planner = MinJerkPlanner(planner_config)
+        self.nn_planner = NNPlanner()
         self.state_cmd = PositionTarget()
         self.state_cmd.coordinate_frame = 1
 
@@ -87,7 +89,7 @@ class TrajPlanner():
         self.target_reach_threshold = mission_config.target_reach_threshold
         self.cmd_hz = mission_config.cmd_hz
         self.move_vel = planner_config.v_max*0.8
-        self.recording_data = mission_config.recording_data
+        self.planner_mode = mission_config.planner_mode
 
         # Flags and counters
         self.mission_executing = False
@@ -308,10 +310,16 @@ class TrajPlanner():
         #               local_target[0][0], local_target[0][1], local_target[1][0], local_target[1][1])
 
     def first_plan(self):
-        if self.recording_data:
+        if self.planner_mode == 'record':
             self.traj_plan_record(self.drone_state, self.target_state)
-        else:
+        elif self.planner_mode == 'expert':
             self.traj_plan(self.drone_state, self.target_state)
+            self.nn_traj_plan(self.drone_state, self.target_state) # NOTE: just for test
+        elif self.planner_mode == 'nn':
+            self.nn_traj_plan(self.drone_state, self.target_state)
+        else:
+            rospy.logerr("Invalid planner mode!")
+
         # First planning! Set the des_state_array as des_state
         self.des_state_array = self.des_state
         self.has_traj = True
@@ -329,10 +337,17 @@ class TrajPlanner():
 
     def replan(self):
         drone_state_ahead = self.get_drone_state_ahead()
-        if self.recording_data:
+
+        if self.planner_mode == 'record':
             self.traj_plan_record(drone_state_ahead, self.target_state)
-        else:
+        elif self.planner_mode == 'expert':
             self.traj_plan(drone_state_ahead, self.target_state)
+            self.nn_traj_plan(drone_state_ahead, self.target_state)  # NOTE: just for test
+        elif self.planner_mode == 'nn':
+            self.nn_traj_plan(drone_state_ahead, self.target_state)
+        else:
+            rospy.logerr("Invalid planner mode!")
+
         # Concatenate the new trajectory to the old one, at index self.future_index
         self.des_state_array = np.concatenate((self.des_state_array[:self.future_index], self.des_state), axis=0)
 
@@ -349,6 +364,17 @@ class TrajPlanner():
         time_end = time.time()
         planning_time = time_end - time_start
         # rospy.loginfo("Planning finished in %f s", planning_time)
+
+    def nn_traj_plan(self, plan_init_state, target_state):
+        time_start = time.time()
+        depth_image = self.depth_img
+        drone_state = self.drone_state
+        depth_image_norm, motion_info = self.process_nn_input(depth_image, drone_state, plan_init_state, target_state)
+        self.nn_planner.plan(depth_image_norm, motion_info)
+        des_state_nn, traj_time_nn, cmd_hz_nn = self.nn_planner.get_full_state_cmd()  # NOTE: all states are in body frame!!
+        time_end = time.time()
+        planning_time = time_end - time_start
+        rospy.loginfo("NN Planning finished in %f s", planning_time)
 
     def traj_plan_record(self, plan_init_state, target_state):
         '''
