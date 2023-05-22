@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-05-17 14:45:20
+LastEditTime: 2023-05-22 17:44:17
 '''
 import os
 import sys
@@ -20,6 +20,15 @@ from mavros_msgs.srv import SetMode, SetModeRequest
 from visualization_msgs.msg import Marker
 import actionlib
 from planner.msg import *
+from pyquaternion import Quaternion
+
+
+class DroneState():
+    def __init__(self):
+        self.global_pos = np.zeros(3)
+        self.global_vel = np.zeros(3)
+        self.local_vel = np.zeros(3)
+        self.attitude = Quaternion()
 
 
 class Manager():
@@ -37,7 +46,7 @@ class Manager():
         self.pos_cmd = PositionTarget()
         self.pos_cmd.coordinate_frame = 1
         self.pos_cmd.position.z = self.hover_height
-        self.drone_state = np.zeros((3, 3))  # p,v,a in map frame
+        self.drone_state = DroneState()
         self.global_target = None
         self.has_goal = False
 
@@ -125,9 +134,9 @@ class Manager():
         if self.flight_state.mode != "OFFBOARD":
             self.set_mode_client.call(self.offb_req)
 
-        self.pos_cmd.position.x = self.drone_state[0, 0]
-        self.pos_cmd.position.y = self.drone_state[0, 1]
-        self.pos_cmd.position.z = self.drone_state[0, 2]
+        self.pos_cmd.position.x = self.drone_state.global_pos[0]
+        self.pos_cmd.position.y = self.drone_state.global_pos[1]
+        self.pos_cmd.position.z = self.drone_state.global_pos[2]
 
         self.global_target_pub.publish(self.pos_cmd)
 
@@ -151,12 +160,16 @@ class Manager():
         global_pos = local_pos
         local_vel = np.array([data.twist.twist.linear.x,
                               data.twist.twist.linear.y,
-                              data.twist.twist.linear.z,
-                              ])
-        global_vel = local_vel
-
-        self.drone_state[0] = global_pos
-        self.drone_state[1] = global_vel
+                              data.twist.twist.linear.z])
+        quat = Quaternion(data.pose.pose.orientation.w,
+                          data.pose.pose.orientation.x,
+                          data.pose.pose.orientation.y,
+                          data.pose.pose.orientation.z)  # from local to global
+        global_vel = quat.rotate(local_vel)
+        self.drone_state.global_pos = global_pos
+        self.drone_state.global_vel = global_vel
+        self.drone_state.local_vel = local_vel
+        self.drone_state.attitude = quat
 
     def takeoff(self):
         self.takeoff_cmd_timer = rospy.Timer(rospy.Duration(0.1), self.takeoff_cmd)
@@ -189,7 +202,7 @@ class Manager():
 
         self.local_pos_cmd_pub.publish(self.pos_cmd)
 
-        if self.drone_state[0, 2] >= self.hover_height - 0.05:
+        if self.drone_state.global_pos[2] >= self.hover_height - 0.05:
             self.takeoff_cmd_timer.shutdown()
             self.reach_height()
 
