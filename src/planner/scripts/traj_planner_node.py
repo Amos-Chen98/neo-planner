@@ -1,31 +1,31 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-05-18 17:16:26
+LastEditTime: 2023-05-22 18:11:44
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-import cv2
-from cv_bridge import CvBridge
-from sensor_msgs.msg import Image
-from matplotlib import pyplot as plt
-from visualizer import Visualizer
-from visualization_msgs.msg import MarkerArray
-import rospy
-import numpy as np
-from mavros_msgs.msg import State, PositionTarget
-from mavros_msgs.srv import SetMode, SetModeRequest
-from expert_planner import MinJerkPlanner
-from pyquaternion import Quaternion
-import time
-from esdf import ESDF
-import pandas as pd
-import datetime
-from nav_msgs.msg import Odometry, Path, OccupancyGrid
-import actionlib
-from planner.msg import *
 from nn_planner import NNPlanner
+from planner.msg import *
+import actionlib
+from nav_msgs.msg import Odometry, Path, OccupancyGrid
+import datetime
+import pandas as pd
+from esdf import ESDF
+import time
+from pyquaternion import Quaternion
+from expert_planner import MinJerkPlanner
+from mavros_msgs.srv import SetMode, SetModeRequest
+from mavros_msgs.msg import State, PositionTarget
+import numpy as np
+import rospy
+from visualization_msgs.msg import MarkerArray
+from visualizer import Visualizer
+from matplotlib import pyplot as plt
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
+import cv2
 
 
 class PlannerConfig():
@@ -519,6 +519,8 @@ class TrajPlanner():
         self.state_cmd.yaw = np.arctan2(self.des_state_array[self.des_state_index][0][1] - self.des_state_array[self.des_state_index - 1][0][1],
                                         self.des_state_array[self.des_state_index][0][0] - self.des_state_array[self.des_state_index - 1][0][0])
 
+        self.state_cmd.header.stamp = rospy.Time.now()
+        
         self.local_pos_cmd_pub.publish(self.state_cmd)
 
         if self.des_state_index < self.future_index or self.near_global_target:
