@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-05-22 22:46:54
+LastEditTime: 2023-05-23 16:08:21
 '''
 import os
 import sys
@@ -285,7 +285,7 @@ class Manager():
         rospy.loginfo("Planning result (ID: %d) saved!", current_time)
 
     def takeoff(self):
-        self.takeoff_cmd_timer = rospy.Timer(rospy.Duration(0.1), self.takeoff_cmd)
+        self.takeoff_cmd_timer = rospy.Timer(rospy.Duration(0.1), self.takeoff_cmd_cb)
 
         if not self.flight_state.armed and self.arming_client.call(self.arm_req).success == True:
             rospy.loginfo("Vehicle armed")
@@ -298,21 +298,24 @@ class Manager():
             rospy.loginfo("Vehicle armed")
 
         takeoff_cmd = CommandTOLRequest()
-        takeoff_cmd.altitude = 5.0
+        takeoff_cmd.altitude = 3.0
+
         try:
-            res = self.takeoff_client(takeoff_cmd)
+            res = self.takeoff_client.call(takeoff_cmd)
             if not res.success:
                 rospy.logerr('Failed to take off')
         except rospy.ServiceException as e:
             rospy.logerr(e)
 
-    def takeoff_cmd(self, event):
+    def takeoff_cmd_cb(self, event):
         if not self.flight_state.armed:
             self.arming_client.call(self.arm_req)
 
         if self.flight_state.mode != "OFFBOARD":
             self.set_mode_client.call(self.offb_req)
 
+        self.pos_cmd.position.x = self.drone_state.global_pos[0]
+        self.pos_cmd.position.y = self.drone_state.global_pos[1]
         self.local_pos_cmd_pub.publish(self.pos_cmd)
 
         if self.drone_state.global_pos[2] >= self.hover_height - 0.05:
