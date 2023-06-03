@@ -1,31 +1,31 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-05-22 18:11:44
+LastEditTime: 2023-06-03 21:45:37
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from nn_planner import NNPlanner
-from planner.msg import *
-import actionlib
-from nav_msgs.msg import Odometry, Path, OccupancyGrid
-import datetime
-import pandas as pd
-from esdf import ESDF
-import time
-from pyquaternion import Quaternion
-from expert_planner import MinJerkPlanner
-from mavros_msgs.srv import SetMode, SetModeRequest
-from mavros_msgs.msg import State, PositionTarget
-import numpy as np
-import rospy
-from visualization_msgs.msg import MarkerArray
-from visualizer import Visualizer
-from matplotlib import pyplot as plt
-from sensor_msgs.msg import Image
-from cv_bridge import CvBridge
 import cv2
+from cv_bridge import CvBridge
+from sensor_msgs.msg import Image
+from matplotlib import pyplot as plt
+from visualizer import Visualizer
+from visualization_msgs.msg import MarkerArray
+import rospy
+import numpy as np
+from mavros_msgs.msg import State, PositionTarget
+from mavros_msgs.srv import SetMode, SetModeRequest
+from expert_planner import MinJerkPlanner
+from pyquaternion import Quaternion
+import time
+from esdf import ESDF
+import pandas as pd
+import datetime
+from nav_msgs.msg import Odometry, Path, OccupancyGrid
+import actionlib
+from planner.msg import *
+from nn_planner import NNPlanner
 
 
 class PlannerConfig():
@@ -314,7 +314,7 @@ class TrajPlanner():
             self.traj_plan_record(self.drone_state, self.target_state)
         elif self.planner_mode == 'expert':
             self.traj_plan(self.drone_state, self.target_state)
-            # self.nn_traj_plan(self.drone_state, self.target_state) # NOTE: just for test
+            # self.nn_traj_plan(self.drone_state, self.target_state)  # NOTE: just for test
         elif self.planner_mode == 'nn':
             self.nn_traj_plan(self.drone_state, self.target_state)
         else:
@@ -369,9 +369,10 @@ class TrajPlanner():
         time_start = time.time()
         depth_image = self.depth_img
         drone_state = self.drone_state
-        depth_image_norm, motion_info = self.process_nn_input(depth_image, drone_state, plan_init_state, target_state)
-        self.nn_planner.plan(depth_image_norm, motion_info)
-        des_state_nn, traj_time_nn, cmd_hz_nn = self.nn_planner.get_full_state_cmd()  # NOTE: all states are in body frame!!
+        depth_image_norm, motion_info, drone_global_pos = self.process_nn_input(depth_image, drone_state, plan_init_state, target_state)
+        self.nn_planner.plan(depth_image_norm, motion_info, drone_global_pos)
+        # des_state_nn, traj_time_nn, cmd_hz_nn = self.nn_planner.get_full_state_cmd()
+        # currently, errors of int_wpts and ts are rather large, resulting get_full_state_cmd's inability to output
         time_end = time.time()
         planning_time = time_end - time_start
         rospy.loginfo("NN Planning finished in %f s", planning_time)
@@ -408,6 +409,7 @@ class TrajPlanner():
         depth_image_norm = depth_image*255.0/np.max(depth_image)
 
         # current drone state
+        drone_global_pos = drone_state.global_pos  # size: (3,)
         drone_local_vel = drone_state.local_vel  # size: (3,)
         drone_quat = drone_state.attitude  # size: (4,)
         # drone_attitude = np.array([drone_quat.w, drone_quat.x, drone_quat.y, drone_quat.z])  # size: (4,)
@@ -434,7 +436,7 @@ class TrajPlanner():
                                       plan_target_pos,
                                       plan_target_vel), axis=0)
 
-        return depth_image_norm, motion_info
+        return depth_image_norm, motion_info, drone_global_pos
 
     def save_training_data(self, depth_image, drone_state, plan_init_state, target_state, int_wpts, ts):
         '''
@@ -446,7 +448,7 @@ class TrajPlanner():
         # mon-day-hour-min-sec-ms, [:-3] because the last 3 digits are microsecond
 
         # process input data
-        depth_image_norm, motion_info = self.process_nn_input(depth_image, drone_state, plan_init_state, target_state)
+        depth_image_norm, motion_info, _ = self.process_nn_input(depth_image, drone_state, plan_init_state, target_state)
 
         # process output result: int_wpts, in body frame
         drone_quat = drone_state.attitude  # size: (4,)
@@ -520,7 +522,7 @@ class TrajPlanner():
                                         self.des_state_array[self.des_state_index][0][0] - self.des_state_array[self.des_state_index - 1][0][0])
 
         self.state_cmd.header.stamp = rospy.Time.now()
-        
+
         self.local_pos_cmd_pub.publish(self.state_cmd)
 
         if self.des_state_index < self.future_index or self.near_global_target:

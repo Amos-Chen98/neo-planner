@@ -59,3 +59,4 @@ CATKIN_IGNORE
 rosbag/
 training_data/
 saved_net/
+planning_result/
