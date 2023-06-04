@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-05-06 21:48:48
+LastEditTime: 2023-06-04 18:42:49
 '''
 import torch
 import numpy as np
@@ -20,7 +20,8 @@ VECTOR_SIZE = 24
 OUTPUT_SIZE = 9
 IMG_WIDTH = 160
 IMG_HEIGHT = 120
-BATCH_SIZE = 16
+BATCH_SIZE = 32
+EPOCHS = 20
 
 
 class DataReader():
@@ -165,17 +166,21 @@ class NetOperator():
         # generate the dataloader
         self.train_dataloader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=True, num_workers=4)
         self.test_dataloader = DataLoader(test_set, batch_size=BATCH_SIZE, shuffle=True, num_workers=4)
+        print("DataLoader generated.")
 
     def init_net(self):
         self.planner_net = PlannerNet()
-        print(self.planner_net)
+        # print(self.planner_net)
 
     def train_and_save_net(self):
         optimizer = optim.Adam(self.planner_net.parameters(), lr=0.001)
-        num_epochs = 3
+
+        # train the self.planner_net
+        print("Start training...")
+
 
         # train the network
-        for epoch in range(num_epochs):
+        for epoch in range(EPOCHS):
             running_loss = 0.0
             for i, data in enumerate(self.train_dataloader, 0):
                 inputs, expert_outputs = data
@@ -223,6 +228,11 @@ class NetOperator():
 
 
 if __name__ == '__main__':
+    if torch.cuda.is_available():
+        print("GPU is available")
+        torch.cuda.set_device(0)
+    else:
+        print("GPU is not available！")
 
     net_operator = NetOperator()
     net_operator.build_dataset()
