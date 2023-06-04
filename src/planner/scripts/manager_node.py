@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-05-23 16:08:21
+LastEditTime: 2023-06-04 16:49:07
 '''
 import os
 import sys
@@ -73,6 +73,7 @@ class Manager():
         self.pos_cmd.coordinate_frame = 1
         self.pos_cmd.position.z = self.hover_height
         self.global_target = None
+        self.auto_mission = False
 
         # Flags and counters
         self.odom_received = False
@@ -104,6 +105,7 @@ class Manager():
         # Publishers
         self.local_pos_cmd_pub = rospy.Publisher("/mavros/setpoint_raw/local", PositionTarget, queue_size=10)
         self.target_vis_pub = rospy.Publisher('/global_target', Marker, queue_size=10)
+        self.random_target_pub = rospy.Publisher('/move_base_simple/goal', PoseStamped, queue_size=10)
 
         # FSM
         self.fsm = GraphMachine(model=self, states=['INIT', 'TAKINGOFF', 'HOVER', 'MISSION'], initial='INIT')
@@ -136,6 +138,7 @@ class Manager():
         rospy.loginfo("Current state: %s", self.state)
 
     def trigger_plan(self, target):
+        print("")
         rospy.loginfo("Global target: x = %f, y = %f", target.pose.position.x, target.pose.position.y)
         self.global_target = np.array([target.pose.position.x,
                                        target.pose.position.y,
@@ -159,6 +162,32 @@ class Manager():
         self.reach_goal()
         if self.recording_data:
             self.end_recording()
+
+        if self.auto_mission:
+            self.generate_goal()
+
+    def generate_goal(self):
+        '''
+        randomly generate a goal
+        '''
+        x_bounds = [-2, 28]
+        y_bounds = [-8, 8]
+        # randomly generate a goal
+        x = np.random.uniform(x_bounds[0], x_bounds[1])
+        y = np.random.uniform(y_bounds[0], y_bounds[1])
+
+        # if target is in obstale-rich aera, regenerate
+        while x > 0 and x < 26 and y > -6 and y < 6:
+            x = np.random.uniform(x_bounds[0], x_bounds[1])
+            y = np.random.uniform(y_bounds[0], y_bounds[1])
+
+        target = PoseStamped()
+        target.header.frame_id = "map"
+        target.pose.position.x = x
+        target.pose.position.y = y
+        target.pose.position.z = self.hover_height
+
+        self.random_target_pub.publish(target)
 
     def vis_target(self):
         marker = Marker()
