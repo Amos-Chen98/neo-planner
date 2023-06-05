@@ -1,8 +1,9 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-06-03 21:20:26
+LastEditTime: 2023-06-05 11:52:14
 '''
 import numpy as np
+import torch  # This must be included before onnxruntime, ref:https://stackoverflow.com/questions/75267445/why-does-onnxruntime-fail-to-create-cudaexecutionprovider-in-linuxubuntu-20/75267493#75267493
 import onnxruntime
 from traj_utils import TrajUtils
 
@@ -15,15 +16,24 @@ class NNPlanner(TrajUtils):
     def __init__(self, onnx_path='saved_net/planner_net.onnx'):
         super().__init__()
         # load onnx model, ONNX runtime reference: https://onnxruntime.ai/docs/api/python/api_summary.html
-        self.onnx_path = onnx_path
-        self.session = onnxruntime.InferenceSession(self.onnx_path,
-                                                    providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
+        print("ONNX runtime version: ", onnxruntime.__version__)
+
+        providers_available = onnxruntime.get_available_providers()
+        print("Available providers: ", providers_available)
+
+        if 'CUDAExecutionProvider' in providers_available:
+            provider = ['CUDAExecutionProvider']
+            print("CUDAExecutionProvider is available")
+        else:
+            provider = ['CPUExecutionProvider']
+            print("CPUExecutionProvider is available")
+
+        self.session = onnxruntime.InferenceSession(onnx_path,
+                                                    providers=provider)
 
         self.onnx_input_name = self.session.get_inputs()[0].name
         self.onnx_output_name = self.session.get_outputs()[0].name
 
-        print("ONNX runtime version: ", onnxruntime.__version__)
-        print("ONNX available providers: ", self.session.get_providers())
         print("ONNX selected provider: ", self.session.get_providers()[0])
         print("ONNX input name: ", self.onnx_input_name)
         print("ONNX output name: ", self.onnx_output_name)
@@ -55,7 +65,7 @@ class NNPlanner(TrajUtils):
         self.tail_state[2, :] = np.zeros(3)
 
         # get drone local state
-        self.drone_attitude = motion_info[3:12].reshape(3, 3) # as a rotation matrix
+        self.drone_attitude = motion_info[3:12].reshape(3, 3)  # as a rotation matrix
         self.drone_global_pos = drone_global_pos
 
         return ortvalue
