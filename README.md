@@ -48,7 +48,8 @@ pip install transitions
 3. Install dependencies for neural network
 
 ```
-pip install onnx onnxruntime
+pip install onnx
+pip install onnxruntime-gpu
 ```
 
 4. Download all Gazebo models (optional)
