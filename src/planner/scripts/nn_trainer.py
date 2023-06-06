@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-06-04 18:42:49
+LastEditTime: 2023-06-06 16:52:41
 '''
 import torch
 import numpy as np
@@ -11,7 +11,7 @@ from PIL import Image
 from torchvision import transforms
 import torch.nn as nn
 import torch.optim as optim
-from torchsummary import summary
+from torchinfo import summary
 import time
 import torch.onnx
 
@@ -21,7 +21,7 @@ OUTPUT_SIZE = 9
 IMG_WIDTH = 160
 IMG_HEIGHT = 120
 BATCH_SIZE = 32
-EPOCHS = 20
+EPOCHS = 15
 
 
 class DataReader():
@@ -72,7 +72,7 @@ class PlanDataset(Dataset):
 class PlannerNet(nn.Module):
     def __init__(self):
         super(PlannerNet, self).__init__()
-        self.conv1 = nn.Sequential(  # input shape (1, IMG_WIDTH, IMG_WIDTH)
+        self.conv1 = nn.Sequential(  # input shape (1, IMG_WIDTH, IMG_HEIGHT)
             nn.Conv2d(
                 in_channels=1,  # input height
                 out_channels=32,  # n_filters
@@ -83,25 +83,25 @@ class PlannerNet(nn.Module):
             nn.ReLU(),  # activation
             nn.BatchNorm2d(32)
         )
-        self.conv2 = nn.Sequential(  # input shape (32, IMG_WIDTH, IMG_WIDTH)
+        self.conv2 = nn.Sequential(  # input shape (32, IMG_WIDTH, IMG_HEIGHT)
             nn.Conv2d(
                 in_channels=32,
                 out_channels=64,
                 kernel_size=3,
                 stride=2,
                 padding=1,
-            ),  # output shape (64, IMG_WIDTH/2, IMG_WIDTH/2)
+            ),  # output shape (64, IMG_WIDTH/2, IMG_HEIGHT/2)
             nn.ReLU(),
             nn.BatchNorm2d(64)
         )
-        self.conv3 = nn.Sequential(  # input shape (64, IMG_WIDTH/2, IMG_WIDTH/2)
+        self.conv3 = nn.Sequential(  # input shape (64, IMG_WIDTH/2, IMG_HEIGHT/2)
             nn.Conv2d(
                 in_channels=64,
                 out_channels=128,
                 kernel_size=3,
                 stride=2,
                 padding=1,
-            ),  # output shape (128, IMG_WIDTH/4, IMG_WIDTH/4)
+            ),  # output shape (128, IMG_WIDTH/4, IMG_HEIGHT/4)
             nn.ReLU(),
             nn.BatchNorm2d(128)
         )
@@ -146,6 +146,8 @@ class PlannerNet(nn.Module):
 class NetOperator():
     def __init__(self):
         self.criterion = nn.MSELoss()
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        print("Device: ", self.device)
 
     def build_dataset(self):
         # read data from local files
@@ -161,16 +163,18 @@ class NetOperator():
         test_size = len(plan_dataset) - train_size
         train_set, test_set = torch.utils.data.random_split(plan_dataset, [train_size, test_size])
         print("Len of train dataset: ", len(train_set))
-        print("Len of val dataset: ", len(test_set))
+        print("Len of test dataset: ", len(test_set))
 
         # generate the dataloader
-        self.train_dataloader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=True, num_workers=4)
-        self.test_dataloader = DataLoader(test_set, batch_size=BATCH_SIZE, shuffle=True, num_workers=4)
+        self.train_dataloader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=False, num_workers=24)
+        self.test_dataloader = DataLoader(test_set, batch_size=BATCH_SIZE, shuffle=False, num_workers=24)
         print("DataLoader generated.")
 
     def init_net(self):
         self.planner_net = PlannerNet()
-        # print(self.planner_net)
+        self.planner_net.to(self.device)  # move the network to GPU
+        # print summary of the network
+        summary(self.planner_net, (BATCH_SIZE, IMG_WIDTH * IMG_HEIGHT + VECTOR_SIZE), device=self.device)
 
     def train_and_save_net(self):
         optimizer = optim.Adam(self.planner_net.parameters(), lr=0.001)
@@ -178,17 +182,23 @@ class NetOperator():
         # train the self.planner_net
         print("Start training...")
 
-
         # train the network
         for epoch in range(EPOCHS):
             running_loss = 0.0
             for i, data in enumerate(self.train_dataloader, 0):
-                inputs, expert_outputs = data
+                # move data to GPU
+                data = [d.to(self.device) for d in data]
+
+                inputs, expert_outputs = data  # TODO
+
                 optimizer.zero_grad()
 
                 # forward
                 outputs = self.planner_net(inputs)
                 loss = self.criterion(outputs, expert_outputs)
+                # print("inputs: ", inputs)
+                # print("outputs: ", outputs)
+                # print("expert_outputs: ", expert_outputs)
 
                 # backward
                 loss.backward()
@@ -206,6 +216,7 @@ class NetOperator():
 
     def save_onnx(self):
         dummy_input = torch.randn(1, IMG_WIDTH*IMG_HEIGHT+VECTOR_SIZE)
+        dummy_input = dummy_input.to(self.device)  # move the dummy input to GPU
         torch.onnx.export(self.planner_net,
                           dummy_input,
                           "saved_net/planner_net.onnx",
@@ -228,11 +239,6 @@ class NetOperator():
 
 
 if __name__ == '__main__':
-    if torch.cuda.is_available():
-        print("GPU is available")
-        torch.cuda.set_device(0)
-    else:
-        print("GPU is not available！")
 
     net_operator = NetOperator()
     net_operator.build_dataset()
