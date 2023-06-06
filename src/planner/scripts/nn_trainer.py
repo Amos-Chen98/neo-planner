@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-06-06 16:52:41
+LastEditTime: 2023-06-06 17:30:20
 '''
 import torch
 import numpy as np
@@ -21,7 +21,7 @@ OUTPUT_SIZE = 9
 IMG_WIDTH = 160
 IMG_HEIGHT = 120
 BATCH_SIZE = 32
-EPOCHS = 15
+EPOCHS = 20
 
 
 class DataReader():
@@ -243,7 +243,17 @@ if __name__ == '__main__':
     net_operator = NetOperator()
     net_operator.build_dataset()
     net_operator.init_net()
+
+    time_start = time.time()
     net_operator.train_and_save_net()
+    time_end = time.time()
+    training_time = time_end - time_start
+
+    # convert the training time to hour:minute:second
+    m, s = divmod(training_time, 60)
+    h, m = divmod(m, 60)
+    print("\nTraining time cost: %d:%02d:%02d\n" % (h, m, s))
+
     net_operator.load_and_test_net()
 
     # generate a random input
