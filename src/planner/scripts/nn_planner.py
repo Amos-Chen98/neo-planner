@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-06-05 11:52:14
+LastEditTime: 2023-06-07 16:25:42
 '''
 import numpy as np
 import torch  # This must be included before onnxruntime, ref:https://stackoverflow.com/questions/75267445/why-does-onnxruntime-fail-to-create-cudaexecutionprovider-in-linuxubuntu-20/75267493#75267493
@@ -98,7 +98,8 @@ class NNPlanner(TrajUtils):
         output = self.session.run([self.onnx_output_name],
                                   {self.onnx_input_name: ortvalue})[0]  # size: (1, 9)
 
-        int_wpts_local = output[0][:self.D*(self.M-1)].reshape(self.D, self.M-1)  # the num of wpts is M-1, and the dim of each wpt is D
+        int_wpts_local = output[0][:self.D*(self.M-1)].reshape(self.M-1, self.D).T  # col major, so transpose
+        print("int_wpts_local: ", int_wpts_local)
         self.ts = output[0][self.D*(self.M-1):]
         self.int_wpts = self.get_wpts_world(int_wpts_local)
         print("int_wpts: ", self.int_wpts)
