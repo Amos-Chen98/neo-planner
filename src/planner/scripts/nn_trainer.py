@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-06-06 17:30:20
+LastEditTime: 2023-06-08 23:04:20
 '''
 import torch
 import numpy as np
@@ -14,14 +14,16 @@ import torch.optim as optim
 from torchinfo import summary
 import time
 import torch.onnx
+import torchvision
+import torchvision.models as models
 
 
-VECTOR_SIZE = 24
-OUTPUT_SIZE = 9
 IMG_WIDTH = 160
 IMG_HEIGHT = 120
-BATCH_SIZE = 32
-EPOCHS = 20
+VECTOR_SIZE = 24
+OUTPUT_SIZE = 9
+BATCH_SIZE = 64
+EPOCHS = 30
 
 
 class DataReader():
@@ -72,48 +74,17 @@ class PlanDataset(Dataset):
 class PlannerNet(nn.Module):
     def __init__(self):
         super(PlannerNet, self).__init__()
-        self.conv1 = nn.Sequential(  # input shape (1, IMG_WIDTH, IMG_HEIGHT)
-            nn.Conv2d(
-                in_channels=1,  # input height
-                out_channels=32,  # n_filters
-                kernel_size=3,  # filter size
-                stride=1,  # filter movement/step
-                padding=1,  # if want same width and length of this image after Conv2d, padding=(kernel_size-1)/2 if stride=1
-            ),  # output shape (32, IMG_WIDTH, IMG_WIDTH)
-            nn.ReLU(),  # activation
-            nn.BatchNorm2d(32)
-        )
-        self.conv2 = nn.Sequential(  # input shape (32, IMG_WIDTH, IMG_HEIGHT)
-            nn.Conv2d(
-                in_channels=32,
-                out_channels=64,
-                kernel_size=3,
-                stride=2,
-                padding=1,
-            ),  # output shape (64, IMG_WIDTH/2, IMG_HEIGHT/2)
-            nn.ReLU(),
-            nn.BatchNorm2d(64)
-        )
-        self.conv3 = nn.Sequential(  # input shape (64, IMG_WIDTH/2, IMG_HEIGHT/2)
-            nn.Conv2d(
-                in_channels=64,
-                out_channels=128,
-                kernel_size=3,
-                stride=2,
-                padding=1,
-            ),  # output shape (128, IMG_WIDTH/4, IMG_HEIGHT/4)
-            nn.ReLU(),
-            nn.BatchNorm2d(128)
-        )
 
-        self.img_mlp = nn.Sequential(
-            nn.Linear(128 * IMG_WIDTH * IMG_HEIGHT // 16, 1024),
-            nn.ReLU(),
-            nn.Linear(1024, 128),
-            nn.ReLU(),
-            nn.Linear(128, VECTOR_SIZE),
-            nn.ReLU(),
-        )
+        self.resnet = models.resnet18(weights='DEFAULT')
+
+        for param in self.resnet.parameters():
+            # freeze the parameters
+            param.requires_grad = False
+
+        # change the input channel to 1
+        self.resnet.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        # change the output size to fit VECTOR_SIZE, self.resnet.fc.in_features means the layer's original input size
+        self.resnet.fc = nn.Linear(self.resnet.fc.in_features, VECTOR_SIZE)
 
         self.mlp = nn.Sequential(
             nn.Linear(VECTOR_SIZE + VECTOR_SIZE, 1024),
@@ -130,14 +101,8 @@ class PlannerNet(nn.Module):
         img = input[:, :IMG_WIDTH * IMG_HEIGHT].reshape(-1, 1, IMG_WIDTH, IMG_HEIGHT)
         vector = input[:, IMG_WIDTH * IMG_HEIGHT:]
 
-        x = self.conv1(img)
-        x = self.conv2(x)
-        x = self.conv3(x)
-
-        x = x.view(-1, 128 * IMG_WIDTH * IMG_HEIGHT // 16)
-        x = self.img_mlp(x)
-
-        x = torch.cat([x, vector], dim=1)
+        img_feature = self.resnet(img)
+        x = torch.cat([img_feature, vector], dim=1)
         x = self.mlp(x)
 
         return x
@@ -145,6 +110,8 @@ class PlannerNet(nn.Module):
 
 class NetOperator():
     def __init__(self):
+        print(f"PyTorch version: {torch.__version__}")
+        print(f"torchvision version: {torchvision.__version__}")
         self.criterion = nn.MSELoss()
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         print("Device: ", self.device)
@@ -179,17 +146,14 @@ class NetOperator():
     def train_and_save_net(self):
         optimizer = optim.Adam(self.planner_net.parameters(), lr=0.001)
 
-        # train the self.planner_net
         print("Start training...")
 
         # train the network
         for epoch in range(EPOCHS):
             running_loss = 0.0
             for i, data in enumerate(self.train_dataloader, 0):
-                # move data to GPU
-                data = [d.to(self.device) for d in data]
-
-                inputs, expert_outputs = data  # TODO
+                data = [d.to(self.device) for d in data]  # move data to GPU
+                inputs, expert_outputs = data
 
                 optimizer.zero_grad()
 
@@ -228,14 +192,21 @@ class NetOperator():
     def load_and_test_net(self):
         planner_net_test = PlannerNet()
         planner_net_test.load_state_dict(torch.load('saved_net/planner_net.pth'))
-        total_loss = 0.0
-        for i, data in enumerate(self.test_dataloader, 0):
-            inputs, expert_outputs = data
-            outputs = planner_net_test(inputs)
-            loss = self.criterion(outputs, expert_outputs)
-            total_loss += loss.item()
+        planner_net_test.to(self.device)  # move the network to GPU
 
-        print('Test loss: %.3f' % (total_loss / len(self.test_dataloader)))
+        # evaluate the network
+        planner_net_test.eval()
+
+        with torch.no_grad():
+            total_loss = 0.0
+            for i, data in enumerate(self.test_dataloader, 0):
+                data = [d.to(self.device) for d in data]  # move data to GPU
+                inputs, expert_outputs = data
+                outputs = planner_net_test(inputs)
+                loss = self.criterion(outputs, expert_outputs)
+                total_loss += loss.item()
+
+            print('Test loss: %.3f' % (total_loss / len(self.test_dataloader)))
 
 
 if __name__ == '__main__':
