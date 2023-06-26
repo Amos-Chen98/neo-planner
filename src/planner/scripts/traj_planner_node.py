@@ -1,31 +1,31 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-06-26 11:58:25
+LastEditTime: 2023-06-26 17:11:37
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from nn_planner import NNPlanner
-from planner.msg import *
-import actionlib
-from nav_msgs.msg import Odometry, Path, OccupancyGrid
-import datetime
-import pandas as pd
-from esdf import ESDF
-import time
-from pyquaternion import Quaternion
-from expert_planner import MinJerkPlanner
-from mavros_msgs.srv import SetMode, SetModeRequest
-from mavros_msgs.msg import State, PositionTarget
-import numpy as np
-import rospy
-from visualization_msgs.msg import MarkerArray
-from visualizer import Visualizer
-from matplotlib import pyplot as plt
-from sensor_msgs.msg import Image
-from cv_bridge import CvBridge
 import cv2
+from cv_bridge import CvBridge
+from sensor_msgs.msg import Image
+from matplotlib import pyplot as plt
+from visualizer import Visualizer
+from visualization_msgs.msg import MarkerArray
+import rospy
+import numpy as np
+from mavros_msgs.msg import State, PositionTarget
+from mavros_msgs.srv import SetMode, SetModeRequest
+from expert_planner import MinJerkPlanner
+from pyquaternion import Quaternion
+import time
+from esdf import ESDF
+import pandas as pd
+import datetime
+from nav_msgs.msg import Odometry, Path, OccupancyGrid
+import actionlib
+from planner.msg import *
+from nn_planner import NNPlanner
 
 
 class PlannerConfig():
@@ -90,6 +90,7 @@ class TrajPlanner():
         self.has_traj = False
         self.des_state_index = 0
         self.future_index = 99999
+        self.des_state_length = 99999  # this is used to check if the des_state_index is valid
 
         # Server
         self.plan_server = actionlib.SimpleActionServer('plan', PlanAction, self.execute_mission, False)
@@ -340,6 +341,7 @@ class TrajPlanner():
 
         # Concatenate the new trajectory to the old one, at index self.future_index
         self.des_state_array = np.concatenate((self.des_state_array[:self.future_index], self.des_state), axis=0)
+        self.des_state_length = self.des_state_array.shape[0]
 
     def traj_plan(self, plan_init_state, target_state):
         '''
@@ -515,7 +517,7 @@ class TrajPlanner():
 
         self.local_pos_cmd_pub.publish(self.state_cmd)
 
-        if self.des_state_index < self.future_index or self.near_global_target:
+        if self.des_state_index < self.des_state_length - 1 and (self.des_state_index < self.future_index or self.near_global_target):
             self.des_state_index += 1
 
     def visualize_drone_snapshots(self):

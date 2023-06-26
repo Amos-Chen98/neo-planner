@@ -11,11 +11,11 @@ init_wpts_num: 2.0
 init_T: 2.55
 
 # mission
-mission_mode: online
+mission_mode: online # 'online' or 'global'
 planning_time_ahead: 1.0
 des_pos_z: 2.0
 longitu_step_dis: 5.0
 lateral_step_length: 1.0
 target_reach_threshold: 0.2
 cmd_hz: 300
-planner_mode: expert
+planner_mode: expert # 'expert', 'record', or 'nn'
