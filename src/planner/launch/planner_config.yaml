@@ -1,0 +1,21 @@
+# planner
+v_max: 1.0
+T_min: 0.5
+T_max: 5.0
+safe_dis: 0.5
+delta_t: 0.1
+weights: [1, 1, 1, 10000]
+init_wpts_mode: fixed
+init_seg_len: 2.0
+init_wpts_num: 2.0
+init_T: 2.55
+
+# mission
+mission_mode: online
+planning_time_ahead: 1.0
+des_pos_z: 2.0
+longitu_step_dis: 5.0
+lateral_step_length: 1.0
+target_reach_threshold: 0.2
+cmd_hz: 300
+planner_mode: expert
