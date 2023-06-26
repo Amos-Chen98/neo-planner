@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-06-26 11:42:20
+LastEditTime: 2023-06-26 16:13:31
 '''
 import os
 import sys
@@ -21,8 +21,8 @@ from transitions import Machine
 from transitions.extensions import GraphMachine
 from geometry_msgs.msg import PoseStamped
 from esdf import ESDF
-# import pandas as pd
-# import datetime
+import rosbag
+import datetime
 
 
 class DroneState():
@@ -31,24 +31,6 @@ class DroneState():
         self.global_vel = np.zeros(3)
         self.local_vel = np.zeros(3)
         self.attitude = Quaternion()
-
-
-class DesState():
-    def __init__(self):
-        self.global_pos = np.zeros(3)
-        self.global_vel = np.zeros(3)
-        self.global_acc = np.zeros(3)
-        self.timestamp = 0
-
-
-# class FullDataMat():
-#     def __init__(self):
-#         self.timestamp_list = []
-#         self.drone_pos_list = []
-#         self.drone_vel_list = []
-#         self.des_pos_list = []
-#         self.des_vel_list = []
-#         self.des_acc_list = []
 
 
 class Manager():
@@ -63,8 +45,6 @@ class Manager():
         self.arm_req = CommandBoolRequest()
         self.pos_cmd = PositionTarget()
         self.drone_state = DroneState()
-        self.des_state = DesState()  # class for recording desired state
-        # self.full_data_mat = FullDataMat()  # class for recording data
 
         # customized parameters
         self.auto_mission = rospy.get_param("~auto_mission", False)
@@ -77,10 +57,11 @@ class Manager():
         self.pos_cmd.coordinate_frame = 1
         self.pos_cmd.position.z = self.hover_height
         self.global_target = None
-        
+
         # Flags and counters
         self.odom_received = False
         self.has_goal = False
+        self.rosbag_is_on = False
 
         # Client / Service init
         self.arming_client = rospy.ServiceProxy("mavros/cmd/arming", CommandBool)
@@ -102,7 +83,6 @@ class Manager():
         self.flight_state_sub = rospy.Subscriber('mavros/state', State, self.flight_state_cb)
         self.odom_sub = rospy.Subscriber('mavros/local_position/odom', Odometry, self.odom_cb)
         self.target_sub = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.trigger_plan)
-        self.local_pos_cmd_sub = rospy.Subscriber("mavros/setpoint_raw/local", PositionTarget, self.pos_cmd_cb)
 
         # Publishers
         self.local_pos_cmd_pub = rospy.Publisher("mavros/setpoint_raw/local", PositionTarget, queue_size=10)
@@ -113,9 +93,9 @@ class Manager():
         self.fsm = GraphMachine(model=self, states=['INIT', 'TAKINGOFF', 'HOVER', 'MISSION'], initial='INIT')
         self.fsm.add_transition(trigger='launch', source='INIT', dest='TAKINGOFF', before="get_odom", after=['takeoff', 'print_current_state'])
         self.fsm.add_transition(trigger='reach_height', source='TAKINGOFF', dest='HOVER', after=['print_current_state'])
-        self.fsm.add_transition(trigger='set_goal', source='HOVER', dest='MISSION', after=['print_current_state'])
-        self.fsm.add_transition(trigger='set_goal', source='MISSION', dest='MISSION', after=['print_current_state'])
-        self.fsm.add_transition(trigger='reach_goal', source='MISSION', dest='HOVER', after=['print_current_state'])
+        self.fsm.add_transition(trigger='set_goal', source='HOVER', dest='MISSION', after=['print_current_state', 'open_rosbag'])
+        self.fsm.add_transition(trigger='set_goal', source='MISSION', dest='MISSION', after=['print_current_state', 'open_rosbag'])
+        self.fsm.add_transition(trigger='reach_goal', source='MISSION', dest='HOVER', after=['print_current_state', 'close_rosbag'])
 
         # Initialize the csv file collecting training data
         self.table_header = ['time',
@@ -156,14 +136,24 @@ class Manager():
 
         self.plan_client.send_goal(goal_msg, done_cb=self.finish_planning_cb)
 
-        # if self.recording_data:
-        #     self.start_recording()
+    def open_rosbag(self):
+        if self.recording_data:
+            now = datetime.datetime.now()
+            timestamp = now.strftime("%m%d%H%M%S")
+            self.bag = rosbag.Bag(f'{current_path[:-8]}/{timestamp}.bag', 'w')
+            self.bag = rosbag.Bag(current_path[:-8] + '/rosbag/' + timestamp + '.bag', 'w')
+            self.rosbag_is_on = True
+            rospy.loginfo("rosbag opened!")
+
+    def close_rosbag(self):
+        if self.recording_data:
+            self.rosbag_is_on = False
+            self.bag.close()
+            rospy.loginfo("rosbag closed!")
 
     def finish_planning_cb(self, state, result):
         rospy.loginfo("Reached goal!")
         self.reach_goal()
-        # if self.recording_data:
-        #     self.end_recording()
 
         if self.auto_mission:
             self.generate_goal()
@@ -212,19 +202,6 @@ class Manager():
         marker.color.b = 0.0
         self.target_vis_pub.publish(marker)
 
-    def hover_cmd(self, event):
-        if not self.flight_state.armed:
-            self.arming_client.call(self.arm_req)
-
-        if self.flight_state.mode != "OFFBOARD":
-            self.set_mode_client.call(self.offb_req)
-
-        self.pos_cmd.position.x = self.drone_state.global_pos[0]
-        self.pos_cmd.position.y = self.drone_state.global_pos[1]
-        self.pos_cmd.position.z = self.drone_state.global_pos[2]
-
-        self.global_target_pub.publish(self.pos_cmd)
-
     def flight_state_cb(self, data):
         self.flight_state = data
 
@@ -239,6 +216,10 @@ class Manager():
         (Currently, regard camera frame as drone body frame)
         '''
         self.odom_received = True
+
+        if self.recording_data and self.rosbag_is_on:
+            self.bag.write('mavros/local_position/odom', data)
+
         local_pos = np.array([data.pose.pose.position.x,
                               data.pose.pose.position.y,
                               data.pose.pose.position.z])
@@ -255,65 +236,6 @@ class Manager():
         self.drone_state.global_vel = global_vel
         self.drone_state.local_vel = local_vel
         self.drone_state.attitude = quat
-
-    def pos_cmd_cb(self, data):
-        '''
-        This is for data recording
-        '''
-        self.des_state.timestamp = data.header.stamp
-        self.des_state.global_pos = np.array([data.position.x, data.position.y, data.position.z])
-        self.des_state.global_vel = np.array([data.velocity.x, data.velocity.y, data.velocity.z])
-        self.des_state.global_acc = np.array([data.acceleration_or_force.x, data.acceleration_or_force.y, data.acceleration_or_force.z])
-
-    # def start_recording(self):
-    #     self.init_recording()
-    #     self.recording_timer = rospy.Timer(rospy.Duration(0.1), self.recording_timer_cb)
-
-    # def init_recording(self):
-    #     self.full_data_mat.timestamp_list = []
-    #     self.full_data_mat.drone_pos_list = []
-    #     self.full_data_mat.drone_vel_list = []
-    #     self.full_data_mat.des_pos_list = []
-    #     self.full_data_mat.des_vel_list = []
-    #     self.full_data_mat.des_acc_list = []
-
-    # def recording_timer_cb(self, event):
-    #     time = rospy.Time.now()
-
-    #     self.full_data_mat.timestamp_list.append(time)
-    #     self.full_data_mat.drone_pos_list.append(self.drone_state.global_pos)
-    #     self.full_data_mat.drone_vel_list.append(self.drone_state.global_vel)
-    #     self.full_data_mat.des_pos_list.append(self.des_state.global_pos)
-    #     self.full_data_mat.des_vel_list.append(self.des_state.global_vel)
-    #     self.full_data_mat.des_acc_list.append(self.des_state.global_acc)
-
-    # def end_recording(self):
-    #     self.recording_timer.shutdown()
-    #     self.save_recording()
-
-    # def save_recording(self):
-    #     length = len(self.full_data_mat.timestamp_list)
-
-    #     # remove time offset in self.full_data_mat.timestamp_list
-    #     mission_start_time = int(self.full_data_mat.timestamp_list[0].to_sec())
-    #     for i in range(length):
-    #         self.full_data_mat.timestamp_list[i] = self.full_data_mat.timestamp_list[i].to_sec() - mission_start_time
-    #     self.full_data_mat.timestamp_list[0] = 0
-
-    #     result = np.concatenate((np.array(self.full_data_mat.timestamp_list).reshape(length, 1),
-    #                              np.array(self.full_data_mat.drone_pos_list).reshape(length, 3),
-    #                              np.array(self.full_data_mat.drone_vel_list).reshape(length, 3),
-    #                              np.array(self.full_data_mat.des_pos_list).reshape(length, 3),
-    #                              np.array(self.full_data_mat.des_vel_list).reshape(length, 3),
-    #                              np.array(self.full_data_mat.des_acc_list).reshape(length, 3)), axis=1)
-
-    #     # create a blank csv file
-    #     now = datetime.datetime.now()
-    #     current_time = int(now.strftime("%Y%m%d%H%M%S"))
-    #     table_filename = f'planning_result/{current_time}.csv'
-    #     df = pd.DataFrame(result, columns=self.table_header)
-    #     df.to_csv(table_filename, index=False)
-    #     rospy.loginfo("Planning result (ID: %d) saved!", current_time)
 
     def takeoff(self):
         self.takeoff_cmd_timer = rospy.Timer(rospy.Duration(0.1), self.takeoff_cmd_cb)
@@ -354,7 +276,7 @@ class Manager():
             self.reach_height()
 
     def draw_fsm_graph(self):
-        self.get_graph().draw(current_path[:-8] + '/fsm.pdf', prog='dot')
+        self.get_graph().draw(f'{current_path[:-8]}/fsm.pdf', prog='dot')
 
 
 if __name__ == "__main__":
