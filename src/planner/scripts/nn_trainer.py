@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-06-08 23:04:20
+LastEditTime: 2023-06-26 11:42:32
 '''
 import torch
 import numpy as np
@@ -23,13 +23,23 @@ IMG_HEIGHT = 120
 VECTOR_SIZE = 24
 OUTPUT_SIZE = 9
 BATCH_SIZE = 64
-EPOCHS = 30
+EPOCHS = 3
+
+current_path = os.path.dirname(os.path.abspath(__file__))[:-8]  # -7 remove '/scripts'
+img_path = '/training_data/depth_img'
+csv_path = '/training_data/train.csv'
+pth_save_path = '/saved_net/planner_net.pth'
+onnx_save_path = '/saved_net/planner_net.onnx'
 
 
 class DataReader():
-    def __init__(self, img_path='training_data/depth_img', csv_path='training_data/train.csv'):
-        self.img_path = img_path
-        self.csv_path = csv_path
+    def __init__(self):
+
+        self.img_path = current_path + img_path
+        self.csv_path = current_path + csv_path
+
+        print("img_path: ", self.img_path)
+        print("csv_path: ", self.csv_path)
 
     def load_data(self):  # sourcery skip: avoid-builtin-shadow
         csv_data = pd.read_csv(self.csv_path)
@@ -89,11 +99,13 @@ class PlannerNet(nn.Module):
         self.mlp = nn.Sequential(
             nn.Linear(VECTOR_SIZE + VECTOR_SIZE, 1024),
             nn.ReLU(),
-            nn.Linear(1024, 512),
+            nn.Linear(1024, 256),
             nn.ReLU(),
-            nn.Linear(512, 128),
+            nn.Linear(256, 128),
             nn.ReLU(),
-            nn.Linear(128, OUTPUT_SIZE)
+            nn.Linear(128, 32),
+            nn.ReLU(),
+            nn.Linear(32, OUTPUT_SIZE)
         )
 
     def forward(self, input):
@@ -115,6 +127,12 @@ class NetOperator():
         self.criterion = nn.MSELoss()
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         print("Device: ", self.device)
+
+        self.pth_save_path = current_path + pth_save_path
+        self.onnx_save_path = current_path + onnx_save_path
+
+        print("pth_save_path: ", self.pth_save_path)
+        print("onnx_save_path: ", self.onnx_save_path)
 
     def build_dataset(self):
         # read data from local files
@@ -175,7 +193,7 @@ class NetOperator():
             print('Epoch %d loss: %.3f' % (epoch + 1, running_loss / len(self.train_dataloader)))
 
         # save the trained model
-        torch.save(self.planner_net.state_dict(), 'saved_net/planner_net.pth')  # save a pth model
+        torch.save(self.planner_net.state_dict(), self.pth_save_path)  # save a pth model
         self.save_onnx()  # save an onnx model
 
     def save_onnx(self):
@@ -183,7 +201,7 @@ class NetOperator():
         dummy_input = dummy_input.to(self.device)  # move the dummy input to GPU
         torch.onnx.export(self.planner_net,
                           dummy_input,
-                          "saved_net/planner_net.onnx",
+                          self.onnx_save_path,
                           input_names=['input'],
                           output_names=['output']
                           )
@@ -191,7 +209,7 @@ class NetOperator():
 
     def load_and_test_net(self):
         planner_net_test = PlannerNet()
-        planner_net_test.load_state_dict(torch.load('saved_net/planner_net.pth'))
+        planner_net_test.load_state_dict(torch.load(self.pth_save_path))
         planner_net_test.to(self.device)  # move the network to GPU
 
         # evaluate the network

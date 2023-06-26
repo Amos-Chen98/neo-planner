@@ -1,31 +1,31 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-06-03 21:45:37
+LastEditTime: 2023-06-26 11:58:25
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-import cv2
-from cv_bridge import CvBridge
-from sensor_msgs.msg import Image
-from matplotlib import pyplot as plt
-from visualizer import Visualizer
-from visualization_msgs.msg import MarkerArray
-import rospy
-import numpy as np
-from mavros_msgs.msg import State, PositionTarget
-from mavros_msgs.srv import SetMode, SetModeRequest
-from expert_planner import MinJerkPlanner
-from pyquaternion import Quaternion
-import time
-from esdf import ESDF
-import pandas as pd
-import datetime
-from nav_msgs.msg import Odometry, Path, OccupancyGrid
-import actionlib
-from planner.msg import *
 from nn_planner import NNPlanner
+from planner.msg import *
+import actionlib
+from nav_msgs.msg import Odometry, Path, OccupancyGrid
+import datetime
+import pandas as pd
+from esdf import ESDF
+import time
+from pyquaternion import Quaternion
+from expert_planner import MinJerkPlanner
+from mavros_msgs.srv import SetMode, SetModeRequest
+from mavros_msgs.msg import State, PositionTarget
+import numpy as np
+import rospy
+from visualization_msgs.msg import MarkerArray
+from visualizer import Visualizer
+from matplotlib import pyplot as plt
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
+import cv2
 
 
 class PlannerConfig():
@@ -38,20 +38,8 @@ class PlannerConfig():
         self.weights = rospy.get_param("~weights", [1, 1, 1, 10000])
         self.init_wpts_mode = rospy.get_param("~init_wpts_mode", 'fixed')  # 'fixed' or 'adaptive'
         self.init_seg_len = rospy.get_param("~init_seg_len", 2.0)  # the initial length of each segment
-        self.init_wpts_num = rospy.get_param("~init_wpts_num", 2)  # the initial number of waypoints
+        self.init_wpts_num = int(rospy.get_param("~init_wpts_num", 2))  # the initial number of waypoints
         self.init_T = rospy.get_param("~init_T", 2.5)  # the initial T of each segment
-
-
-class MissionConfig():
-    def __init__(self):
-        self.planning_mode = rospy.get_param("~planning_mode", 'online')  # 'online' or 'global (plan once)'
-        self.planning_time_ahead = rospy.get_param("~planning_time_ahead", 1.0)  # the time ahead of the current time to plan the trajectory
-        self.des_pos_z = rospy.get_param("~des_pos_z", 2.0)
-        self.longitu_step_dis = rospy.get_param("~longitu_step_dis", 5.0)  # the distance forward in each replanning
-        self.lateral_step_length = rospy.get_param("~lateral_step_length", 1.0)  # if local target pos in obstacle, take lateral step
-        self.target_reach_threshold = rospy.get_param("~target_reach_threshold", 0.2)
-        self.cmd_hz = rospy.get_param("~cmd_hz", 300)
-        self.planner_mode = 'expert'  # 'expert', 'record', or 'nn'
 
 
 class DroneState():
@@ -66,6 +54,10 @@ class TrajPlanner():
     def __init__(self, node_name="traj_planner"):
         # Node
         rospy.init_node(node_name, anonymous=False)
+        rospkg_path = current_path[:-8]  # -8 remove '/scripts'
+        model_path = rospkg_path + '/saved_net/planner_net.onnx'
+        self.csv_path = rospkg_path + '/training_data/train.csv'
+        self.img_path = rospkg_path + '/training_data/depth_img'
 
         # Members
         self.cv_bridge = CvBridge()
@@ -74,22 +66,21 @@ class TrajPlanner():
         self.visualizer = Visualizer()
         self.drone_state = DroneState()
         planner_config = PlannerConfig()
-        mission_config = MissionConfig()
         self.planner = MinJerkPlanner(planner_config)
-        self.nn_planner = NNPlanner()
+        self.nn_planner = NNPlanner(model_path)
         self.state_cmd = PositionTarget()
         self.state_cmd.coordinate_frame = 1
 
         # Parameters
-        self.planning_mode = mission_config.planning_mode
-        self.planning_time_ahead = mission_config.planning_time_ahead
-        self.des_pos_z = mission_config.des_pos_z
-        self.longitu_step_dis = mission_config.longitu_step_dis
-        self.lateral_step_length = mission_config.lateral_step_length
-        self.target_reach_threshold = mission_config.target_reach_threshold
-        self.cmd_hz = mission_config.cmd_hz
+        self.mission_mode = rospy.get_param("~mission_mode", 'online')  # 'online' or 'global (plan once)'
+        self.planning_time_ahead = rospy.get_param("~planning_time_ahead", 1.0)  # the time ahead of the current time to plan the trajectory
+        self.des_pos_z = rospy.get_param("~des_pos_z", 2.0)
+        self.longitu_step_dis = rospy.get_param("~longitu_step_dis", 5.0)  # the distance forward in each replanning
+        self.lateral_step_length = rospy.get_param("~lateral_step_length", 1.0)  # if local target pos in obstacle, take lateral step
+        self.target_reach_threshold = rospy.get_param("~target_reach_threshold", 0.2)
+        self.cmd_hz = rospy.get_param("~cmd_hz", 300)
+        self.planner_mode = rospy.get_param("~planner_mode", 'expert')  # 'expert', 'record', or 'nn'
         self.move_vel = planner_config.v_max*0.8
-        self.planner_mode = mission_config.planner_mode
 
         # Flags and counters
         self.mission_executing = False
@@ -105,20 +96,20 @@ class TrajPlanner():
         self.plan_server.start()
 
         # Services
-        rospy.wait_for_service("/mavros/set_mode")
+        rospy.wait_for_service("mavros/set_mode")
         self.set_mode_client = rospy.ServiceProxy("mavros/set_mode", SetMode)
 
         # Subscribers
-        self.flight_state_sub = rospy.Subscriber('/mavros/state', State, self.flight_state_cb)
-        self.occupancy_map_sub = rospy.Subscriber('/projected_map', OccupancyGrid, self.map.occupancy_map_cb)
-        self.odom_sub = rospy.Subscriber('/mavros/local_position/odom', Odometry, self.odom_cb)
-        self.depth_img_sub = rospy.Subscriber('/camera/depth/image_raw', Image, self.depth_img_cb, queue_size=1)
+        self.flight_state_sub = rospy.Subscriber('mavros/state', State, self.flight_state_cb)
+        self.occupancy_map_sub = rospy.Subscriber('projected_map', OccupancyGrid, self.map.occupancy_map_cb)
+        self.odom_sub = rospy.Subscriber('mavros/local_position/odom', Odometry, self.odom_cb)
+        self.depth_img_sub = rospy.Subscriber('camera/depth/image_raw', Image, self.depth_img_cb, queue_size=1)
 
         # Publishers
-        self.local_pos_cmd_pub = rospy.Publisher("/mavros/setpoint_raw/local", PositionTarget, queue_size=10)
-        self.drone_snapshots_pub = rospy.Publisher('/robotMarker', MarkerArray, queue_size=10)
-        self.des_wpts_pub = rospy.Publisher('/des_wpts', MarkerArray, queue_size=10)
-        self.des_path_pub = rospy.Publisher('/des_path', MarkerArray, queue_size=10)
+        self.local_pos_cmd_pub = rospy.Publisher("mavros/setpoint_raw/local", PositionTarget, queue_size=10)
+        self.drone_snapshots_pub = rospy.Publisher('robotMarker', MarkerArray, queue_size=10)
+        self.des_wpts_pub = rospy.Publisher('des_wpts', MarkerArray, queue_size=10)
+        self.des_path_pub = rospy.Publisher('des_path', MarkerArray, queue_size=10)
 
         rospy.loginfo("Global planner initialized")
 
@@ -160,10 +151,9 @@ class TrajPlanner():
                              ]
 
         # create a blank csv file
-        self.table_filename = 'training_data/train.csv'
-        if not os.path.isfile(self.table_filename):
+        if not os.path.isfile(self.csv_path):
             df = pd.DataFrame(columns=self.table_header)
-            df.to_csv(self.table_filename, index=False)
+            df.to_csv(self.csv_path, index=False)
 
     def flight_state_cb(self, data):
         self.flight_state = data
@@ -221,7 +211,7 @@ class TrajPlanner():
         rospy.loginfo("Target received: x = %f, y = %f", target.pose.position.x, target.pose.position.y)
         self.global_target = np.array([target.pose.position.x, target.pose.position.y])
 
-        if self.planning_mode == 'global':
+        if self.mission_mode == 'global':
             self.global_planning()
         else:
             self.online_planning()
@@ -314,7 +304,7 @@ class TrajPlanner():
             self.traj_plan_record(self.drone_state, self.target_state)
         elif self.planner_mode == 'expert':
             self.traj_plan(self.drone_state, self.target_state)
-            # self.nn_traj_plan(self.drone_state, self.target_state)  # NOTE: just for test
+            self.nn_traj_plan(self.drone_state, self.target_state)  # NOTE: just for test
         elif self.planner_mode == 'nn':
             self.nn_traj_plan(self.drone_state, self.target_state)
         else:
@@ -342,7 +332,7 @@ class TrajPlanner():
             self.traj_plan_record(drone_state_ahead, self.target_state)
         elif self.planner_mode == 'expert':
             self.traj_plan(drone_state_ahead, self.target_state)
-            # self.nn_traj_plan(drone_state_ahead, self.target_state)  # NOTE: just for test
+            self.nn_traj_plan(drone_state_ahead, self.target_state)  # NOTE: just for test
         elif self.planner_mode == 'nn':
             self.nn_traj_plan(drone_state_ahead, self.target_state)
         else:
@@ -453,7 +443,7 @@ class TrajPlanner():
         # process output result: int_wpts, in body frame
         drone_quat = drone_state.attitude  # size: (4,)
         int_wpts_num = int_wpts.shape[1]
-        int_wpts_local = np.zeros((3, int_wpts_num))
+        int_wpts_local = np.zeros((3, int_wpts_num))  # col major
         for i in range(int_wpts_num):
             int_wpts_3d = np.array([int_wpts[0, i], int_wpts[1, i], self.des_pos_z])
             int_wpts_local[:, i] = drone_quat.inverse.rotate(int_wpts_3d - drone_state.global_pos)
@@ -465,10 +455,10 @@ class TrajPlanner():
                                      int_wpts_local,
                                      ts), axis=0)  # size: (1+3+9+3*4+3*int_wpts_num + int_wpts_num+1,)
 
-        df = pd.read_csv(self.table_filename)
+        df = pd.read_csv(self.csv_path)
         df = pd.concat([df, pd.DataFrame(train_data.reshape(1, -1), columns=self.table_header)], ignore_index=True)
-        df.to_csv(self.table_filename, index=False)
-        cv2.imwrite(f'training_data/depth_img/{timestamp}.png', depth_image_norm)
+        df.to_csv(self.csv_path, index=False)
+        cv2.imwrite(self.img_path + '/' + str(timestamp) + '.png', depth_image_norm)
         rospy.loginfo("Training data (ID: %d) saved!", timestamp)
 
     def warm_up(self):
