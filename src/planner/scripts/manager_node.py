@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-06-26 16:13:31
+LastEditTime: 2023-06-26 16:23:05
 '''
 import os
 import sys
@@ -140,7 +140,6 @@ class Manager():
         if self.recording_data:
             now = datetime.datetime.now()
             timestamp = now.strftime("%m%d%H%M%S")
-            self.bag = rosbag.Bag(f'{current_path[:-8]}/{timestamp}.bag', 'w')
             self.bag = rosbag.Bag(current_path[:-8] + '/rosbag/' + timestamp + '.bag', 'w')
             self.rosbag_is_on = True
             rospy.loginfo("rosbag opened!")
