@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-06-07 16:25:42
+LastEditTime: 2023-06-28 19:46:03
 '''
 import numpy as np
 import torch  # This must be included before onnxruntime, ref:https://stackoverflow.com/questions/75267445/why-does-onnxruntime-fail-to-create-cudaexecutionprovider-in-linuxubuntu-20/75267493#75267493
@@ -59,10 +59,13 @@ class NNPlanner(TrajUtils):
         ortvalue = onnxruntime.OrtValue.ortvalue_from_numpy(input_concat)
 
         # get boundary conditions, this is used for calculating full state cmd
-        self.head_state[:2, :] = motion_info[12:18].reshape(self.s - 1, self.D)  # only pos and vel are valid
+        self.head_state[:2, :] = motion_info[12:18].reshape(self.s - 1, self.D)  # only pos and vel are valid, row major
         self.head_state[2, :] = np.zeros(3)  # acc is zero, since we cannot access the real acc of a drone
         self.tail_state[:2, :] = motion_info[18:24].reshape(self.s - 1, self.D)
         self.tail_state[2, :] = np.zeros(3)
+
+        print("head_state: ", self.head_state)
+        print("tail_state: ", self.tail_state)
 
         # get drone local state
         self.drone_attitude = motion_info[3:12].reshape(3, 3)  # as a rotation matrix
@@ -104,4 +107,3 @@ class NNPlanner(TrajUtils):
         self.int_wpts = self.get_wpts_world(int_wpts_local)
         print("int_wpts: ", self.int_wpts)
         print("ts: ", self.ts)
-        print("NN planning finished!!")
