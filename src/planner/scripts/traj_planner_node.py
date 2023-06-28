@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-06-26 17:11:37
+LastEditTime: 2023-06-28 19:55:38
 '''
 import os
 import sys
@@ -313,6 +313,7 @@ class TrajPlanner():
 
         # First planning! Set the des_state_array as des_state
         self.des_state_array = self.des_state
+        self.des_state_length = self.des_state_array.shape[0]
         self.has_traj = True
 
     def get_drone_state_ahead(self):
@@ -347,27 +348,11 @@ class TrajPlanner():
         '''
         trajectory planning, store the full state cmd in self.des_state
         '''
-        time_start = time.time()
         drone_state_2d = np.array([plan_init_state.global_pos[:2],
                                    plan_init_state.global_vel[:2]])
         self.des_pos_z = plan_init_state.global_pos[2]  # use current height
         self.planner.plan(self.map, drone_state_2d, target_state)  # 2D planning, z is fixed
         self.des_state, self.traj_time, self.cmd_hz = self.planner.get_full_state_cmd()
-        time_end = time.time()
-        planning_time = time_end - time_start
-        # rospy.loginfo("Planning finished in %f s", planning_time)
-
-    def nn_traj_plan(self, plan_init_state, target_state):
-        time_start = time.time()
-        depth_image = self.depth_img
-        drone_state = self.drone_state
-        depth_image_norm, motion_info, drone_global_pos = self.process_nn_input(depth_image, drone_state, plan_init_state, target_state)
-        self.nn_planner.plan(depth_image_norm, motion_info, drone_global_pos)
-        # des_state_nn, traj_time_nn, cmd_hz_nn = self.nn_planner.get_full_state_cmd()
-        # currently, errors of int_wpts and ts are rather large, resulting get_full_state_cmd's inability to output
-        time_end = time.time()
-        planning_time = time_end - time_start
-        rospy.loginfo("NN Planning finished in %f s", planning_time)
 
     def traj_plan_record(self, plan_init_state, target_state):
         '''
@@ -378,57 +363,13 @@ class TrajPlanner():
         drone_state = self.drone_state
 
         # state ahead of 1s
-        drone_state_2d = np.array([plan_init_state.global_pos[:2],
-                                   plan_init_state.global_vel[:2]])
-        self.des_pos_z = plan_init_state.global_pos[2]  # use current height
-
-        time_start = time.time()
-        self.planner.plan(self.map, drone_state_2d, target_state)  # 2D planning, z is fixed
-        self.des_state, self.traj_time, self.cmd_hz = self.planner.get_full_state_cmd()
-        time_end = time.time()
-        self.planning_time = time_end - time_start
-        rospy.loginfo("Planning finished! Time cost: %f", self.planning_time)
+        self.traj_plan(plan_init_state, target_state)
 
         # get planning results
         int_wpts = self.planner.int_wpts
         ts = self.planner.ts
 
         self.save_training_data(depth_image, drone_state, plan_init_state, target_state, int_wpts, ts)  # record training data
-
-    def process_nn_input(self, depth_image, drone_state, plan_init_state, target_state):
-        # scale depth_image
-        # rospy.loginfo("Range of depth image: %f, %f", np.min(depth_image), np.max(depth_image))
-        depth_image_norm = depth_image*255.0/np.max(depth_image)
-
-        # current drone state
-        drone_global_pos = drone_state.global_pos  # size: (3,)
-        drone_local_vel = drone_state.local_vel  # size: (3,)
-        drone_quat = drone_state.attitude  # size: (4,)
-        # drone_attitude = np.array([drone_quat.w, drone_quat.x, drone_quat.y, drone_quat.z])  # size: (4,)
-        drone_attitude = drone_state.attitude.rotation_matrix.reshape(-1)  # size: (9, ), expand by Row
-
-        # plan_init_state, in body frame
-        plan_init_state_3d = np.zeros((2, 3))
-        plan_init_state_3d[:, 0:2] = plan_init_state.global_pos[:2]
-        plan_init_state_3d[0, 2] = self.des_pos_z
-        plan_init_pos = drone_quat.inverse.rotate(plan_init_state_3d[0] - drone_state.global_pos)  # size: (3,)
-        plan_init_vel = drone_quat.inverse.rotate(plan_init_state_3d[1] - drone_state.global_vel)  # size: (3,)
-
-        # target_state, in body frame
-        target_state_3d = np.zeros((2, 3))
-        target_state_3d[:, 0:2] = target_state
-        target_state_3d[0, 2] = self.des_pos_z
-        plan_target_pos = drone_quat.inverse.rotate(target_state_3d[0] - drone_state.global_pos)  # size: (3,)
-        plan_target_vel = drone_quat.inverse.rotate(target_state_3d[1] - drone_state.global_vel)  # size: (3,)
-
-        motion_info = np.concatenate((drone_local_vel,
-                                      drone_attitude,
-                                      plan_init_pos,
-                                      plan_init_vel,
-                                      plan_target_pos,
-                                      plan_target_vel), axis=0)
-
-        return depth_image_norm, motion_info, drone_global_pos
 
     def save_training_data(self, depth_image, drone_state, plan_init_state, target_state, int_wpts, ts):
         '''
@@ -462,6 +403,64 @@ class TrajPlanner():
         df.to_csv(self.csv_path, index=False)
         cv2.imwrite(self.img_path + '/' + str(timestamp) + '.png', depth_image_norm)
         rospy.loginfo("Training data (ID: %d) saved!", timestamp)
+
+    def nn_traj_plan(self, plan_init_state, target_state):
+        time_start = time.time()
+        depth_image = self.depth_img
+        drone_state = self.drone_state
+        depth_image_norm, motion_info, drone_global_pos = self.process_nn_input(depth_image, drone_state, plan_init_state, target_state)
+        self.nn_planner.plan(depth_image_norm, motion_info, drone_global_pos)
+        # des_state_nn, traj_time_nn, cmd_hz_nn = self.nn_planner.get_full_state_cmd()
+        # currently, errors of int_wpts and ts are rather large, resulting get_full_state_cmd's inability to output
+        time_end = time.time()
+        planning_time = time_end - time_start
+        rospy.loginfo("NN Planning finished in %f s", planning_time)
+
+    def process_nn_input(self, depth_image, drone_state, plan_init_state, target_state):
+        # scale depth_image
+        # rospy.loginfo("Range of depth image: %f, %f", np.min(depth_image), np.max(depth_image))
+        depth_image_norm = depth_image*255.0/np.max(depth_image)
+
+        # current drone state
+        drone_global_pos = drone_state.global_pos  # size: (3,)
+        drone_local_vel = drone_state.local_vel  # size: (3,)
+        drone_quat = drone_state.attitude  # size: (4,)
+        # drone_attitude = np.array([drone_quat.w, drone_quat.x, drone_quat.y, drone_quat.z])  # size: (4,)
+        drone_attitude = drone_state.attitude.rotation_matrix.reshape(-1)  # size: (9, ), expand by Row
+
+        # plan_init_state, in map frame
+        plan_init_state_3d = np.zeros((2, 3))
+        plan_init_state_3d[0, :2] = plan_init_state.global_pos[:2]  # NOTE
+        plan_init_state_3d[0, 2] = self.des_pos_z
+        plan_init_state_3d[1, :2] = plan_init_state.global_vel[:2]
+
+        # plan_init_state, in body frame (current drone_state), row1: pos, row2: vel
+        plan_init_pos = drone_quat.inverse.rotate(plan_init_state_3d[0] - drone_state.global_pos)  # size: (3,)
+        plan_init_vel = drone_quat.inverse.rotate(plan_init_state_3d[1] - drone_state.global_vel)  # size: (3,) NOTE
+        # plan_init_vel = drone_quat.inverse.rotate(plan_init_state_3d[1])  # size: (3,) NOTE
+
+        # rospy.loginfo("plan_init_vel: %f, %f, %f", plan_init_vel[0], plan_init_vel[1], plan_init_vel[2])
+
+        # target_state, in map frame
+        target_state_3d = np.zeros((2, 3))
+        target_state_3d[:, :2] = target_state  # includes target_pos and target_vel
+        target_state_3d[0, 2] = self.des_pos_z
+
+        # target_state, in body frame
+        plan_target_pos = drone_quat.inverse.rotate(target_state_3d[0] - drone_state.global_pos)  # size: (3,)
+        plan_target_vel = drone_quat.inverse.rotate(target_state_3d[1] - drone_state.global_vel)  # size: (3,)
+        # plan_target_vel = drone_quat.inverse.rotate(target_state_3d[1])  # size: (3,) NOTE
+
+        # rospy.loginfo("plan_target_vel: %f, %f, %f", plan_target_vel[0], plan_target_vel[1], plan_target_vel[2])
+
+        motion_info = np.concatenate((drone_local_vel,
+                                      drone_attitude,
+                                      plan_init_pos,
+                                      plan_init_vel,
+                                      plan_target_pos,
+                                      plan_target_vel), axis=0)
+
+        return depth_image_norm, motion_info, drone_global_pos
 
     def warm_up(self):
         # Send a few setpoints before switching to OFFBOARD mode
