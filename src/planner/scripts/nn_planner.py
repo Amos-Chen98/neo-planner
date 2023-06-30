@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-06-30 15:37:10
+LastEditTime: 2023-06-30 17:05:09
 '''
 import os
 import sys
@@ -65,9 +65,6 @@ class NNPlanner(TrajUtils):
         self.tail_state[:2, :] = motion_info[18:24].reshape(self.s - 1, self.D)
         self.tail_state[2, :] = np.zeros(3)
 
-        print("head_state: ", self.head_state)
-        print("tail_state: ", self.tail_state)
-
         # get drone local state
         self.drone_attitude = motion_info[3:12].reshape(3, 3)  # as a rotation matrix
         self.drone_global_pos = drone_global_pos
@@ -103,7 +100,6 @@ class NNPlanner(TrajUtils):
                                   {self.onnx_input_name: ortvalue})[0]  # size: (1, 9)
 
         int_wpts_local = output[0][:self.D*(self.M-1)].reshape(self.M-1, self.D).T  # col major, so transpose
-        print("int_wpts_local: ", int_wpts_local)
         self.ts = output[0][self.D*(self.M-1):]
         self.int_wpts = self.get_wpts_world(int_wpts_local)
         print("int_wpts: ", self.int_wpts)
