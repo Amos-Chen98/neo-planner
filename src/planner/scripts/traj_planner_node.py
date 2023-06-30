@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-06-28 19:55:38
+LastEditTime: 2023-06-30 15:09:46
 '''
 import os
 import sys
@@ -419,7 +419,9 @@ class TrajPlanner():
     def process_nn_input(self, depth_image, drone_state, plan_init_state, target_state):
         # scale depth_image
         # rospy.loginfo("Range of depth image: %f, %f", np.min(depth_image), np.max(depth_image))
-        depth_image_norm = depth_image*255.0/np.max(depth_image)
+        # depth_image_norm = depth_image*255.0/np.max(depth_image)
+        # use cv2 to normalize depth image
+        depth_image_norm = cv2.normalize(depth_image, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
 
         # current drone state
         drone_global_pos = drone_state.global_pos  # size: (3,)

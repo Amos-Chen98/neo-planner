@@ -1,14 +1,12 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-06-28 11:32:25
+LastEditTime: 2023-06-30 15:35:52
 '''
 import torch
 import numpy as np
 import pandas as pd
 import os
 from torch.utils.data import Dataset, DataLoader
-from PIL import Image
-from torchvision import transforms
 import torch.nn as nn
 import torch.optim as optim
 from torchinfo import summary
@@ -16,20 +14,32 @@ import time
 import torch.onnx
 import torchvision
 import torchvision.models as models
+import cv2
 
 
-IMG_WIDTH = 160
-IMG_HEIGHT = 120
+IMG_WIDTH = 480
+IMG_HEIGHT = 360
 VECTOR_SIZE = 24
 OUTPUT_SIZE = 9
 BATCH_SIZE = 64
-EPOCHS = 50
+EPOCHS = 10
 
 current_path = os.path.dirname(os.path.abspath(__file__))[:-8]  # -7 remove '/scripts'
 img_path = '/training_data/starred/depth_img'
 csv_path = '/training_data/starred/train.csv'
 pth_save_path = '/saved_net/planner_net.pth'
 onnx_save_path = '/saved_net/planner_net.onnx'
+
+
+def process_input_np(depth_img, motion_info):
+    '''
+    :param depth_img: numpy array
+    :param motion_info: numpy array
+    :return: numpy array
+    '''
+    depth_img_resized = cv2.resize(depth_img, (IMG_WIDTH, IMG_HEIGHT))
+    img_flatten = depth_img_resized.reshape(-1)
+    return np.concatenate((img_flatten.astype(np.float32), motion_info.astype(np.float32)))
 
 
 class DataReader():
@@ -48,19 +58,13 @@ class DataReader():
         for index, row in csv_data.iterrows():
             timestamp = int(row['id'])
 
-            # read depth image and convert it to tensor
+            # form input
             img_file_name = os.path.join(self.img_path, f'{timestamp}.png')
-            depth_img = Image.open(img_file_name)
-            transform = transforms.Compose([
-                transforms.Resize((IMG_WIDTH, IMG_HEIGHT)),
-                transforms.ToTensor(),
-            ])
-            img_tensor = transform(depth_img)
-            img_flatten = img_tensor.reshape(-1)  # flatten the image tensor
+            depth_img = cv2.imread(img_file_name, cv2.IMREAD_GRAYSCALE)
+            input_np = process_input_np(depth_img, row[1:-9].values)
+            input = torch.tensor(input_np.astype(np.float32))
 
-            # read csv data and convert it to tensor
-            vector = torch.tensor(row[1:-9].values.astype(np.float32))  # 1:-9 means from 1 to -9 (not included)
-            input = torch.cat((img_flatten, vector))  # concatenate the two tensors and form the input
+            # form output
             output = torch.tensor(row[-9:].values.astype(np.float32))  # len: 9
 
             inputs.append(input)
