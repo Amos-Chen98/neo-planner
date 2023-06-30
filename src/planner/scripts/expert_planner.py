@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-05-18 16:58:56
+LastEditTime: 2023-06-30 17:06:00
 '''
 import math
 import pprint
@@ -90,9 +90,6 @@ class MinJerkPlanner(TrajUtils):
                 print(f"Re-planning for {ex}")
                 seed += 1
                 self.set_interm_params(head_state, tail_state, seed)
-
-        self.get_coeffs(self.int_wpts, self.ts)
-        # self.print_results()
 
     def set_interm_params(self, head_state, tail_state, seed):
         int_wpts = self.get_int_wpts(head_state, tail_state, seed)

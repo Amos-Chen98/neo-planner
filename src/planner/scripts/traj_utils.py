@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-05-17 15:10:56
+LastEditTime: 2023-06-30 17:07:07
 '''
 
 import numpy as np
@@ -184,8 +184,7 @@ class TrajUtils():
         return np.dot(c_block.T, np.array([beta]).T).T
 
     def get_full_state_cmd(self, hz=300):
-        if self.coeffs == []:
-            self.get_coeffs(self.int_wpts, self.ts)
+        self.get_coeffs(self.int_wpts, self.ts)
 
         total_time = sum(self.ts)
         t_samples = np.arange(0, total_time, 1/hz)
@@ -198,7 +197,7 @@ class TrajUtils():
             state_cmd[i][1] = self.get_vel(t)
             state_cmd[i][2] = self.get_acc(t)
 
-        return state_cmd, total_time, hz
+        return state_cmd
 
     def get_pos_array(self):
         '''
