@@ -1,31 +1,31 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-06-30 15:09:46
+LastEditTime: 2023-06-30 20:37:50
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-import cv2
-from cv_bridge import CvBridge
-from sensor_msgs.msg import Image
-from matplotlib import pyplot as plt
-from visualizer import Visualizer
-from visualization_msgs.msg import MarkerArray
-import rospy
-import numpy as np
-from mavros_msgs.msg import State, PositionTarget
-from mavros_msgs.srv import SetMode, SetModeRequest
-from expert_planner import MinJerkPlanner
-from pyquaternion import Quaternion
-import time
-from esdf import ESDF
-import pandas as pd
-import datetime
-from nav_msgs.msg import Odometry, Path, OccupancyGrid
-import actionlib
-from planner.msg import *
 from nn_planner import NNPlanner
+from planner.msg import *
+import actionlib
+from nav_msgs.msg import Odometry, Path, OccupancyGrid
+import datetime
+import pandas as pd
+from esdf import ESDF
+import time
+from pyquaternion import Quaternion
+from expert_planner import MinJerkPlanner
+from mavros_msgs.srv import SetMode, SetModeRequest
+from mavros_msgs.msg import State, PositionTarget
+import numpy as np
+import rospy
+from visualization_msgs.msg import MarkerArray
+from visualizer import Visualizer
+from matplotlib import pyplot as plt
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
+import cv2
 
 
 class PlannerConfig():
@@ -66,8 +66,6 @@ class TrajPlanner():
         self.visualizer = Visualizer()
         self.drone_state = DroneState()
         planner_config = PlannerConfig()
-        self.planner = MinJerkPlanner(planner_config)
-        self.nn_planner = NNPlanner(model_path)
         self.state_cmd = PositionTarget()
         self.state_cmd.coordinate_frame = 1
 
@@ -81,6 +79,15 @@ class TrajPlanner():
         self.cmd_hz = rospy.get_param("~cmd_hz", 300)
         self.planner_mode = rospy.get_param("~planner_mode", 'expert')  # 'expert', 'record', or 'nn'
         self.move_vel = planner_config.v_max*0.8
+
+        # Planner
+        if self.planner_mode in ['expert', 'record']:
+            self.planner = MinJerkPlanner(planner_config)
+        elif self.planner_mode == 'nn':
+            self.planner = NNPlanner(model_path)
+        else:
+            rospy.logerr("Invalid planner mode!")
+
 
         # Flags and counters
         self.mission_executing = False
@@ -112,7 +119,7 @@ class TrajPlanner():
         self.des_wpts_pub = rospy.Publisher('des_wpts', MarkerArray, queue_size=10)
         self.des_path_pub = rospy.Publisher('des_path', MarkerArray, queue_size=10)
 
-        rospy.loginfo("Global planner initialized")
+        rospy.loginfo("Global planner initialized! Planner mode: {}".format(self.planner_mode))
 
         # Initialize the csv file collecting training data
         self.table_header = ['id',
@@ -302,10 +309,10 @@ class TrajPlanner():
 
     def first_plan(self):
         if self.planner_mode == 'record':
-            self.traj_plan_record(self.drone_state, self.target_state)
+            self.record_traj_plan(self.drone_state, self.target_state)
         elif self.planner_mode == 'expert':
-            self.traj_plan(self.drone_state, self.target_state)
-            self.nn_traj_plan(self.drone_state, self.target_state)  # NOTE: just for test
+            self.expert_traj_plan(self.drone_state, self.target_state)
+            # self.nn_traj_plan(self.drone_state, self.target_state)  # NOTE: just for test
         elif self.planner_mode == 'nn':
             self.nn_traj_plan(self.drone_state, self.target_state)
         else:
@@ -331,10 +338,10 @@ class TrajPlanner():
         drone_state_ahead = self.get_drone_state_ahead()
 
         if self.planner_mode == 'record':
-            self.traj_plan_record(drone_state_ahead, self.target_state)
+            self.record_traj_plan(drone_state_ahead, self.target_state)
         elif self.planner_mode == 'expert':
-            self.traj_plan(drone_state_ahead, self.target_state)
-            self.nn_traj_plan(drone_state_ahead, self.target_state)  # NOTE: just for test
+            self.expert_traj_plan(drone_state_ahead, self.target_state)
+            # self.nn_traj_plan(drone_state_ahead, self.target_state)  # NOTE: just for test
         elif self.planner_mode == 'nn':
             self.nn_traj_plan(drone_state_ahead, self.target_state)
         else:
@@ -344,7 +351,7 @@ class TrajPlanner():
         self.des_state_array = np.concatenate((self.des_state_array[:self.future_index], self.des_state), axis=0)
         self.des_state_length = self.des_state_array.shape[0]
 
-    def traj_plan(self, plan_init_state, target_state):
+    def expert_traj_plan(self, plan_init_state, target_state):
         '''
         trajectory planning, store the full state cmd in self.des_state
         '''
@@ -352,9 +359,9 @@ class TrajPlanner():
                                    plan_init_state.global_vel[:2]])
         self.des_pos_z = plan_init_state.global_pos[2]  # use current height
         self.planner.plan(self.map, drone_state_2d, target_state)  # 2D planning, z is fixed
-        self.des_state, self.traj_time, self.cmd_hz = self.planner.get_full_state_cmd()
+        self.des_state = self.planner.get_full_state_cmd(self.cmd_hz)
 
-    def traj_plan_record(self, plan_init_state, target_state):
+    def record_traj_plan(self, plan_init_state, target_state):
         '''
         trajectory planning + store the training data
         '''
@@ -363,7 +370,7 @@ class TrajPlanner():
         drone_state = self.drone_state
 
         # state ahead of 1s
-        self.traj_plan(plan_init_state, target_state)
+        self.expert_traj_plan(plan_init_state, target_state)
 
         # get planning results
         int_wpts = self.planner.int_wpts
@@ -409,9 +416,9 @@ class TrajPlanner():
         depth_image = self.depth_img
         drone_state = self.drone_state
         depth_image_norm, motion_info, drone_global_pos = self.process_nn_input(depth_image, drone_state, plan_init_state, target_state)
-        self.nn_planner.plan(depth_image_norm, motion_info, drone_global_pos)
-        # des_state_nn, traj_time_nn, cmd_hz_nn = self.nn_planner.get_full_state_cmd()
-        # currently, errors of int_wpts and ts are rather large, resulting get_full_state_cmd's inability to output
+        self.planner.plan(depth_image_norm, motion_info, drone_global_pos)
+        des_state_nn = self.planner.get_full_state_cmd()
+        self.des_state = des_state_nn[:, :, :2]  # remove the z axis in des_state_nn
         time_end = time.time()
         planning_time = time_end - time_start
         rospy.loginfo("NN Planning finished in %f s", planning_time)
@@ -549,44 +556,6 @@ class TrajPlanner():
         vel_array = np.linalg.norm(self.planner.get_vel_array(), axis=1)  # shape: (n,)
         des_path = self.visualizer.get_path(pos_array, vel_array)
         self.des_path_pub.publish(des_path)
-
-    def plot_state_curve(self):
-        # delete all existing plots
-        plt.close('all')
-
-        final_ts = self.planner.ts
-        t_samples = np.arange(0, sum(final_ts), 0.1)
-        t_cum_array = np.cumsum(final_ts)
-        vel = self.planner.get_vel_array()
-        acc = self.planner.get_acc_array()
-        jer = self.planner.get_jer_array()
-
-        # get the norm of vel, acc and jer
-        vel_norm = np.linalg.norm(vel, axis=1)
-        acc_norm = np.linalg.norm(acc, axis=1)
-        jer_norm = np.linalg.norm(jer, axis=1)
-
-        plt.figure("Vel, Acc, Jerk by axis")
-        plt.plot(t_samples, vel[:, 0], label='Vel_x')
-        plt.plot(t_samples, vel[:, 1], label='Vel_y')
-        plt.plot(t_samples, acc[:, 0], label='Acc_x')
-        plt.plot(t_samples, acc[:, 1], label='Acc_y')
-        plt.plot(t_samples, jer[:, 0], label='Jerk_x')
-        plt.plot(t_samples, jer[:, 1], label='Jerk_y')
-        plt.xlabel('t/s')
-        plt.legend()
-        plt.grid()
-
-        plt.figure("Vel, Acc, Jerk magnitude")
-        plt.plot(t_samples, vel_norm, label='Vel')
-        plt.plot(t_samples, acc_norm, label='Acc')
-        plt.plot(t_samples, jer_norm, label='Jerk')
-        plt.vlines(t_cum_array, 0, np.max(vel_norm))  # mark the wpts
-        plt.xlabel('t/s')
-        plt.legend()
-        plt.grid()
-
-        plt.show()
 
 
 if __name__ == "__main__":
