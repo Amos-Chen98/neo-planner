@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-06-30 17:06:00
+LastEditTime: 2023-07-01 21:01:05
 '''
 import math
 import pprint
@@ -51,6 +51,35 @@ class MinJerkPlanner(TrajUtils):
         self.init_seg_len = config.init_seg_len
         self.init_wpts_num = config.init_wpts_num
         self.init_T = config.init_T
+
+    def enhanced_plan(self, map, head_state, tail_state, int_wpts, ts, seed=0):
+        self.map = map
+        self.D = head_state.shape[1]
+        self.M = ts.shape[0]
+
+        input_head_shape0 = head_state.shape[0]
+        input_tail_shape0 = tail_state.shape[0]
+
+        self.head_state = np.zeros((self.s, self.D))
+        self.tail_state = np.zeros((self.s, self.D))
+
+        for i in range(min(self.s, input_head_shape0)):
+            self.head_state[i] = head_state[i]
+        for i in range(min(self.s, input_tail_shape0)):
+            self.tail_state[i] = tail_state[i]
+
+        self.int_wpts = int_wpts
+        self.ts = ts
+        self.tau = self.map_T2tau(ts)  # agent for ts
+
+        while True:
+            try:
+                self.plan_once()
+                break
+            except Exception as ex:
+                print(f"Re-planning for {ex}")
+                seed += 1
+                self.set_interm_params(head_state, tail_state, seed)
 
     def plan(self, map, head_state, tail_state, seed=0):
         '''

@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-01 18:11:52
+LastEditTime: 2023-07-01 20:34:17
 '''
 import os
 import sys
@@ -23,6 +23,7 @@ import actionlib
 from planner.msg import *
 from nn_planner import NNPlanner
 from record_planner import RecordPlanner
+from enhanced_planner import EnhancedPlanner
 
 
 
@@ -82,6 +83,8 @@ class TrajPlanner():
             self.planner = RecordPlanner(planner_config)
         elif self.planner_mode == 'nn':
             self.planner = NNPlanner(self.des_pos_z)
+        elif self.planner_mode == 'enhanced':
+            self.planner = EnhancedPlanner(planner_config)
         else:
             rospy.logerr("Invalid planner mode!")
 
@@ -263,6 +266,8 @@ class TrajPlanner():
             self.record_traj_plan(self.map, self.depth_img, self.drone_state, self.drone_state, self.target_state)
         elif self.planner_mode == 'nn':
             self.nn_traj_plan(self.depth_img, self.drone_state, self.drone_state, self.target_state)
+        elif self.planner_mode == 'enhanced':
+            self.enhanced_traj_plan(self.map, self.depth_img, self.drone_state, self.drone_state, self.target_state)
         else:
             rospy.logerr("Invalid planner mode!")
 
@@ -291,6 +296,8 @@ class TrajPlanner():
             self.record_traj_plan(self.map, self.depth_img, self.drone_state, drone_state_ahead, self.target_state)
         elif self.planner_mode == 'nn':
             self.nn_traj_plan(self.depth_img, self.drone_state, drone_state_ahead, self.target_state)
+        elif self.planner_mode == 'enhanced':
+            self.enhanced_traj_plan(self.map, self.depth_img, self.drone_state, drone_state_ahead, self.target_state)
         else:
             rospy.logerr("Invalid planner mode!")
 
@@ -315,6 +322,10 @@ class TrajPlanner():
         self.planner.nn_traj_plan(depth_img, drone_state, plan_init_state, target_state)
         des_state = self.planner.get_full_state_cmd(self.cmd_hz)
         self.des_state = des_state[:, :, :2]  # remove the z axis in des_state_nn
+
+    def enhanced_traj_plan(self, map, depth_img, drone_state, plan_init_state, target_state):
+        self.planner.enhanced_traj_plan(map, depth_img, drone_state, plan_init_state, target_state)
+        self.des_state = self.planner.get_full_state_cmd(self.cmd_hz)
 
     def warm_up(self):
         # Send a few setpoints before switching to OFFBOARD mode

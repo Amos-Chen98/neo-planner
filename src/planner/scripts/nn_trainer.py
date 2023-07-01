@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-06-30 15:35:52
+LastEditTime: 2023-06-30 16:52:10
 '''
 import torch
 import numpy as np
@@ -22,7 +22,7 @@ IMG_HEIGHT = 360
 VECTOR_SIZE = 24
 OUTPUT_SIZE = 9
 BATCH_SIZE = 64
-EPOCHS = 10
+EPOCHS = 30
 
 current_path = os.path.dirname(os.path.abspath(__file__))[:-8]  # -7 remove '/scripts'
 img_path = '/training_data/starred/depth_img'
