@@ -1,31 +1,30 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-06-30 20:37:50
+LastEditTime: 2023-07-01 11:19:14
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from nn_planner import NNPlanner
-from planner.msg import *
-import actionlib
-from nav_msgs.msg import Odometry, Path, OccupancyGrid
-import datetime
-import pandas as pd
-from esdf import ESDF
-import time
-from pyquaternion import Quaternion
-from expert_planner import MinJerkPlanner
-from mavros_msgs.srv import SetMode, SetModeRequest
-from mavros_msgs.msg import State, PositionTarget
-import numpy as np
-import rospy
-from visualization_msgs.msg import MarkerArray
-from visualizer import Visualizer
-from matplotlib import pyplot as plt
-from sensor_msgs.msg import Image
-from cv_bridge import CvBridge
 import cv2
+from cv_bridge import CvBridge
+from sensor_msgs.msg import Image
+from visualizer import Visualizer
+from visualization_msgs.msg import MarkerArray
+import rospy
+import numpy as np
+from mavros_msgs.msg import State, PositionTarget
+from mavros_msgs.srv import SetMode, SetModeRequest
+from expert_planner import MinJerkPlanner
+from pyquaternion import Quaternion
+import time
+from esdf import ESDF
+import pandas as pd
+import datetime
+from nav_msgs.msg import Odometry, Path, OccupancyGrid
+import actionlib
+from planner.msg import *
+from nn_planner import NNPlanner
 
 
 class PlannerConfig():
@@ -88,7 +87,6 @@ class TrajPlanner():
         else:
             rospy.logerr("Invalid planner mode!")
 
-
         # Flags and counters
         self.mission_executing = False
         self.near_global_target = False
@@ -119,7 +117,7 @@ class TrajPlanner():
         self.des_wpts_pub = rospy.Publisher('des_wpts', MarkerArray, queue_size=10)
         self.des_path_pub = rospy.Publisher('des_path', MarkerArray, queue_size=10)
 
-        rospy.loginfo("Global planner initialized! Planner mode: {}".format(self.planner_mode))
+        rospy.loginfo(f"Global planner initialized! Planner mode: {self.planner_mode}")
 
         # Initialize the csv file collecting training data
         self.table_header = ['id',
@@ -278,7 +276,6 @@ class TrajPlanner():
         if np.linalg.norm(global_target_pos - current_pos) < self.longitu_step_dis:
             self.target_state[0] = global_target_pos
             self.near_global_target = True
-            # rospy.loginfo("Last target: x = %f, y = %f", global_target_pos[0], global_target_pos[1])
             return
 
         longitu_dir = (global_target_pos - current_pos)/np.linalg.norm(global_target_pos - current_pos)
@@ -303,16 +300,11 @@ class TrajPlanner():
 
         self.target_state = local_target
 
-        # print(" ")
-        # rospy.loginfo("Local target: x = %f, y = %f, vel_x = %f, vel_y = %f",
-        #               local_target[0][0], local_target[0][1], local_target[1][0], local_target[1][1])
-
     def first_plan(self):
-        if self.planner_mode == 'record':
-            self.record_traj_plan(self.drone_state, self.target_state)
-        elif self.planner_mode == 'expert':
+        if self.planner_mode == 'expert':
             self.expert_traj_plan(self.drone_state, self.target_state)
-            # self.nn_traj_plan(self.drone_state, self.target_state)  # NOTE: just for test
+        elif self.planner_mode == 'record':
+            self.record_traj_plan(self.drone_state, self.target_state)
         elif self.planner_mode == 'nn':
             self.nn_traj_plan(self.drone_state, self.target_state)
         else:
@@ -337,11 +329,10 @@ class TrajPlanner():
     def replan(self):
         drone_state_ahead = self.get_drone_state_ahead()
 
-        if self.planner_mode == 'record':
-            self.record_traj_plan(drone_state_ahead, self.target_state)
-        elif self.planner_mode == 'expert':
+        if self.planner_mode == 'expert':
             self.expert_traj_plan(drone_state_ahead, self.target_state)
-            # self.nn_traj_plan(drone_state_ahead, self.target_state)  # NOTE: just for test
+        elif self.planner_mode == 'record':
+            self.record_traj_plan(drone_state_ahead, self.target_state)
         elif self.planner_mode == 'nn':
             self.nn_traj_plan(drone_state_ahead, self.target_state)
         else:
@@ -357,7 +348,6 @@ class TrajPlanner():
         '''
         drone_state_2d = np.array([plan_init_state.global_pos[:2],
                                    plan_init_state.global_vel[:2]])
-        self.des_pos_z = plan_init_state.global_pos[2]  # use current height
         self.planner.plan(self.map, drone_state_2d, target_state)  # 2D planning, z is fixed
         self.des_state = self.planner.get_full_state_cmd(self.cmd_hz)
 
@@ -388,17 +378,10 @@ class TrajPlanner():
         # mon-day-hour-min-sec-ms, [:-3] because the last 3 digits are microsecond
 
         # process input data
-        depth_image_norm, motion_info, _ = self.process_nn_input(depth_image, drone_state, plan_init_state, target_state)
+        depth_image_norm, motion_info, _ = self.form_nn_input(depth_image, drone_state, plan_init_state, target_state)
 
         # process output result: int_wpts, in body frame
-        drone_quat = drone_state.attitude  # size: (4,)
-        int_wpts_num = int_wpts.shape[1]
-        int_wpts_local = np.zeros((3, int_wpts_num))  # col major
-        for i in range(int_wpts_num):
-            int_wpts_3d = np.array([int_wpts[0, i], int_wpts[1, i], self.des_pos_z])
-            int_wpts_local[:, i] = drone_quat.inverse.rotate(int_wpts_3d - drone_state.global_pos)
-
-        int_wpts_local = int_wpts_local.T.reshape(-1)  # size: (3*int_wpts_num,)
+        int_wpts_local = self.form_nn_output(drone_state, int_wpts)
 
         train_data = np.concatenate((np.array([timestamp]),
                                      motion_info,
@@ -411,21 +394,7 @@ class TrajPlanner():
         cv2.imwrite(self.img_path + '/' + str(timestamp) + '.png', depth_image_norm)
         rospy.loginfo("Training data (ID: %d) saved!", timestamp)
 
-    def nn_traj_plan(self, plan_init_state, target_state):
-        time_start = time.time()
-        depth_image = self.depth_img
-        drone_state = self.drone_state
-        depth_image_norm, motion_info, drone_global_pos = self.process_nn_input(depth_image, drone_state, plan_init_state, target_state)
-        self.planner.plan(depth_image_norm, motion_info, drone_global_pos)
-        des_state_nn = self.planner.get_full_state_cmd()
-        self.des_state = des_state_nn[:, :, :2]  # remove the z axis in des_state_nn
-        time_end = time.time()
-        planning_time = time_end - time_start
-        rospy.loginfo("NN Planning finished in %f s", planning_time)
-
-    def process_nn_input(self, depth_image, drone_state, plan_init_state, target_state):
-        # scale depth_image
-        # rospy.loginfo("Range of depth image: %f, %f", np.min(depth_image), np.max(depth_image))
+    def form_nn_input(self, depth_image, drone_state, plan_init_state, target_state):
         # depth_image_norm = depth_image*255.0/np.max(depth_image)
         # use cv2 to normalize depth image
         depth_image_norm = cv2.normalize(depth_image, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
@@ -448,8 +417,6 @@ class TrajPlanner():
         plan_init_vel = drone_quat.inverse.rotate(plan_init_state_3d[1] - drone_state.global_vel)  # size: (3,) NOTE
         # plan_init_vel = drone_quat.inverse.rotate(plan_init_state_3d[1])  # size: (3,) NOTE
 
-        # rospy.loginfo("plan_init_vel: %f, %f, %f", plan_init_vel[0], plan_init_vel[1], plan_init_vel[2])
-
         # target_state, in map frame
         target_state_3d = np.zeros((2, 3))
         target_state_3d[:, :2] = target_state  # includes target_pos and target_vel
@@ -460,8 +427,6 @@ class TrajPlanner():
         plan_target_vel = drone_quat.inverse.rotate(target_state_3d[1] - drone_state.global_vel)  # size: (3,)
         # plan_target_vel = drone_quat.inverse.rotate(target_state_3d[1])  # size: (3,) NOTE
 
-        # rospy.loginfo("plan_target_vel: %f, %f, %f", plan_target_vel[0], plan_target_vel[1], plan_target_vel[2])
-
         motion_info = np.concatenate((drone_local_vel,
                                       drone_attitude,
                                       plan_init_pos,
@@ -470,6 +435,31 @@ class TrajPlanner():
                                       plan_target_vel), axis=0)
 
         return depth_image_norm, motion_info, drone_global_pos
+
+    def form_nn_output(self, drone_state, int_wpts):
+        # process output result: int_wpts, in body frame
+        drone_quat = drone_state.attitude  # size: (4,)
+        int_wpts_num = int_wpts.shape[1]
+        int_wpts_local = np.zeros((3, int_wpts_num))  # col major
+        for i in range(int_wpts_num):
+            int_wpts_3d = np.array([int_wpts[0, i], int_wpts[1, i], self.des_pos_z])
+            int_wpts_local[:, i] = drone_quat.inverse.rotate(int_wpts_3d - drone_state.global_pos)
+
+        int_wpts_local = int_wpts_local.T.reshape(-1)  # size: (3*int_wpts_num,)
+
+        return int_wpts_local
+
+    def nn_traj_plan(self, plan_init_state, target_state):
+        time_start = time.time()
+        depth_image = self.depth_img
+        drone_state = self.drone_state
+        depth_image_norm, motion_info, drone_global_pos = self.form_nn_input(depth_image, drone_state, plan_init_state, target_state)
+        self.planner.plan(depth_image_norm, motion_info, drone_global_pos)
+        time_end = time.time()
+        des_state_nn = self.planner.get_full_state_cmd()
+        self.des_state = des_state_nn[:, :, :2]  # remove the z axis in des_state_nn
+        planning_time = time_end - time_start
+        rospy.loginfo("NN Planning finished in %f s", planning_time)
 
     def warm_up(self):
         # Send a few setpoints before switching to OFFBOARD mode
