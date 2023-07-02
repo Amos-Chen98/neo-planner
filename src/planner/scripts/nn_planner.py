@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-01 20:09:12
+LastEditTime: 2023-07-02 11:58:35
 '''
 import os
 import sys
@@ -12,7 +12,6 @@ import numpy as np
 import torch
 import onnxruntime  # torch must be included before onnxruntime, ref:https://stackoverflow.com/questions/75267445/why-does-onnxruntime-fail-to-create-cudaexecutionprovider-in-linuxubuntu-20/75267493#75267493
 from record_planner import form_nn_input
-
 
 
 class NNPlanner(TrajUtils):
@@ -48,7 +47,8 @@ class NNPlanner(TrajUtils):
         # Planning parameters
         self.M = 3
         self.s = 3
-        self.D = 3
+        self.D = 2
+        self.nn_output_D = 3
         self.head_state = np.zeros((self.s, self.D))
         self.tail_state = np.zeros((self.s, self.D))
         self.des_pos_z = des_pos_z
@@ -76,9 +76,12 @@ class NNPlanner(TrajUtils):
         output = self.session.run([self.onnx_output_name],
                                   {self.onnx_input_name: ortvalue})[0]  # size: (1, 9)
 
-        int_wpts_local = output[0][:self.D*(self.M-1)].reshape(self.M-1, self.D).T  # col major, so transpose
-        self.ts = output[0][self.D*(self.M-1):]
-        self.int_wpts = self.get_wpts_world(int_wpts_local)
+        int_wpts_local = output[0][:self.nn_output_D*(self.M-1)].reshape(self.M-1, self.nn_output_D).T  # col major, so transpose
+        self.ts = output[0][self.nn_output_D*(self.M-1):]
+
+        int_wpts_3d = self.get_wpts_world(int_wpts_local)
+        self.int_wpts = int_wpts_3d[:self.D, :]  # remove z axis
+
         print("int_wpts: ", self.int_wpts)
         print("ts: ", self.ts)
 
@@ -93,10 +96,10 @@ class NNPlanner(TrajUtils):
         ortvalue = onnxruntime.OrtValue.ortvalue_from_numpy(input_np)
 
         # get boundary conditions, this is used for calculating full state cmd
-        self.head_state[:2, :] = motion_info[12:18].reshape(self.s - 1, self.D)  # only pos and vel are valid, row major
-        self.head_state[2, :] = np.zeros(3)  # acc is zero, since we cannot access the real acc of a drone
-        self.tail_state[:2, :] = motion_info[18:24].reshape(self.s - 1, self.D)
-        self.tail_state[2, :] = np.zeros(3)
+        self.head_state[0, :self.D] = motion_info[12:14]  # init pos_x, pos_y
+        self.head_state[1, :self.D] = motion_info[15:17]  # init vel_x, vel_y
+        self.tail_state[0, :self.D] = motion_info[18:20]  # target pos_x, pos_y
+        self.tail_state[1, :self.D] = motion_info[21:23]  # target vel_x, vel_y
 
         # get drone local state
         self.drone_attitude = motion_info[3:12].reshape(3, 3)  # as a rotation matrix
@@ -109,7 +112,7 @@ class NNPlanner(TrajUtils):
         convert wpts from body frame to world frame
         '''
         # convert int_wpts to world frame
-        int_wpts_world = np.zeros((self.D, self.M-1))
+        int_wpts_world = np.zeros((self.nn_output_D, self.M-1))
         for i in range(self.M-1):
             int_wpts_world[:, i] = self.drone_attitude @ int_wpts[:, i] + self.drone_global_pos
 
