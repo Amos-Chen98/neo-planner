@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-01 20:34:17
+LastEditTime: 2023-07-02 16:22:50
 '''
 import os
 import sys
@@ -271,7 +271,10 @@ class TrajPlanner():
         else:
             rospy.logerr("Invalid planner mode!")
 
-        # First planning! Set the des_state_array as des_state
+        # First planning! Retrieve planned trajectory
+        self.des_state = self.planner.get_full_state_cmd(self.cmd_hz)
+
+        # Set the des_state_array as des_state
         self.des_state_array = self.des_state
         self.des_state_length = self.des_state_array.shape[0]
         self.has_traj = True
@@ -290,6 +293,8 @@ class TrajPlanner():
     def replan(self):
         drone_state_ahead = self.get_drone_state_ahead()
 
+        time_start = time.time()
+
         if self.planner_mode == 'expert':
             self.expert_traj_plan(self.map, drone_state_ahead, self.target_state)
         elif self.planner_mode == 'record':
@@ -300,6 +305,12 @@ class TrajPlanner():
             self.enhanced_traj_plan(self.map, self.depth_img, self.drone_state, drone_state_ahead, self.target_state)
         else:
             rospy.logerr("Invalid planner mode!")
+
+        time_end = time.time()
+        rospy.loginfo("Planning time: {}".format(time_end - time_start))
+
+        # retrieve planned trajectory
+        self.des_state = self.planner.get_full_state_cmd(self.cmd_hz)
 
         # Concatenate the new trajectory to the old one, at index self.future_index
         self.des_state_array = np.concatenate((self.des_state_array[:self.future_index], self.des_state), axis=0)
@@ -312,20 +323,15 @@ class TrajPlanner():
         drone_state_2d = np.array([plan_init_state.global_pos[:2],
                                    plan_init_state.global_vel[:2]])
         self.planner.plan(map, drone_state_2d, target_state)  # 2D planning, z is fixed
-        self.des_state = self.planner.get_full_state_cmd(self.cmd_hz)
 
     def record_traj_plan(self, map, depth_img, drone_state, plan_init_state, target_state):
         self.planner.record_traj_plan(map, depth_img, drone_state, plan_init_state, target_state)
-        self.des_state = self.planner.get_full_state_cmd(self.cmd_hz)
 
     def nn_traj_plan(self, depth_img, drone_state, plan_init_state, target_state):
         self.planner.nn_traj_plan(depth_img, drone_state, plan_init_state, target_state)
-        des_state = self.planner.get_full_state_cmd(self.cmd_hz)
-        self.des_state = des_state[:, :, :2]  # remove the z axis in des_state_nn
 
     def enhanced_traj_plan(self, map, depth_img, drone_state, plan_init_state, target_state):
         self.planner.enhanced_traj_plan(map, depth_img, drone_state, plan_init_state, target_state)
-        self.des_state = self.planner.get_full_state_cmd(self.cmd_hz)
 
     def warm_up(self):
         # Send a few setpoints before switching to OFFBOARD mode

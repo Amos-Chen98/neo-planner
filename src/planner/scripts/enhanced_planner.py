@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-01 21:04:04
+LastEditTime: 2023-07-02 16:18:27
 '''
 import os
 import sys
@@ -20,7 +20,7 @@ class EnhancedPlanner(MinJerkPlanner):
     def enhanced_traj_plan(self, map, depth_img, drone_state, plan_init_state, target_state):
         # get init int_wpts and ts using nn_planner
         self.nn_planner.nn_traj_plan(depth_img, drone_state, plan_init_state, target_state)
-        int_wpts = self.nn_planner.int_wpts[:2, :]  # only retrieve x and y
+        int_wpts = self.nn_planner.int_wpts
         ts = self.nn_planner.ts
 
         # use expert_planner to generate traj
