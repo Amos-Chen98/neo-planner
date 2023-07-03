@@ -1,29 +1,29 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-03 11:04:06
+LastEditTime: 2023-07-03 21:34:43
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from cv_bridge import CvBridge
-from sensor_msgs.msg import Image
-from visualizer import Visualizer
-from visualization_msgs.msg import MarkerArray
-import rospy
-import numpy as np
-from mavros_msgs.msg import State, PositionTarget
-from mavros_msgs.srv import SetMode, SetModeRequest
-from expert_planner import MinJerkPlanner
-from pyquaternion import Quaternion
-import time
-from esdf import ESDF
-from nav_msgs.msg import Odometry, Path, OccupancyGrid
-import actionlib
-from planner.msg import *
-from nn_planner import NNPlanner
-from record_planner import RecordPlanner
 from enhanced_planner import EnhancedPlanner
+from record_planner import RecordPlanner
+from nn_planner import NNPlanner
+from planner.msg import *
+import actionlib
+from nav_msgs.msg import Odometry, Path, OccupancyGrid
+from esdf import ESDF
+import time
+from pyquaternion import Quaternion
+from expert_planner import MinJerkPlanner
+from mavros_msgs.srv import SetMode, SetModeRequest
+from mavros_msgs.msg import State, PositionTarget
+import numpy as np
+import rospy
+from visualization_msgs.msg import MarkerArray
+from visualizer import Visualizer
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
 
 
 class PlannerConfig():
@@ -190,14 +190,14 @@ class TrajPlanner():
         self.report_planning_result()
 
     def report_planning_result(self):
+        while not self.plan_server.is_preempt_requested() and not self.reached_target:
+            time.sleep(0.01)
+
         if self.plan_server.is_preempt_requested():
             rospy.loginfo("Planning preempted!\n")
             self.end_mission()
             self.plan_server.set_preempted()
-        else:
-            while not self.reached_target:  # when planning is finished, traj tracking will continue to run for a while
-                time.sleep(0.01)
-
+        else:  # this means the target is reached
             result = PlanResult()
             result.success = True
             self.plan_server.set_succeeded(result)
