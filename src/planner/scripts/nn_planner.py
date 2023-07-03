@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-02 11:58:35
+LastEditTime: 2023-07-02 17:07:51
 '''
 import os
 import sys
@@ -82,8 +82,8 @@ class NNPlanner(TrajUtils):
         int_wpts_3d = self.get_wpts_world(int_wpts_local)
         self.int_wpts = int_wpts_3d[:self.D, :]  # remove z axis
 
-        print("int_wpts: ", self.int_wpts)
-        print("ts: ", self.ts)
+        # print("int_wpts: ", self.int_wpts)
+        # print("ts: ", self.ts)
 
     def convert_input(self, depth_image_norm, motion_info, drone_global_pos):
         '''

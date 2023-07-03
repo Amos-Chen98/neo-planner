@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-02 16:22:50
+LastEditTime: 2023-07-03 11:04:06
 '''
 import os
 import sys
@@ -24,7 +24,6 @@ from planner.msg import *
 from nn_planner import NNPlanner
 from record_planner import RecordPlanner
 from enhanced_planner import EnhancedPlanner
-
 
 
 class PlannerConfig():
@@ -73,6 +72,7 @@ class TrajPlanner():
         self.target_reach_threshold = rospy.get_param("~target_reach_threshold", 0.2)
         self.cmd_hz = rospy.get_param("~cmd_hz", 300)
         self.planner_mode = rospy.get_param("~planner_mode", 'expert')  # 'expert', 'record', or 'nn'
+        self.replan_period = rospy.get_param("~replan_period", 0.5)  # the interval between replanning， 0 means replan right after the previous plan
         self.move_vel = planner_config.v_max*0.8
         self.des_pos_z = planner_config.des_pos_z
 
@@ -89,11 +89,10 @@ class TrajPlanner():
             rospy.logerr("Invalid planner mode!")
 
         # Flags and counters
-        self.mission_executing = False
-        self.near_global_target = False
+        self.target_received = False
         self.reached_target = False
+        self.near_global_target = False
         self.odom_received = False
-        self.has_traj = False
         self.des_state_index = 0
         self.future_index = 99999
         self.des_state_length = 99999  # this is used to check if the des_state_index is valid
@@ -148,38 +147,45 @@ class TrajPlanner():
         self.drone_state.local_vel = local_vel
         self.drone_state.attitude = quat
 
-        if self.mission_executing and np.linalg.norm(global_pos[:2] - self.global_target) < self.target_reach_threshold:
+        if self.target_received and np.linalg.norm(global_pos[:2] - self.global_target) < self.target_reach_threshold:
             rospy.loginfo("Global target reached!\n")
             self.end_mission()
 
     def init_mission(self):
-        self.mission_executing = True
+        self.target_received = True
         self.reached_target = False
         self.near_global_target = False
-        self.has_traj = False
         self.des_state_index = 0
 
     def end_mission(self):
         self.tracking_cmd_timer.shutdown()
-        self.mission_executing = False
+        self.target_received = False
         self.reached_target = True
         self.near_global_target = False
-        self.has_traj = False
         self.des_state_index = 0
+        if self.mission_mode == 'periodic':
+            self.replan_timer.shutdown()
 
     def depth_img_cb(self, img):
         self.depth_img = self.cv_bridge.imgmsg_to_cv2(img, desired_encoding="passthrough")
 
     def execute_mission(self, goal):
-        self.init_mission()
         target = goal.target
         rospy.loginfo("Target received: x = %f, y = %f", target.pose.position.x, target.pose.position.y)
         self.global_target = np.array([target.pose.position.x, target.pose.position.y])
+        self.init_mission()
 
         if self.mission_mode == 'global':
+            rospy.loginfo("Mission mode: global")
             self.global_planning()
-        else:
+        elif self.mission_mode == 'online':
+            rospy.loginfo("Mission mode: online")
             self.online_planning()
+        elif self.mission_mode == 'periodic':
+            rospy.loginfo("Mission mode: periodic")
+            self.periodic_planning()
+        else:
+            rospy.logerr("Invalid mission mode!")
 
         self.report_planning_result()
 
@@ -208,21 +214,46 @@ class TrajPlanner():
         self.visualize_des_path()
 
     def online_planning(self):
+        while not self.odom_received:
+            time.sleep(0.01)
+
+        self.set_local_target()
+        self.first_plan()
+        self.start_tracking()
+        self.visualize_des_wpts()
+        self.visualize_des_path()
+
         while (
-            self.mission_executing
+            not self.reached_target
             and not self.near_global_target
             and not self.plan_server.is_preempt_requested()
         ):
-            while not self.odom_received:
-                time.sleep(0.01)
-
             self.set_local_target()
-            if not self.has_traj:
-                self.first_plan()
-                self.start_tracking()
-            else:  # plan ahead 1s
-                self.replan()
+            self.replan()
+            self.visualize_des_wpts()
+            self.visualize_des_path()
 
+    def periodic_planning(self):
+        while not self.odom_received:
+            time.sleep(0.01)
+
+        self.set_local_target()
+        self.first_plan()
+        self.start_tracking()
+        self.visualize_des_wpts()
+        self.visualize_des_path()
+
+        # after the first plan, replan periodically
+        self.replan_timer = rospy.Timer(rospy.Duration(self.replan_period), self.replan_cb)
+
+    def replan_cb(self, event):
+        if (
+            not self.reached_target
+            and not self.near_global_target
+            and not self.plan_server.is_preempt_requested()
+        ):
+            self.set_local_target()
+            self.replan()
             self.visualize_des_wpts()
             self.visualize_des_path()
 
@@ -277,7 +308,6 @@ class TrajPlanner():
         # Set the des_state_array as des_state
         self.des_state_array = self.des_state
         self.des_state_length = self.des_state_array.shape[0]
-        self.has_traj = True
 
     def get_drone_state_ahead(self):
         '''
