@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-01 21:01:05
+LastEditTime: 2023-07-03 17:25:56
 '''
 import math
 import pprint
@@ -52,7 +52,54 @@ class MinJerkPlanner(TrajUtils):
         self.init_wpts_num = config.init_wpts_num
         self.init_T = config.init_T
 
-    def enhanced_plan(self, map, head_state, tail_state, int_wpts, ts, seed=0):
+    def plan(self, map, head_state, tail_state):
+        '''
+        Input:
+        map: map object
+        head_state: (s,D) array, where s=2(acc)/3(jerk)/4(snap), D is the dimension
+        tail_state: the same as head_state
+            Note:
+            If you want a trajecory of minimum s, only the 0~(s-1) degree bounded contitions and valid.
+            e.g. for minimum jerk(s=3) trajectory, we can specify
+            pos(s=0), vel(s=1), and acc(s=2) in head_state and tail_state both.
+            If you don't fill up the bounded conditions, the default will be zero.
+
+        Stores the results in self.int_wpts, self.ts, self.tau, self.coeffs
+        '''
+        # generate init variables
+        self.generate_init_variables(head_state, tail_state)
+
+        # plan from init variables
+        self.enhanced_plan(map, head_state, tail_state, self.int_wpts, self.ts)
+
+    def generate_init_variables(self, head_state, tail_state, seed=0):
+        int_wpts = self.generate_init_wpts(head_state, tail_state, seed)
+        ts = self.init_T * np.ones((len(int_wpts)+1,))  # allocate time for each piece
+        ts[0] *= 1.5
+        ts[-1] *= 1.5
+        self.int_wpts = int_wpts.T  # 'int' for 'intermediate', make it (D,M-1) array
+        self.ts = ts  # 't' for 'time', make it (M,) array
+        self.M = ts.shape[0]  # M is used in self.map_T2tau()
+        self.tau = self.map_T2tau(ts)  # agent for ts
+
+    def generate_init_wpts(self, head_state, tail_state, seed):
+        start_pos = head_state[0]
+        target_pos = tail_state[0]
+        straight_length = np.linalg.norm(target_pos - start_pos)
+        if self.init_wpts_mode == 'adaptive':
+            int_wpts_num = max(math.ceil(straight_length/self.init_seg_len - 1), 1)  # 2m for each intermediate waypoint
+        elif self.init_wpts_mode == 'fixed':
+            int_wpts_num = self.init_wpts_num
+        step_length = (tail_state[0] - head_state[0]) / (int_wpts_num + 1)
+        int_wpts = np.linspace(start_pos + step_length, target_pos, int_wpts_num, endpoint=False)
+        if seed != 0:
+            int_wpts += np.random.normal(0, 0.5, int_wpts.shape)
+
+        return int_wpts
+
+    def enhanced_plan(self, map, head_state, tail_state, int_wpts, ts):
+        # this function is only executed once
+
         self.map = map
         self.D = head_state.shape[1]
         self.M = ts.shape[0]
@@ -72,78 +119,16 @@ class MinJerkPlanner(TrajUtils):
         self.ts = ts
         self.tau = self.map_T2tau(ts)  # agent for ts
 
-        while True:
-            try:
-                self.plan_once()
-                break
-            except Exception as ex:
-                print(f"Re-planning for {ex}")
-                seed += 1
-                self.set_interm_params(head_state, tail_state, seed)
-
-    def plan(self, map, head_state, tail_state, seed=0):
-        '''
-        Input:
-        map: map object
-        head_state: (s,D) array, where s=2(acc)/3(jerk)/4(snap), D is the dimension
-        tail_state: the same as head_state
-            Note:
-            If you want a trajecory of minimum s, only the 0~(s-1) degree bounded contitions and valid.
-            e.g. for minimum jerk(s=3) trajectory, we can specify
-            pos(s=0), vel(s=1), and acc(s=2) in head_state and tail_state both.
-            If you don't fill up the bounded conditions, the default will be zero.
-
-        Stores the results in self.int_wpts, self.ts, self.tau, self.coeffs
-        '''
-        self.map = map
-        self.D = head_state.shape[1]
-
-        input_head_shape0 = head_state.shape[0]
-        input_tail_shape0 = tail_state.shape[0]
-
-        self.head_state = np.zeros((self.s, self.D))
-        self.tail_state = np.zeros((self.s, self.D))
-
-        for i in range(min(self.s, input_head_shape0)):
-            self.head_state[i] = head_state[i]
-        for i in range(min(self.s, input_tail_shape0)):
-            self.tail_state[i] = tail_state[i]
-
-        self.set_interm_params(head_state, tail_state, seed)
+        seed = 0
 
         while True:
             try:
                 self.plan_once()
                 break
             except Exception as ex:
-                print(f"Re-planning for {ex}")
+                print(f"Re-planning for {ex}, current seed: {seed}")
                 seed += 1
-                self.set_interm_params(head_state, tail_state, seed)
-
-    def set_interm_params(self, head_state, tail_state, seed):
-        int_wpts = self.get_int_wpts(head_state, tail_state, seed)
-        ts = self.init_T * np.ones((len(int_wpts)+1,))  # allocate time for each piece
-        ts[0] *= 1.5
-        ts[-1] *= 1.5
-        self.M = ts.shape[0]
-        self.int_wpts = int_wpts.T  # 'int' for 'intermediate', make it (D,M-1) array
-        self.ts = ts
-        self.tau = self.map_T2tau(ts)  # agent for ts
-
-    def get_int_wpts(self, head_state, tail_state, seed):
-        start_pos = head_state[0]
-        target_pos = tail_state[0]
-        straight_length = np.linalg.norm(target_pos - start_pos)
-        if self.init_wpts_mode == 'adaptive':
-            int_wpts_num = max(math.ceil(straight_length/self.init_seg_len - 1), 1)  # 2m for each intermediate waypoint
-        elif self.init_wpts_mode == 'fixed':
-            int_wpts_num = self.init_wpts_num
-        step_length = (tail_state[0] - head_state[0]) / (int_wpts_num + 1)
-        int_wpts = np.linspace(start_pos + step_length, target_pos, int_wpts_num, endpoint=False)
-        if seed != 0:
-            int_wpts += np.random.normal(0, 0.5, int_wpts.shape)
-
-        return int_wpts
+                self.generate_init_variables(head_state, tail_state, seed)
 
     def plan_once(self):
         '''
