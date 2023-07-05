@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-03 17:25:56
+LastEditTime: 2023-07-05 19:39:46
 '''
 import math
 import pprint
@@ -49,7 +49,7 @@ class MinJerkPlanner(TrajUtils):
         # Initial conditions
         self.init_wpts_mode = config.init_wpts_mode
         self.init_seg_len = config.init_seg_len
-        self.init_wpts_num = config.init_wpts_num
+        self.init_wpts_num = int(config.init_wpts_num)
         self.init_T = config.init_T
 
     def plan(self, map, head_state, tail_state):
@@ -70,19 +70,10 @@ class MinJerkPlanner(TrajUtils):
         self.generate_init_variables(head_state, tail_state)
 
         # plan from init variables
-        self.enhanced_plan(map, head_state, tail_state, self.int_wpts, self.ts)
+        self.warm_start_plan(map, head_state, tail_state, self.int_wpts, self.ts)
 
     def generate_init_variables(self, head_state, tail_state, seed=0):
-        int_wpts = self.generate_init_wpts(head_state, tail_state, seed)
-        ts = self.init_T * np.ones((len(int_wpts)+1,))  # allocate time for each piece
-        ts[0] *= 1.5
-        ts[-1] *= 1.5
-        self.int_wpts = int_wpts.T  # 'int' for 'intermediate', make it (D,M-1) array
-        self.ts = ts  # 't' for 'time', make it (M,) array
-        self.M = ts.shape[0]  # M is used in self.map_T2tau()
-        self.tau = self.map_T2tau(ts)  # agent for ts
-
-    def generate_init_wpts(self, head_state, tail_state, seed):
+        # generate init waypoints
         start_pos = head_state[0]
         target_pos = tail_state[0]
         straight_length = np.linalg.norm(target_pos - start_pos)
@@ -90,14 +81,83 @@ class MinJerkPlanner(TrajUtils):
             int_wpts_num = max(math.ceil(straight_length/self.init_seg_len - 1), 1)  # 2m for each intermediate waypoint
         elif self.init_wpts_mode == 'fixed':
             int_wpts_num = self.init_wpts_num
-        step_length = (tail_state[0] - head_state[0]) / (int_wpts_num + 1)
+        step_length = (target_pos - start_pos) / (int_wpts_num + 1)
         int_wpts = np.linspace(start_pos + step_length, target_pos, int_wpts_num, endpoint=False)
         if seed != 0:
             int_wpts += np.random.normal(0, 0.5, int_wpts.shape)
 
-        return int_wpts
+        # generate init ts
+        ts = self.init_T * np.ones((int_wpts_num+1,))  # allocate time for each piece
+        ts[0] *= 1.5
+        ts[-1] *= 1.5
 
-    def enhanced_plan(self, map, head_state, tail_state, int_wpts, ts):
+        # store init variables
+        self.int_wpts = int_wpts.T  # 'int' for 'intermediate', make it (D,M-1) array
+        self.ts = ts  # 't' for 'time', make it (M,) array
+        self.M = ts.shape[0]  # M is used in self.map_T2tau()
+        self.tau = self.map_T2tau(ts)  # agent for ts
+
+    def batch_generate_init_variables(self, head_state, tail_state):
+        '''
+        sample 'self.batch_num' batches of init wpts
+        '''
+        if self.init_wpts_mode != 'fixed':
+            print("Error! init_wpts_mode must be 'fixed'")
+
+        self.batch_num = 3
+        start_pos = head_state[0]
+        target_pos = tail_state[0]
+        longitu_dir = (target_pos - start_pos)/np.linalg.norm(target_pos - start_pos)
+        lateral_dir = np.array([[longitu_dir[1], -longitu_dir[0]],
+                                [-longitu_dir[1], longitu_dir[0]]])
+
+        batch_init_wpts = np.zeros((self.batch_num, self.init_wpts_num, head_state.shape[1]))
+
+        # straight line
+        step_length = (target_pos - start_pos) / (self.init_wpts_num + 1)
+        int_wpts = np.linspace(start_pos + step_length, target_pos, self.init_wpts_num, endpoint=False)
+        batch_init_wpts[0] = int_wpts  # the first candidate is the straight line
+
+        lateral_dir_flag = 0
+        lateral_move_dis = 0.5
+
+        # other candidates
+        for i in range(1, self.batch_num):
+            batch_init_wpts[i] = batch_init_wpts[0] + lateral_move_dis * lateral_dir[lateral_dir_flag]
+            lateral_dir_flag = 1 - lateral_dir_flag
+            lateral_move_dis += 0.5 
+
+        # generate init ts
+        ts = self.init_T * np.ones((self.init_wpts_num+1,))  # allocate time for each piece
+        ts[0] *= 1.5
+        ts[-1] *= 1.5
+
+        # store init variables
+        self.ts = ts  # 't' for 'time', make it (M,) array
+        self.M = ts.shape[0]  # M is used in self.map_T2tau()
+        self.tau = self.map_T2tau(ts)  # agent for ts
+
+        return batch_init_wpts
+
+    def batch_plan(self, map, head_state, tail_state):
+        batch_init_wpts = self.batch_generate_init_variables(head_state, tail_state)
+        batch_opt_wpts = np.zeros((self.batch_num, batch_init_wpts.shape[2], batch_init_wpts.shape[1]))  # col major
+        batch_ts = np.zeros((self.batch_num, self.M))
+        batch_cost = np.zeros(self.batch_num)
+
+        for i in range(self.batch_num):
+            self.int_wpts = batch_init_wpts[i].T
+            self.warm_start_plan(map, head_state, tail_state, self.int_wpts, self.ts)
+            batch_opt_wpts[i] = self.int_wpts
+            batch_ts[i] = self.ts
+            batch_cost[i] = self.weighted_cost.sum()
+            print("batch_cost[{}] = {}".format(i, batch_cost[i]))
+
+        best_idx = np.argmin(batch_cost)
+        self.int_wpts = batch_opt_wpts[best_idx]
+        self.ts = batch_ts[best_idx]
+
+    def warm_start_plan(self, map, head_state, tail_state, int_wpts, ts):
         # this function is only executed once
 
         self.map = map

@@ -7,11 +7,11 @@ delta_t: 0.1
 weights: [1, 1, 1, 10000]
 init_wpts_mode: fixed
 init_seg_len: 2.0
-init_wpts_num: 2.0
+init_wpts_num: 2
 init_T: 2.5
 
 # mission
-mission_mode: periodic # 'global', 'online', or 'periodic'
+mission_mode: online # 'global', 'online', or 'periodic'
 planning_time_ahead: 1.0
 des_pos_z: 2.0
 longitu_step_dis: 5.0

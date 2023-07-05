@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-03 21:34:43
+LastEditTime: 2023-07-05 16:30:44
 '''
 import os
 import sys
@@ -352,7 +352,8 @@ class TrajPlanner():
         '''
         drone_state_2d = np.array([plan_init_state.global_pos[:2],
                                    plan_init_state.global_vel[:2]])
-        self.planner.plan(map, drone_state_2d, target_state)  # 2D planning, z is fixed
+        # self.planner.plan(map, drone_state_2d, target_state)  # 2D planning, z is fixed
+        self.planner.batch_plan(map, drone_state_2d, target_state)  # 2D planning, z is fixed
 
     def record_traj_plan(self, map, depth_img, drone_state, plan_init_state, target_state):
         self.planner.record_traj_plan(map, depth_img, drone_state, plan_init_state, target_state)
