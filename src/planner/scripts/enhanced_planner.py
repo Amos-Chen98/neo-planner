@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-02 16:18:27
+LastEditTime: 2023-07-05 19:31:38
 '''
 import os
 import sys
@@ -26,4 +26,4 @@ class EnhancedPlanner(MinJerkPlanner):
         # use expert_planner to generate traj
         drone_state_2d = np.array([plan_init_state.global_pos[:2],
                                    plan_init_state.global_vel[:2]])
-        self.enhanced_plan(map, drone_state_2d, target_state, int_wpts, ts)  # 2D planning, z is fixed
+        self.warm_start_plan(map, drone_state_2d, target_state, int_wpts, ts)  # 2D planning, z is fixed
