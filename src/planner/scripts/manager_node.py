@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-06-26 16:24:18
+LastEditTime: 2023-07-06 20:13:14
 '''
 import os
 import sys
@@ -284,6 +284,6 @@ if __name__ == "__main__":
 
     manager.launch()
 
-    manager.draw_fsm_graph()
+    # manager.draw_fsm_graph()
 
     rospy.spin()
