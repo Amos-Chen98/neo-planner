@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-05 19:39:46
+LastEditTime: 2023-07-06 17:14:18
 '''
 import math
 import pprint
@@ -51,6 +51,7 @@ class MinJerkPlanner(TrajUtils):
         self.init_seg_len = config.init_seg_len
         self.init_wpts_num = int(config.init_wpts_num)
         self.init_T = config.init_T
+        self.batch_num = 3  # this is used in batch_generate_init_variables()
 
     def plan(self, map, head_state, tail_state):
         '''
@@ -67,10 +68,10 @@ class MinJerkPlanner(TrajUtils):
         Stores the results in self.int_wpts, self.ts, self.tau, self.coeffs
         '''
         # generate init variables
-        self.generate_init_variables(head_state, tail_state)
+        int_wpts, ts = self.generate_init_variables(head_state, tail_state)
 
         # plan from init variables
-        self.warm_start_plan(map, head_state, tail_state, self.int_wpts, self.ts)
+        self.warm_start_plan(map, head_state, tail_state, int_wpts, ts)
 
     def generate_init_variables(self, head_state, tail_state, seed=0):
         # generate init waypoints
@@ -91,29 +92,25 @@ class MinJerkPlanner(TrajUtils):
         ts[0] *= 1.5
         ts[-1] *= 1.5
 
-        # store init variables
-        self.int_wpts = int_wpts.T  # 'int' for 'intermediate', make it (D,M-1) array
-        self.ts = ts  # 't' for 'time', make it (M,) array
-        self.M = ts.shape[0]  # M is used in self.map_T2tau()
-        self.tau = self.map_T2tau(ts)  # agent for ts
+        return int_wpts.T, ts  # make int_wpts (D,M-1) array
 
     def batch_generate_init_variables(self, head_state, tail_state):
         '''
         sample 'self.batch_num' batches of init wpts
+        this is only valid when init_wpts_mode = 'fixed'
         '''
         if self.init_wpts_mode != 'fixed':
             print("Error! init_wpts_mode must be 'fixed'")
 
-        self.batch_num = 3
         start_pos = head_state[0]
         target_pos = tail_state[0]
         longitu_dir = (target_pos - start_pos)/np.linalg.norm(target_pos - start_pos)
         lateral_dir = np.array([[longitu_dir[1], -longitu_dir[0]],
                                 [-longitu_dir[1], longitu_dir[0]]])
 
-        batch_init_wpts = np.zeros((self.batch_num, self.init_wpts_num, head_state.shape[1]))
+        batch_init_wpts = np.zeros((self.batch_num,  self.init_wpts_num, head_state.shape[1]))
 
-        # straight line
+        # first candidate - straight line
         step_length = (target_pos - start_pos) / (self.init_wpts_num + 1)
         int_wpts = np.linspace(start_pos + step_length, target_pos, self.init_wpts_num, endpoint=False)
         batch_init_wpts[0] = int_wpts  # the first candidate is the straight line
@@ -125,59 +122,55 @@ class MinJerkPlanner(TrajUtils):
         for i in range(1, self.batch_num):
             batch_init_wpts[i] = batch_init_wpts[0] + lateral_move_dis * lateral_dir[lateral_dir_flag]
             lateral_dir_flag = 1 - lateral_dir_flag
-            lateral_move_dis += 0.5 
+            lateral_move_dis += 0.5
 
         # generate init ts
         ts = self.init_T * np.ones((self.init_wpts_num+1,))  # allocate time for each piece
         ts[0] *= 1.5
         ts[-1] *= 1.5
 
-        # store init variables
-        self.ts = ts  # 't' for 'time', make it (M,) array
-        self.M = ts.shape[0]  # M is used in self.map_T2tau()
-        self.tau = self.map_T2tau(ts)  # agent for ts
-
-        return batch_init_wpts
+        # revert the last two dimensions of batch_init_wpts
+        batch_init_wpts = np.transpose(batch_init_wpts, (0, 2, 1))
+        
+        return batch_init_wpts, ts
 
     def batch_plan(self, map, head_state, tail_state):
-        batch_init_wpts = self.batch_generate_init_variables(head_state, tail_state)
-        batch_opt_wpts = np.zeros((self.batch_num, batch_init_wpts.shape[2], batch_init_wpts.shape[1]))  # col major
-        batch_ts = np.zeros((self.batch_num, self.M))
+        batch_init_wpts, ts = self.batch_generate_init_variables(head_state, tail_state)
+        batch_opt_wpts = np.zeros(batch_init_wpts.shape)  # col major
+        batch_opt_ts = np.zeros((self.batch_num, len(ts)))
         batch_cost = np.zeros(self.batch_num)
 
         for i in range(self.batch_num):
-            self.int_wpts = batch_init_wpts[i].T
-            self.warm_start_plan(map, head_state, tail_state, self.int_wpts, self.ts)
+            self.warm_start_plan(map, head_state, tail_state, batch_init_wpts[i], ts)
             batch_opt_wpts[i] = self.int_wpts
-            batch_ts[i] = self.ts
+            batch_opt_ts[i] = self.ts
             batch_cost[i] = self.weighted_cost.sum()
-            print("batch_cost[{}] = {}".format(i, batch_cost[i]))
+            print(f"batch_cost[{i}] = {batch_cost[i]}")
 
         best_idx = np.argmin(batch_cost)
         self.int_wpts = batch_opt_wpts[best_idx]
-        self.ts = batch_ts[best_idx]
+        self.ts = batch_opt_ts[best_idx]
 
-    def warm_start_plan(self, map, head_state, tail_state, int_wpts, ts):
-        # this function is only executed once
-
+    def read_planning_conditions(self, map, head_state, tail_state, int_wpts, ts):
         self.map = map
         self.D = head_state.shape[1]
         self.M = ts.shape[0]
 
-        input_head_shape0 = head_state.shape[0]
-        input_tail_shape0 = tail_state.shape[0]
-
         self.head_state = np.zeros((self.s, self.D))
         self.tail_state = np.zeros((self.s, self.D))
 
-        for i in range(min(self.s, input_head_shape0)):
+        for i in range(min(self.s, head_state.shape[0])):
             self.head_state[i] = head_state[i]
-        for i in range(min(self.s, input_tail_shape0)):
+        for i in range(min(self.s, tail_state.shape[0])):
             self.tail_state[i] = tail_state[i]
 
         self.int_wpts = int_wpts
         self.ts = ts
-        self.tau = self.map_T2tau(ts)  # agent for ts
+
+    def warm_start_plan(self, map, head_state, tail_state, int_wpts, ts):
+        # this function is only executed once
+
+        self.read_planning_conditions(map, head_state, tail_state, int_wpts, ts)
 
         seed = 0
 
@@ -188,12 +181,14 @@ class MinJerkPlanner(TrajUtils):
             except Exception as ex:
                 print(f"Re-planning for {ex}, current seed: {seed}")
                 seed += 1
-                self.generate_init_variables(head_state, tail_state, seed)
+                self.int_wpts, self.ts = self.generate_init_variables(head_state, tail_state, seed)
 
     def plan_once(self):
         '''
         Plan once using current wtps and ts (tau) settings
         '''
+        self.tau = self.map_T2tau(self.ts)  # agent for ts
+
         x0 = np.concatenate((np.reshape(self.int_wpts, (self.D*(self.M - 1),)), self.tau), axis=0)
 
         res = scipy.optimize.minimize(self.get_cost,
