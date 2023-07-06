@@ -1,10 +1,9 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-06 17:14:18
+LastEditTime: 2023-07-06 17:31:31
 '''
 import math
 import pprint
-import time
 import numpy as np
 import scipy
 import math
@@ -129,9 +128,9 @@ class MinJerkPlanner(TrajUtils):
         ts[0] *= 1.5
         ts[-1] *= 1.5
 
-        # revert the last two dimensions of batch_init_wpts
+        # revert the last two dimensions of batch_init_wpts, to make every sample a (D,M-1) array
         batch_init_wpts = np.transpose(batch_init_wpts, (0, 2, 1))
-        
+
         return batch_init_wpts, ts
 
     def batch_plan(self, map, head_state, tail_state):
@@ -141,15 +140,25 @@ class MinJerkPlanner(TrajUtils):
         batch_cost = np.zeros(self.batch_num)
 
         for i in range(self.batch_num):
-            self.warm_start_plan(map, head_state, tail_state, batch_init_wpts[i], ts)
-            batch_opt_wpts[i] = self.int_wpts
-            batch_opt_ts[i] = self.ts
-            batch_cost[i] = self.weighted_cost.sum()
-            print(f"batch_cost[{i}] = {batch_cost[i]}")
+            try:
+                self.read_planning_conditions(map, head_state, tail_state, batch_init_wpts[i], ts)
+                self.plan_once()
+                batch_opt_wpts[i] = self.int_wpts
+                batch_opt_ts[i] = self.ts
+                batch_cost[i] = self.weighted_cost.sum()
+                print(f"batch_cost[{i}] = {batch_cost[i]}")
+            except Exception as ex:
+                print(f"The {i}th attempt is deprecated for {ex}")
+                batch_cost[i] = np.inf
 
-        best_idx = np.argmin(batch_cost)
-        self.int_wpts = batch_opt_wpts[best_idx]
-        self.ts = batch_opt_ts[best_idx]
+            # check if there is one batch that is feasible
+            if np.min(batch_cost) < np.inf:
+                best_idx = np.argmin(batch_cost)
+                self.int_wpts = batch_opt_wpts[best_idx]
+                self.ts = batch_opt_ts[best_idx]
+            else:
+                print("All attempts are infeasible! Start re-planning from scratch...")
+                self.warm_start_plan(map, head_state, tail_state, batch_init_wpts[0], ts)
 
     def read_planning_conditions(self, map, head_state, tail_state, int_wpts, ts):
         self.map = map

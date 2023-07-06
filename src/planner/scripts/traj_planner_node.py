@@ -1,29 +1,29 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-05 16:30:44
+LastEditTime: 2023-07-06 17:41:03
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from enhanced_planner import EnhancedPlanner
-from record_planner import RecordPlanner
-from nn_planner import NNPlanner
-from planner.msg import *
-import actionlib
-from nav_msgs.msg import Odometry, Path, OccupancyGrid
-from esdf import ESDF
-import time
-from pyquaternion import Quaternion
-from expert_planner import MinJerkPlanner
-from mavros_msgs.srv import SetMode, SetModeRequest
-from mavros_msgs.msg import State, PositionTarget
-import numpy as np
-import rospy
-from visualization_msgs.msg import MarkerArray
-from visualizer import Visualizer
-from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
+from sensor_msgs.msg import Image
+from visualizer import Visualizer
+from visualization_msgs.msg import MarkerArray
+import rospy
+import numpy as np
+from mavros_msgs.msg import State, PositionTarget
+from mavros_msgs.srv import SetMode, SetModeRequest
+from expert_planner import MinJerkPlanner
+from pyquaternion import Quaternion
+import time
+from esdf import ESDF
+from nav_msgs.msg import Odometry, Path, OccupancyGrid
+import actionlib
+from planner.msg import *
+from nn_planner import NNPlanner
+from record_planner import RecordPlanner
+from enhanced_planner import EnhancedPlanner
 
 
 class PlannerConfig():
@@ -71,13 +71,13 @@ class TrajPlanner():
         self.lateral_step_length = rospy.get_param("~lateral_step_length", 1.0)  # if local target pos in obstacle, take lateral step
         self.target_reach_threshold = rospy.get_param("~target_reach_threshold", 0.2)
         self.cmd_hz = rospy.get_param("~cmd_hz", 300)
-        self.planner_mode = rospy.get_param("~planner_mode", 'expert')  # 'expert', 'record', or 'nn'
+        self.planner_mode = rospy.get_param("~planner_mode", 'basic')  # 'basic', 'batch', 'expert', 'record', 'nn', or 'enhanced'
         self.replan_period = rospy.get_param("~replan_period", 0.5)  # the interval between replanning， 0 means replan right after the previous plan
         self.move_vel = planner_config.v_max*0.8
         self.des_pos_z = planner_config.des_pos_z
 
         # Planner
-        if self.planner_mode == 'expert':
+        if self.planner_mode in ['basic', 'batch']:
             self.planner = MinJerkPlanner(planner_config)
         elif self.planner_mode == 'record':
             self.planner = RecordPlanner(planner_config)
@@ -117,7 +117,7 @@ class TrajPlanner():
         self.des_wpts_pub = rospy.Publisher('des_wpts', MarkerArray, queue_size=10)
         self.des_path_pub = rospy.Publisher('des_path', MarkerArray, queue_size=10)
 
-        rospy.loginfo(f"Global planner initialized! Planner mode: {self.planner_mode}")
+        rospy.loginfo(f"Global planner initialized! Selected planner: {self.planner_mode}")
 
     def flight_state_cb(self, data):
         self.flight_state = data
@@ -291,8 +291,10 @@ class TrajPlanner():
         self.target_state = local_target
 
     def first_plan(self):
-        if self.planner_mode == 'expert':
-            self.expert_traj_plan(self.map, self.drone_state, self.target_state)
+        if self.planner_mode == 'basic':
+            self.basic_traj_plan(self.map, self.drone_state, self.target_state)
+        elif self.planner_mode == 'batch':
+            self.batch_traj_plan(self.map, self.drone_state, self.target_state)
         elif self.planner_mode == 'record':
             self.record_traj_plan(self.map, self.depth_img, self.drone_state, self.drone_state, self.target_state)
         elif self.planner_mode == 'nn':
@@ -325,8 +327,10 @@ class TrajPlanner():
 
         time_start = time.time()
 
-        if self.planner_mode == 'expert':
-            self.expert_traj_plan(self.map, drone_state_ahead, self.target_state)
+        if self.planner_mode == 'basic':
+            self.basic_traj_plan(self.map, drone_state_ahead, self.target_state)
+        elif self.planner_mode == 'batch':
+            self.batch_traj_plan(self.map, drone_state_ahead, self.target_state)
         elif self.planner_mode == 'record':
             self.record_traj_plan(self.map, self.depth_img, self.drone_state, drone_state_ahead, self.target_state)
         elif self.planner_mode == 'nn':
@@ -346,13 +350,20 @@ class TrajPlanner():
         self.des_state_array = np.concatenate((self.des_state_array[:self.future_index], self.des_state), axis=0)
         self.des_state_length = self.des_state_array.shape[0]
 
-    def expert_traj_plan(self, map, plan_init_state, target_state):
+    def basic_traj_plan(self, map, plan_init_state, target_state):
         '''
         trajectory planning, store the full state cmd in self.des_state
         '''
         drone_state_2d = np.array([plan_init_state.global_pos[:2],
                                    plan_init_state.global_vel[:2]])
-        # self.planner.plan(map, drone_state_2d, target_state)  # 2D planning, z is fixed
+        self.planner.plan(map, drone_state_2d, target_state)  # 2D planning, z is fixed
+
+    def batch_traj_plan(self, map, plan_init_state, target_state):
+        '''
+        trajectory planning, store the full state cmd in self.des_state
+        '''
+        drone_state_2d = np.array([plan_init_state.global_pos[:2],
+                                   plan_init_state.global_vel[:2]])
         self.planner.batch_plan(map, drone_state_2d, target_state)  # 2D planning, z is fixed
 
     def record_traj_plan(self, map, depth_img, drone_state, plan_init_state, target_state):

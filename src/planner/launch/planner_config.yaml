@@ -18,5 +18,5 @@ longitu_step_dis: 5.0
 lateral_step_length: 1.0
 target_reach_threshold: 0.2
 cmd_hz: 300
-planner_mode: expert # 'expert', 'record', 'nn', or 'enhanced'
+planner_mode: batch # 'basic', 'batch', 'expert', 'record', 'nn', or 'enhanced'
 replan_period: 1.0
