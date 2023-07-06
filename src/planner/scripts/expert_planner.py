@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-06 17:31:31
+LastEditTime: 2023-07-06 20:23:22
 '''
 import math
 import pprint
@@ -51,6 +51,10 @@ class MinJerkPlanner(TrajUtils):
         self.init_wpts_num = int(config.init_wpts_num)
         self.init_T = config.init_T
         self.batch_num = 3  # this is used in batch_generate_init_variables()
+
+        # counters
+        self.iter_num = 0
+        self.opt_running_times = 0
 
     def plan(self, map, head_state, tail_state):
         '''
@@ -217,6 +221,8 @@ class MinJerkPlanner(TrajUtils):
         self.int_wpts = np.reshape(res.x[:self.D*(self.M - 1)], (self.D, self.M - 1))
         self.tau = res.x[self.D*(self.M - 1):]
         self.ts = self.map_tau2T(self.tau)
+        self.iter_num += res.nit
+        self.opt_running_times += 1
         self.weighted_cost = self.costs * self.weights
         collision_cost = self.weighted_cost[3]
         if collision_cost > 10:

@@ -1,29 +1,29 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-06 17:41:03
+LastEditTime: 2023-07-06 20:54:40
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from cv_bridge import CvBridge
-from sensor_msgs.msg import Image
-from visualizer import Visualizer
-from visualization_msgs.msg import MarkerArray
-import rospy
-import numpy as np
-from mavros_msgs.msg import State, PositionTarget
-from mavros_msgs.srv import SetMode, SetModeRequest
-from expert_planner import MinJerkPlanner
-from pyquaternion import Quaternion
-import time
-from esdf import ESDF
-from nav_msgs.msg import Odometry, Path, OccupancyGrid
-import actionlib
-from planner.msg import *
-from nn_planner import NNPlanner
-from record_planner import RecordPlanner
 from enhanced_planner import EnhancedPlanner
+from record_planner import RecordPlanner
+from nn_planner import NNPlanner
+from planner.msg import *
+import actionlib
+from nav_msgs.msg import Odometry, Path, OccupancyGrid
+from esdf import ESDF
+import time
+from pyquaternion import Quaternion
+from expert_planner import MinJerkPlanner
+from mavros_msgs.srv import SetMode, SetModeRequest
+from mavros_msgs.msg import State, PositionTarget
+import numpy as np
+import rospy
+from visualization_msgs.msg import MarkerArray
+from visualizer import Visualizer
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
 
 
 class PlannerConfig():
@@ -156,6 +156,8 @@ class TrajPlanner():
         self.reached_target = False
         self.near_global_target = False
         self.des_state_index = 0
+        self.planner.iter_num = 0
+        self.planner.opt_running_times = 0
 
     def end_mission(self):
         self.tracking_cmd_timer.shutdown()
@@ -201,6 +203,10 @@ class TrajPlanner():
             result = PlanResult()
             result.success = True
             self.plan_server.set_succeeded(result)
+            iter_num = self.planner.iter_num
+            opt_running_times = self.planner.opt_running_times
+            average_iter_num = iter_num / opt_running_times
+            rospy.loginfo("Average iter num: %d", average_iter_num)
 
     def global_planning(self):
         while not self.odom_received:
