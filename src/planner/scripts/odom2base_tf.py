@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-08 11:34:56
+LastEditTime: 2023-07-08 11:41:44
 '''
 
 import rospy
@@ -15,7 +15,7 @@ class TFServer():
         rospy.init_node(node_name, anonymous=False)
 
         # Subscribers
-        self.odom_sub = rospy.Subscriber('/mavros/local_position/odom', Odometry, self.odom_cb)
+        self.odom_sub = rospy.Subscriber('mavros/local_position/odom', Odometry, self.odom_cb)
 
         # Publishers
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
