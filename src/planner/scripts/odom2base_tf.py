@@ -1,4 +1,8 @@
-#! /usr/bin/env python
+'''
+Author: Yicheng Chen (yicheng-chen@outlook.com)
+LastEditTime: 2023-07-08 11:34:56
+'''
+
 import rospy
 import tf2_ros
 from nav_msgs.msg import Odometry

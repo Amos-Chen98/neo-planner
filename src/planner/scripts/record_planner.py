@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-01 18:09:22
+LastEditTime: 2023-07-06 21:03:13
 '''
 import os
 import sys
@@ -130,7 +130,8 @@ class RecordPlanner(MinJerkPlanner):
         # state ahead of 1s
         drone_state_2d = np.array([plan_init_state.global_pos[:2],
                                    plan_init_state.global_vel[:2]])
-        self.plan(map, drone_state_2d, target_state)  # 2D planning, z is fixed
+        # self.plan(map, drone_state_2d, target_state)  # 2D planning, z is fixed
+        self.batch_plan(map, drone_state_2d, target_state)
 
         # get planning results
         int_wpts = self.int_wpts

@@ -3,9 +3,6 @@
     <!-- PX4 SITL, Gazebo, and MAVROS -->
 	<include file="$(find px4)/launch/mavros_posix_sitl.launch" />
 
-    <!-- TF -->
-    <include file="$(find simulator)/launch/tf_server.launch" />
-
     <!-- Visualizer -->
     <node pkg="simulator" type="visualizer_node.py" name="visualizer" />
 

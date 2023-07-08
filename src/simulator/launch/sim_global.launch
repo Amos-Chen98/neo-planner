@@ -30,31 +30,11 @@
         <param name="hz" type="int" value="2" />
     </node>
 
-    <!-- map_server -->
-    <include file="$(find simulator)/launch/map_server.launch">
-        <arg name="frame_id" value="$(arg frame_id)"/>
-        <arg name="pcl_topic" value="$(arg pcl_topic)"/>
-        <arg name="sensor_max_range" value="inf" />
-    </include>
-
-    <!-- TF -->
-    <include file="$(find simulator)/launch/tf_server.launch">
-        <arg name="x" value="$(arg x)"/>
-        <arg name="y" value="$(arg y)"/>
-        <arg name="z" value="$(arg z)"/>
-        <arg name="R" value="$(arg R)"/>
-        <arg name="P" value="$(arg P)"/>
-        <arg name="Y" value="$(arg Y)"/>
-    </include>
-
     <!-- Visualizer -->
     <node pkg="simulator" type="visualizer_node.py" name="visualizer" />
 
     <!-- Rviz -->
     <node pkg="rviz" type="rviz" name="rviz" args="-d $(find simulator)/rviz/rviz_config.rviz" />
-
-    <!-- FSM Manager -->
-    <!-- <node pkg="planner" type="manager_node.py" name="manager" /> -->
 
     <!-- plotjunggler -->
     <!-- <node pkg="plotjuggler" type="plotjuggler" name="plotjuggler" args="-l $(find simulator)/rviz/plotjuggler_config.xml" /> -->

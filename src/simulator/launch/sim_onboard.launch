@@ -9,27 +9,9 @@
     <arg name="Y" default="0"/>
     <!-- fixed frame id -->
     <arg name="frame_id" default="map"/>
-    <!-- pcl topic name -->
-    <arg name="pcl_topic" default="/camera/depth/points"/>
 
     <!-- PX4 SITL, Gazebo, and MAVROS -->
     <include file="$(find simulator)/launch/px4_utils.launch">
-        <arg name="x" value="$(arg x)"/>
-        <arg name="y" value="$(arg y)"/>
-        <arg name="z" value="$(arg z)"/>
-        <arg name="R" value="$(arg R)"/>
-        <arg name="P" value="$(arg P)"/>
-        <arg name="Y" value="$(arg Y)"/>
-    </include>
-
-    <!-- map_server -->
-    <include file="$(find simulator)/launch/map_server.launch">
-        <arg name="frame_id" value="$(arg frame_id)"/>
-        <arg name="pcl_topic" value="$(arg pcl_topic)"/>
-    </include>
-
-    <!-- TF -->
-    <include file="$(find simulator)/launch/tf_server.launch">
         <arg name="x" value="$(arg x)"/>
         <arg name="y" value="$(arg y)"/>
         <arg name="z" value="$(arg z)"/>
@@ -44,10 +26,7 @@
     <!-- Rviz -->
     <node pkg="rviz" type="rviz" name="rviz" args="-d $(find simulator)/rviz/rviz_config.rviz" />
 
-    <!-- FSM Manager -->
-    <!-- <node pkg="planner" type="manager_node.py" name="manager" /> -->
-
     <!-- rqt plot -->
     <!-- <node pkg="rqt_plot" type="rqt_plot" name="pos_vel_plot" args="/drone_speed" /> -->
-    
+
 </launch>
