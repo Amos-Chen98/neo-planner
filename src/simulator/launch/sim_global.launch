@@ -30,6 +30,10 @@
         <param name="hz" type="int" value="2" />
     </node>
 
+
+    <include file="$(find planner)/launch/map_server.launch" />
+    <include file="$(find planner)/launch/tf_server.launch" />
+
     <!-- Visualizer -->
     <node pkg="simulator" type="visualizer_node.py" name="visualizer" />
 
