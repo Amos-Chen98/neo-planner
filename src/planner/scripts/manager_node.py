@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-06 20:13:14
+LastEditTime: 2023-07-13 09:51:44
 '''
 import os
 import sys
@@ -10,8 +10,6 @@ from pyquaternion import Quaternion
 from planner.msg import *
 import actionlib
 from visualization_msgs.msg import Marker
-from mavros_msgs.srv import SetMode, SetModeRequest
-from mavros_msgs.srv import SetMode
 from nav_msgs.msg import Odometry
 from mavros_msgs.msg import State, PositionTarget
 from mavros_msgs.srv import CommandBool, CommandBoolRequest, SetMode, SetModeRequest, CommandTOL, CommandTOLRequest

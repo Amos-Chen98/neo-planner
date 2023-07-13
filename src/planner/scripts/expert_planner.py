@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-06 20:23:22
+LastEditTime: 2023-07-13 15:33:56
 '''
 import math
 import pprint
@@ -160,6 +160,7 @@ class MinJerkPlanner(TrajUtils):
                 best_idx = np.argmin(batch_cost)
                 self.int_wpts = batch_opt_wpts[best_idx]
                 self.ts = batch_opt_ts[best_idx]
+                self.final_cost = batch_cost[best_idx]
             else:
                 print("All attempts are infeasible! Start re-planning from scratch...")
                 self.warm_start_plan(map, head_state, tail_state, batch_init_wpts[0], ts)
@@ -224,6 +225,7 @@ class MinJerkPlanner(TrajUtils):
         self.iter_num += res.nit
         self.opt_running_times += 1
         self.weighted_cost = self.costs * self.weights
+        self.final_cost = self.weighted_cost.sum()
         collision_cost = self.weighted_cost[3]
         if collision_cost > 10:
             raise ValueError("collision cost too large")
