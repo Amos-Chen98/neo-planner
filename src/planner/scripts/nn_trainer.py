@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-06-30 16:52:10
+LastEditTime: 2023-07-14 17:07:35
 '''
 import torch
 import numpy as np
@@ -89,27 +89,35 @@ class PlannerNet(nn.Module):
     def __init__(self):
         super(PlannerNet, self).__init__()
 
-        self.resnet = models.resnet18(weights='DEFAULT')
+        self.img_backbone = models.resnet18(weights='DEFAULT')
 
-        for param in self.resnet.parameters():
+        for param in self.img_backbone.parameters():
             # freeze the parameters
             param.requires_grad = False
 
         # change the input channel to 1
-        self.resnet.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
-        # change the output size to fit VECTOR_SIZE, self.resnet.fc.in_features means the layer's original input size
-        self.resnet.fc = nn.Linear(self.resnet.fc.in_features, VECTOR_SIZE)
+        self.img_backbone.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        # change the output size to fit VECTOR_SIZE, self.img_backbone.fc.in_features means the layer's original input size
+        self.img_backbone.fc = nn.Linear(self.img_backbone.fc.in_features, VECTOR_SIZE)
+
+        self.motion_backbone = nn.Sequential(
+            nn.Linear(VECTOR_SIZE, 48),
+            nn.LeakyReLU(),
+            nn.Linear(48, 24),
+            nn.LeakyReLU(),
+            nn.Linear(24, 24),
+            nn.LeakyReLU(),
+            nn.Linear(24, VECTOR_SIZE)
+        )
 
         self.mlp = nn.Sequential(
-            nn.Linear(VECTOR_SIZE + VECTOR_SIZE, 1024),
-            nn.ReLU(),
-            nn.Linear(1024, 256),
-            nn.ReLU(),
-            nn.Linear(256, 128),
-            nn.ReLU(),
-            nn.Linear(128, 32),
-            nn.ReLU(),
-            nn.Linear(32, OUTPUT_SIZE)
+            nn.Linear(VECTOR_SIZE + VECTOR_SIZE, 48),
+            nn.LeakyReLU(),
+            nn.Linear(48, 96),
+            nn.LeakyReLU(),
+            nn.Linear(96, 96),
+            nn.LeakyReLU(),
+            nn.Linear(96, OUTPUT_SIZE)
         )
 
     def forward(self, input):
@@ -117,8 +125,10 @@ class PlannerNet(nn.Module):
         img = input[:, :IMG_WIDTH * IMG_HEIGHT].reshape(-1, 1, IMG_WIDTH, IMG_HEIGHT)
         vector = input[:, IMG_WIDTH * IMG_HEIGHT:]
 
-        img_feature = self.resnet(img)
-        x = torch.cat([img_feature, vector], dim=1)
+        img_feature = self.img_backbone(img)
+        motion_feature = self.motion_backbone(vector)
+
+        x = torch.cat([img_feature, motion_feature], dim=1)
         x = self.mlp(x)
 
         return x
