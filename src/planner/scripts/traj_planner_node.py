@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-13 19:51:23
+LastEditTime: 2023-07-14 16:10:55
 '''
 import os
 import sys
@@ -75,6 +75,7 @@ class TrajPlanner():
         self.replan_period = rospy.get_param("~replan_period", 0.5)  # the interval between replanning， 0 means replan right after the previous plan
         self.move_vel = planner_config.v_max*0.8
         self.des_pos_z = planner_config.des_pos_z
+        self.record_metric = rospy.get_param("~record_metric", False)
 
         # Planner
         if self.planner_mode in ['basic', 'batch']:
@@ -157,7 +158,8 @@ class TrajPlanner():
         self.reached_target = False
         self.near_global_target = False
         self.des_state_index = 0
-        self.reset_metrics()
+        if self.record_metric:
+            self.reset_metrics()
 
     def reset_metrics(self):
         self.planner.iter_num = 0
@@ -176,7 +178,8 @@ class TrajPlanner():
         self.des_state_index = 0
         if self.mission_mode == 'periodic':
             self.replan_timer.shutdown()
-        self.metric_timer.shutdown()
+        if self.record_metric:
+            self.metric_timer.shutdown()
 
     def depth_img_cb(self, img):
         self.depth_img = self.cv_bridge.imgmsg_to_cv2(img, desired_encoding="passthrough")
@@ -336,10 +339,13 @@ class TrajPlanner():
             rospy.logerr("Invalid planner mode!")
 
         time_end = time.time()
-        self.total_planning_duration += time_end - time_start
-        self.total_planning_times += 1
-        self.weighted_cost += self.planner.final_cost
         rospy.loginfo("Planning time: {}".format(time_end - time_start))
+
+        # collect metrics
+        if self.record_metric:
+            self.total_planning_duration += time_end - time_start
+            self.total_planning_times += 1
+            self.weighted_cost += self.planner.final_cost
 
         # First planning! Retrieve planned trajectory
         self.des_state = self.planner.get_full_state_cmd(self.cmd_hz)
@@ -378,10 +384,13 @@ class TrajPlanner():
             rospy.logerr("Invalid planner mode!")
 
         time_end = time.time()
-        self.total_planning_duration += time_end - time_start
-        self.total_planning_times += 1
-        self.weighted_cost += self.planner.final_cost
         rospy.loginfo("Planning time: {}".format(time_end - time_start))
+
+        # collect metrics
+        if self.record_metric:
+            self.total_planning_duration += time_end - time_start
+            self.total_planning_times += 1
+            self.weighted_cost += self.planner.final_cost
 
         # retrieve planned trajectory
         self.des_state = self.planner.get_full_state_cmd(self.cmd_hz)
