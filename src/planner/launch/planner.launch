@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <launch>
 
-    <include file="$(find planner)/launch/map_server.launch" />
+    <!-- <include file="$(find planner)/launch/map_server.launch" /> -->
 
-    <include file="$(find planner)/launch/tf_server.launch" />
+    <!-- <include file="$(find planner)/launch/tf_server.launch" /> -->
 
     <node pkg="planner" type="traj_planner_node.py" name="planner" output="screen">
         <rosparam file="$(find planner)/launch/planner_config.yaml" command="load"/>
