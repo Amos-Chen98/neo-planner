@@ -1,29 +1,30 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-15 11:39:45
+LastEditTime: 2023-07-15 17:16:46
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from cv_bridge import CvBridge
-from sensor_msgs.msg import Image
-from visualizer import Visualizer
-from visualization_msgs.msg import MarkerArray
-import rospy
-import numpy as np
-from mavros_msgs.msg import State, PositionTarget
-from mavros_msgs.srv import SetMode, SetModeRequest
-from expert_planner import MinJerkPlanner
-from pyquaternion import Quaternion
-import time
-from esdf import ESDF
-from nav_msgs.msg import Odometry, Path, OccupancyGrid
-import actionlib
-from planner.msg import *
-from nn_planner import NNPlanner
-from record_planner import RecordPlanner
 from enhanced_planner import EnhancedPlanner
+from record_planner import RecordPlanner
+from nn_planner import NNPlanner
+from planner.msg import *
+import actionlib
+from nav_msgs.msg import Odometry, Path, OccupancyGrid
+from esdf import ESDF
+import time
+from pyquaternion import Quaternion
+from expert_planner import MinJerkPlanner
+from mavros_msgs.srv import SetMode, SetModeRequest
+from mavros_msgs.msg import State, PositionTarget
+import numpy as np
+import rospy
+from visualization_msgs.msg import MarkerArray
+from visualizer import Visualizer
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
+import copy
 
 
 class PlannerConfig():
@@ -60,7 +61,7 @@ class TrajPlanner():
         self.map = ESDF()
         self.visualizer = Visualizer()
         self.drone_state = DroneState()
-        planner_config = PlannerConfig()
+        self.planner_config = PlannerConfig()
         self.state_cmd = PositionTarget()
         self.state_cmd.coordinate_frame = 1
 
@@ -73,19 +74,19 @@ class TrajPlanner():
         self.cmd_hz = rospy.get_param("~cmd_hz", 300)
         self.planner_mode = rospy.get_param("~planner_mode", 'basic')  # 'basic', 'batch', 'expert', 'record', 'nn', or 'enhanced'
         self.replan_period = rospy.get_param("~replan_period", 0.5)  # the interval between replanning， 0 means replan right after the previous plan
-        self.move_vel = planner_config.v_max*0.8
-        self.des_pos_z = planner_config.des_pos_z
+        self.move_vel = self.planner_config.v_max*0.8
+        self.des_pos_z = self.planner_config.des_pos_z
         self.record_metric = rospy.get_param("~record_metric", False)
 
         # Planner
         if self.planner_mode in ['basic', 'batch', 'warmstart']:
-            self.planner = MinJerkPlanner(planner_config)
+            self.planner = MinJerkPlanner(self.planner_config)
         elif self.planner_mode == 'record':
-            self.planner = RecordPlanner(planner_config)
+            self.planner = RecordPlanner(self.planner_config)
         elif self.planner_mode == 'nn':
             self.planner = NNPlanner(self.des_pos_z)
         elif self.planner_mode == 'enhanced':
-            self.planner = EnhancedPlanner(planner_config)
+            self.planner = EnhancedPlanner(self.planner_config)
         else:
             rospy.logerr("Invalid planner mode!")
 
@@ -159,16 +160,20 @@ class TrajPlanner():
         self.near_global_target = False
         self.des_state_index = 0
         if self.record_metric:
-            self.reset_metrics()
+            self.init_metrics()
 
-    def reset_metrics(self):
+    def init_metrics(self):
         self.planner.iter_num = 0
         self.planner.opt_running_times = 0
         self.total_planning_duration = 0.0
         self.total_planning_times = 0
         self.weighted_cost = 0.0
-        self.edt_dis_list = []
-        self.metric_timer = rospy.Timer(rospy.Duration(self.metric_eva_interval), self.metric_timer_cb)
+        self.drone_state_list = []
+        self.metric_weights = np.array([1, 1, 1, 1])  # planning_time, distance, feasibility, collision
+        self.metric_timer = rospy.Timer(rospy.Duration(self.metric_eva_interval), self.record_metric_cb)
+
+    def record_metric_cb(self, event):
+        self.drone_state_list.append(copy.copy(self.drone_state))  # if not using copy, the drone_state_list will be all the same
 
     def end_mission(self):
         self.tracking_cmd_timer.shutdown()
@@ -204,14 +209,12 @@ class TrajPlanner():
 
         self.report_planning_result()
 
-    def metric_timer_cb(self, event):
-        self.edt_dis_list.append(self.map.get_edt_dis(self.drone_state.global_pos))
-
     def report_planning_result(self):
         while not self.plan_server.is_preempt_requested() and not self.reached_target:
             time.sleep(0.01)
 
-        self.report_metrics()
+        if self.record_metric:
+            self.report_metrics()
 
         if self.plan_server.is_preempt_requested():
             rospy.loginfo("Planning preempted!\n")
@@ -223,17 +226,45 @@ class TrajPlanner():
             self.plan_server.set_succeeded(result)
 
     def report_metrics(self):
-        # calculate average iter_num
         average_iter_num = self.planner.iter_num / self.planner.opt_running_times
 
-        # calculate average planning duration
         average_planning_duration = self.total_planning_duration / self.total_planning_times
+
+        weighted_metric = self.get_weighted_metric(self.map, self.drone_state_list)
 
         rospy.loginfo("Average iter num: %d", average_iter_num)
         rospy.loginfo("Average planning duration: %f", average_planning_duration)
-        rospy.loginfo("Weighted cost: %f", self.weighted_cost)
-        rospy.loginfo("EDT distance: %f\n", sum(self.edt_dis_list))
-        rospy.loginfo("Average EDT distance: %f\n", sum(self.edt_dis_list)/len(self.edt_dis_list))
+        rospy.loginfo("Weighted metric: %s\n", weighted_metric)
+
+    def get_weighted_metric(self, map, drone_state_list):
+        raw_cost = np.zeros(4)   # planning_time, distance, feasibility, collision
+
+        raw_cost[0] += self.total_planning_duration  # planning duration
+
+        for i in range(len(drone_state_list)):
+            pos = drone_state_list[i].global_pos[:2]
+            vel = drone_state_list[i].global_vel[:2]
+
+            # distance
+            if i > 0:
+                pre_pos = drone_state_list[i-1].global_pos[:2]
+                raw_cost[1] += np.linalg.norm(pos - pre_pos)
+
+            # feasibility
+            violate_vel = sum(vel**2) - self.planner_config.v_max**2
+            if violate_vel > 0:
+                raw_cost[2] += violate_vel**3
+
+            # collision
+            edt_dis = map.get_edt_dis(pos)
+            violate_dis = self.planner_config.safe_dis - edt_dis
+
+            if violate_dis > 0.0:
+                self.costs[3] += violate_dis**3
+
+        weighted_metric = np.dot(raw_cost, self.metric_weights)
+
+        return weighted_metric
 
     def global_planning(self):
         while not self.odom_received:
@@ -440,7 +471,7 @@ class TrajPlanner():
         rospy.loginfo("Init ts: {}".format(ts))
 
         self.planner.warm_start_plan(map, drone_state_2d, target_state, int_wpts, ts)
-        
+
         rospy.loginfo("Result int_wpts: {}".format(self.planner.int_wpts))
         rospy.loginfo("Result ts: {}".format(self.planner.ts))
 
