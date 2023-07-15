@@ -1,29 +1,29 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-14 16:10:55
+LastEditTime: 2023-07-15 11:39:45
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from enhanced_planner import EnhancedPlanner
-from record_planner import RecordPlanner
-from nn_planner import NNPlanner
-from planner.msg import *
-import actionlib
-from nav_msgs.msg import Odometry, Path, OccupancyGrid
-from esdf import ESDF
-import time
-from pyquaternion import Quaternion
-from expert_planner import MinJerkPlanner
-from mavros_msgs.srv import SetMode, SetModeRequest
-from mavros_msgs.msg import State, PositionTarget
-import numpy as np
-import rospy
-from visualization_msgs.msg import MarkerArray
-from visualizer import Visualizer
-from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
+from sensor_msgs.msg import Image
+from visualizer import Visualizer
+from visualization_msgs.msg import MarkerArray
+import rospy
+import numpy as np
+from mavros_msgs.msg import State, PositionTarget
+from mavros_msgs.srv import SetMode, SetModeRequest
+from expert_planner import MinJerkPlanner
+from pyquaternion import Quaternion
+import time
+from esdf import ESDF
+from nav_msgs.msg import Odometry, Path, OccupancyGrid
+import actionlib
+from planner.msg import *
+from nn_planner import NNPlanner
+from record_planner import RecordPlanner
+from enhanced_planner import EnhancedPlanner
 
 
 class PlannerConfig():
@@ -78,7 +78,7 @@ class TrajPlanner():
         self.record_metric = rospy.get_param("~record_metric", False)
 
         # Planner
-        if self.planner_mode in ['basic', 'batch']:
+        if self.planner_mode in ['basic', 'batch', 'warmstart']:
             self.planner = MinJerkPlanner(planner_config)
         elif self.planner_mode == 'record':
             self.planner = RecordPlanner(planner_config)
@@ -324,8 +324,9 @@ class TrajPlanner():
         self.target_state = local_target
 
     def first_plan(self):
+        drone_state = self.drone_state
         time_start = time.time()
-        if self.planner_mode == 'basic':
+        if self.planner_mode == 'basic' or self.planner_mode == 'warmstart':
             self.basic_traj_plan(self.map, self.drone_state, self.target_state)
         elif self.planner_mode == 'batch':
             self.batch_traj_plan(self.map, self.drone_state, self.target_state)
@@ -346,6 +347,9 @@ class TrajPlanner():
             self.total_planning_duration += time_end - time_start
             self.total_planning_times += 1
             self.weighted_cost += self.planner.final_cost
+
+        # calculate the int_wpts regarding drone_state_ahead
+        self.int_wpts_local = self.get_int_wpts_local(drone_state, self.planner.int_wpts)
 
         # First planning! Retrieve planned trajectory
         self.des_state = self.planner.get_full_state_cmd(self.cmd_hz)
@@ -380,6 +384,8 @@ class TrajPlanner():
             self.nn_traj_plan(self.depth_img, self.drone_state, drone_state_ahead, self.target_state)
         elif self.planner_mode == 'enhanced':
             self.enhanced_traj_plan(self.map, self.depth_img, self.drone_state, drone_state_ahead, self.target_state)
+        elif self.planner_mode == 'warmstart':
+            self.warmstart_traj_plan(self.map, drone_state_ahead, self.target_state, self.int_wpts_local, self.planner.ts)
         else:
             rospy.logerr("Invalid planner mode!")
 
@@ -392,12 +398,24 @@ class TrajPlanner():
             self.total_planning_times += 1
             self.weighted_cost += self.planner.final_cost
 
+        # calculate the int_wpts regarding drone_state_ahead
+        self.int_wpts_local = self.get_int_wpts_local(drone_state_ahead, self.planner.int_wpts)
+
         # retrieve planned trajectory
         self.des_state = self.planner.get_full_state_cmd(self.cmd_hz)
 
         # Concatenate the new trajectory to the old one, at index self.future_index
         self.des_state_array = np.concatenate((self.des_state_array[:self.future_index], self.des_state), axis=0)
         self.des_state_length = self.des_state_array.shape[0]
+
+    def get_int_wpts_local(self, drone_state, int_wpts):
+        int_wpts = int_wpts.T
+        ref_pos = np.array([drone_state.global_pos[0], drone_state.global_pos[1]])
+        int_wpts_local = np.zeros((int_wpts.shape[0], 2))
+        for i in range(int_wpts.shape[0]):
+            int_wpts_local[i] = int_wpts[i] - ref_pos
+
+        return int_wpts_local  # row major
 
     def basic_traj_plan(self, map, plan_init_state, target_state):
         '''
@@ -406,6 +424,25 @@ class TrajPlanner():
         drone_state_2d = np.array([plan_init_state.global_pos[:2],
                                    plan_init_state.global_vel[:2]])
         self.planner.plan(map, drone_state_2d, target_state)  # 2D planning, z is fixed
+
+    def warmstart_traj_plan(self, map, plan_init_state, target_state, int_wpts_local, ts):
+        # get int_wpts refered to plan_init_state
+        int_wpts = np.zeros((int_wpts_local.shape[0], 2))
+        for i in range(int_wpts_local.shape[0]):
+            int_wpts[i] = int_wpts_local[i] + plan_init_state.global_pos[:2]
+
+        int_wpts = int_wpts.T  # col major
+
+        drone_state_2d = np.array([plan_init_state.global_pos[:2],
+                                   plan_init_state.global_vel[:2]])
+
+        rospy.loginfo("Init int_wpts: {}".format(int_wpts))
+        rospy.loginfo("Init ts: {}".format(ts))
+
+        self.planner.warm_start_plan(map, drone_state_2d, target_state, int_wpts, ts)
+        
+        rospy.loginfo("Result int_wpts: {}".format(self.planner.int_wpts))
+        rospy.loginfo("Result ts: {}".format(self.planner.ts))
 
     def batch_traj_plan(self, map, plan_init_state, target_state):
         '''
