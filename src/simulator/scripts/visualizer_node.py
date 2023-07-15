@@ -1,4 +1,7 @@
-#! /usr/bin/env python
+'''
+Author: Yicheng Chen (yicheng-chen@outlook.com)
+LastEditTime: 2023-07-15 17:17:46
+'''
 from nav_msgs.msg import Path
 import rospy
 from visualization_msgs.msg import MarkerArray

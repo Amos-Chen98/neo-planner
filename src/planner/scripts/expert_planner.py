@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-13 15:33:56
+LastEditTime: 2023-07-15 16:57:12
 '''
 import math
 import pprint
@@ -210,7 +210,7 @@ class MinJerkPlanner(TrajUtils):
                                       method='L-BFGS-B',
                                       jac=self.get_grad,
                                       bounds=None,
-                                      tol=1e-6,
+                                      tol=1e-4,
                                       callback=None,
                                       options={'disp': 0,
                                                'maxcor': 10,
@@ -223,6 +223,7 @@ class MinJerkPlanner(TrajUtils):
         self.tau = res.x[self.D*(self.M - 1):]
         self.ts = self.map_tau2T(self.tau)
         self.iter_num += res.nit
+        # print("iter_num: %d" % res.nit)
         self.opt_running_times += 1
         self.weighted_cost = self.costs * self.weights
         self.final_cost = self.weighted_cost.sum()
