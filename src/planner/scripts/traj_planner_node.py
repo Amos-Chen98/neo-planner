@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-15 17:16:46
+LastEditTime: 2023-07-15 17:45:09
 '''
 import os
 import sys
@@ -169,7 +169,7 @@ class TrajPlanner():
         self.total_planning_times = 0
         self.weighted_cost = 0.0
         self.drone_state_list = []
-        self.metric_weights = np.array([1, 1, 1, 1])  # planning_time, distance, feasibility, collision
+        self.metric_weights = np.array([1, 1, 1])  # planning_time, distance, feasibility, collision
         self.metric_timer = rospy.Timer(rospy.Duration(self.metric_eva_interval), self.record_metric_cb)
 
     def record_metric_cb(self, event):
@@ -237,9 +237,7 @@ class TrajPlanner():
         rospy.loginfo("Weighted metric: %s\n", weighted_metric)
 
     def get_weighted_metric(self, map, drone_state_list):
-        raw_cost = np.zeros(4)   # planning_time, distance, feasibility, collision
-
-        raw_cost[0] += self.total_planning_duration  # planning duration
+        raw_cost = np.zeros(3)   # planning_time, distance, feasibility, collision
 
         for i in range(len(drone_state_list)):
             pos = drone_state_list[i].global_pos[:2]
@@ -248,19 +246,19 @@ class TrajPlanner():
             # distance
             if i > 0:
                 pre_pos = drone_state_list[i-1].global_pos[:2]
-                raw_cost[1] += np.linalg.norm(pos - pre_pos)
+                raw_cost[0] += np.linalg.norm(pos - pre_pos)
 
             # feasibility
             violate_vel = sum(vel**2) - self.planner_config.v_max**2
             if violate_vel > 0:
-                raw_cost[2] += violate_vel**3
+                raw_cost[1] += violate_vel**3
 
             # collision
             edt_dis = map.get_edt_dis(pos)
             violate_dis = self.planner_config.safe_dis - edt_dis
 
             if violate_dis > 0.0:
-                self.costs[3] += violate_dis**3
+                self.costs[2] += violate_dis**3
 
         weighted_metric = np.dot(raw_cost, self.metric_weights)
 
