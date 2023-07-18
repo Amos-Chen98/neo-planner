@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-15 17:45:09
+LastEditTime: 2023-07-16 20:53:26
 '''
 import os
 import sys
@@ -47,7 +47,7 @@ class DroneState():
         self.global_pos = np.zeros(3)
         self.global_vel = np.zeros(3)
         self.local_vel = np.zeros(3)
-        self.attitude = Quaternion()
+        self.attitude = Quaternion() # ref: http://kieranwynn.github.io/pyquaternion/
 
 
 class TrajPlanner():
