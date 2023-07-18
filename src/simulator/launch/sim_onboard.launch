@@ -20,6 +20,8 @@
         <arg name="Y" value="$(arg Y)"/>
     </include>
 
+    <include file="$(find planner)/launch/map_server.launch" />
+    
     <include file="$(find planner)/launch/tf_server.launch" />
 
     <!-- Visualizer -->
