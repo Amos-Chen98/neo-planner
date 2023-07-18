@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-16 20:53:26
+LastEditTime: 2023-07-18 21:11:18
 '''
 import os
 import sys
@@ -258,7 +258,7 @@ class TrajPlanner():
             violate_dis = self.planner_config.safe_dis - edt_dis
 
             if violate_dis > 0.0:
-                self.costs[2] += violate_dis**3
+                raw_cost[2] += violate_dis**3
 
         weighted_metric = np.dot(raw_cost, self.metric_weights)
 
