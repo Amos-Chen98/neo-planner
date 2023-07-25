@@ -24,7 +24,7 @@
 
     <!-- publish pointcloud -->
     <node pkg="simulator" type="publish_pointcloud" name="publish_pointcloud">
-        <param name="path" type="str" value="$(find simulator)/worlds/my_world.pcd" />
+        <param name="path" type="str" value="$(find simulator)/worlds/dyna_world.pcd" />
         <param name="frame_id" type="str" value="$(arg frame_id)" />
         <param name="topic" type="str" value="$(arg pcl_topic)" />
         <param name="hz" type="int" value="2" />
