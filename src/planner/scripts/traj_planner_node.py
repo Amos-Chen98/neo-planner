@@ -1,30 +1,30 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-18 21:11:18
+LastEditTime: 2023-07-27 16:00:05
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from enhanced_planner import EnhancedPlanner
-from record_planner import RecordPlanner
-from nn_planner import NNPlanner
-from planner.msg import *
-import actionlib
-from nav_msgs.msg import Odometry, Path, OccupancyGrid
-from esdf import ESDF
-import time
-from pyquaternion import Quaternion
-from expert_planner import MinJerkPlanner
-from mavros_msgs.srv import SetMode, SetModeRequest
-from mavros_msgs.msg import State, PositionTarget
-import numpy as np
-import rospy
-from visualization_msgs.msg import MarkerArray
-from visualizer import Visualizer
-from sensor_msgs.msg import Image
-from cv_bridge import CvBridge
 import copy
+from cv_bridge import CvBridge
+from sensor_msgs.msg import Image
+from visualizer import Visualizer
+from visualization_msgs.msg import MarkerArray
+import rospy
+import numpy as np
+from mavros_msgs.msg import State, PositionTarget
+from mavros_msgs.srv import SetMode, SetModeRequest
+from expert_planner import MinJerkPlanner
+from pyquaternion import Quaternion
+import time
+from esdf import ESDF
+from nav_msgs.msg import Odometry, Path, OccupancyGrid
+import actionlib
+from planner.msg import *
+from nn_planner import NNPlanner
+from record_planner import RecordPlanner
+from enhanced_planner import EnhancedPlanner
 
 
 class PlannerConfig():
@@ -47,7 +47,7 @@ class DroneState():
         self.global_pos = np.zeros(3)
         self.global_vel = np.zeros(3)
         self.local_vel = np.zeros(3)
-        self.attitude = Quaternion() # ref: http://kieranwynn.github.io/pyquaternion/
+        self.attitude = Quaternion()  # ref: http://kieranwynn.github.io/pyquaternion/
 
 
 class TrajPlanner():
@@ -275,6 +275,26 @@ class TrajPlanner():
         self.visualize_des_wpts()
         self.visualize_des_path()
 
+    def try_local_planning(self):
+        seed = 0
+        self.set_local_target(seed)
+        while True:
+            try:
+                self.replan()
+                break
+            except Exception as ex:
+                rospy.logwarn("Local planning failed: %s", ex)
+                seed += 1
+                self.set_local_target(seed)
+                if seed > 10:
+                    rospy.logerr("Entire planning failed!\n")
+                    self.end_mission()
+                    self.plan_server.set_aborted()
+                    return
+
+        self.visualize_des_wpts()
+        self.visualize_des_path()
+
     def online_planning(self):
         while not self.odom_received:
             time.sleep(0.01)
@@ -290,10 +310,7 @@ class TrajPlanner():
             and not self.near_global_target
             and not self.plan_server.is_preempt_requested()
         ):
-            self.set_local_target()
-            self.replan()
-            self.visualize_des_wpts()
-            self.visualize_des_path()
+            self.try_local_planning()
 
     def periodic_planning(self):
         while not self.odom_received:
@@ -314,12 +331,9 @@ class TrajPlanner():
             and not self.near_global_target
             and not self.plan_server.is_preempt_requested()
         ):
-            self.set_local_target()
-            self.replan()
-            self.visualize_des_wpts()
-            self.visualize_des_path()
+            self.try_local_planning()
 
-    def set_local_target(self):
+    def set_local_target(self, seed=0):
         self.target_state = np.zeros((2, 2))
         current_pos = self.drone_state.global_pos[:2]
         global_target_pos = self.global_target
@@ -337,7 +351,11 @@ class TrajPlanner():
         lateral_move_dis = self.lateral_step_length
 
         # get local target pos
-        local_target_pos = current_pos + self.longitu_step_dis * longitu_dir
+        if seed > 1e-3:
+            local_target_pos = current_pos + self.longitu_step_dis * longitu_dir + np.random.normal(0, 1, 2) # 0 for mean, 1 for std
+        else:
+            local_target_pos = current_pos + self.longitu_step_dis * longitu_dir
+
         while self.map.has_collision(local_target_pos):
             local_target_pos += lateral_move_dis * lateral_dir[lateral_dir_flag]
             lateral_dir_flag = 1 - lateral_dir_flag
@@ -391,7 +409,8 @@ class TrajPlanner():
         '''
         get the drone state after 1s from self.des_state
         '''
-        self.future_index = int(self.planning_time_ahead * self.cmd_hz) + self.des_state_index
+        self.future_index = min(int(self.planning_time_ahead * self.cmd_hz) + self.des_state_index,
+                                self.des_state_length - 1)
         drone_state_ahead = DroneState()
         drone_state_ahead.global_pos = np.append(self.des_state_array[self.future_index, 0, :], self.des_pos_z)
         drone_state_ahead.global_vel = np.append(self.des_state_array[self.future_index, 1, :], 0)
@@ -544,7 +563,8 @@ class TrajPlanner():
 
         self.local_pos_cmd_pub.publish(self.state_cmd)
 
-        if self.des_state_index < self.des_state_length - 1 and (self.des_state_index < self.future_index or self.near_global_target):
+        # if self.des_state_index < self.des_state_length - 1 and (self.des_state_index < self.future_index or self.near_global_target):
+        if self.des_state_index < self.des_state_length - 1:
             self.des_state_index += 1
 
     def visualize_drone_snapshots(self):

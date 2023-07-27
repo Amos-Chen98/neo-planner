@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-15 16:57:12
+LastEditTime: 2023-07-27 15:51:07
 '''
 import math
 import pprint
@@ -150,9 +150,9 @@ class MinJerkPlanner(TrajUtils):
                 batch_opt_wpts[i] = self.int_wpts
                 batch_opt_ts[i] = self.ts
                 batch_cost[i] = self.weighted_cost.sum()
-                print(f"batch_cost[{i}] = {batch_cost[i]}")
+                # print(f"batch_cost[{i}] = {batch_cost[i]}")
             except Exception as ex:
-                print(f"The {i}th attempt is deprecated for {ex}")
+                # print(f"The {i}th attempt is deprecated for {ex}")
                 batch_cost[i] = np.inf
 
             # check if there is one batch that is feasible
@@ -188,14 +188,17 @@ class MinJerkPlanner(TrajUtils):
 
         seed = 0
 
-        while True:
+        while seed < 5:
             try:
                 self.plan_once()
-                break
+                return
             except Exception as ex:
                 print(f"Re-planning for {ex}, current seed: {seed}")
                 seed += 1
                 self.int_wpts, self.ts = self.generate_init_variables(head_state, tail_state, seed)
+
+        # raise an Exception if the planning is still infeasible after 5 attempts
+        raise Exception("No solution for the given target")
 
     def plan_once(self):
         '''
