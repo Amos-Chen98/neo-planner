@@ -1,10 +1,12 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-03 10:55:21
+LastEditTime: 2023-07-27 20:07:07
 '''
 
 import numpy as np
 from scipy import ndimage
+
+SAFE_DIS = 0.5
 
 
 class ESDF():
@@ -49,9 +51,9 @@ class ESDF():
             return False
         else:
             return self.occupancy_2d[row_index, col_index]
-        
-    def has_collision(self,pos):
-        return self.get_edt_dis(pos) < 0.9
+
+    def has_collision(self, pos):
+        return self.get_edt_dis(pos) < SAFE_DIS
 
     def get_edt_dis(self, pos):
         '''
