@@ -67,26 +67,26 @@ class TrajPlanner():
         self.state_cmd.coordinate_frame = 1
 
         # Parameters
-        self.mission_mode = rospy.get_param("~mission_mode", 'online')  # 'online' or 'global (plan once)'
+        self.replan_mode = rospy.get_param("~replan_mode", 'online')  # 'online' or 'global (plan once)'
         self.planning_time_ahead = rospy.get_param("~planning_time_ahead", 1.0)  # the time ahead of the current time to plan the trajectory
         self.longitu_step_dis = rospy.get_param("~longitu_step_dis", 5.0)  # the distance forward in each replanning
         self.lateral_step_length = rospy.get_param("~lateral_step_length", 1.0)  # if local target pos in obstacle, take lateral step
         self.target_reach_threshold = rospy.get_param("~target_reach_threshold", 0.2)
         self.cmd_hz = rospy.get_param("~cmd_hz", 300)
-        self.planner_mode = rospy.get_param("~planner_mode", 'basic')  # 'basic', 'batch', 'expert', 'record', 'nn', or 'enhanced'
+        self.selected_planner = rospy.get_param("~selected_planner", 'basic')  # 'basic', 'batch', 'expert', 'record', 'nn', or 'enhanced'
         self.replan_period = rospy.get_param("~replan_period", 0.5)  # the interval between replanning， 0 means replan right after the previous plan
         self.move_vel = self.planner_config.v_max*0.8
         self.des_pos_z = self.planner_config.des_pos_z
         self.record_metric = rospy.get_param("~record_metric", False)
 
         # Planner
-        if self.planner_mode in ['basic', 'batch', 'warmstart']:
+        if self.selected_planner in ['basic', 'batch', 'warmstart']:
             self.planner = MinJerkPlanner(self.planner_config)
-        elif self.planner_mode == 'record':
+        elif self.selected_planner == 'record':
             self.planner = RecordPlanner(self.planner_config)
-        elif self.planner_mode == 'nn':
+        elif self.selected_planner == 'nn':
             self.planner = NNPlanner(self.des_pos_z)
-        elif self.planner_mode == 'enhanced':
+        elif self.selected_planner == 'enhanced':
             self.planner = EnhancedPlanner(self.planner_config)
         else:
             rospy.logerr("Invalid planner mode!")
@@ -121,7 +121,7 @@ class TrajPlanner():
         self.des_wpts_pub = rospy.Publisher('des_wpts', MarkerArray, queue_size=10)
         self.des_path_pub = rospy.Publisher('des_path', MarkerArray, queue_size=10)
 
-        rospy.loginfo(f"Global planner initialized! Selected planner: {self.planner_mode}")
+        rospy.loginfo(f"Global planner initialized! Selected planner: {self.selected_planner}")
 
     def flight_state_cb(self, data):
         self.flight_state = data
@@ -182,7 +182,7 @@ class TrajPlanner():
         self.reached_target = True
         self.near_global_target = False
         self.des_state_index = 0
-        if self.mission_mode == 'periodic':
+        if self.replan_mode == 'periodic':
             self.replan_timer.shutdown()
         if self.record_metric:
             self.metric_timer.shutdown()
@@ -196,13 +196,13 @@ class TrajPlanner():
         self.global_target = np.array([target.pose.position.x, target.pose.position.y])
         self.init_mission()
 
-        if self.mission_mode == 'global':
+        if self.replan_mode == 'global':
             rospy.loginfo("Mission mode: global")
             self.global_planning()
-        elif self.mission_mode == 'online':
+        elif self.replan_mode == 'online':
             rospy.loginfo("Mission mode: online")
             self.online_planning()
-        elif self.mission_mode == 'periodic':
+        elif self.replan_mode == 'periodic':
             rospy.loginfo("Mission mode: periodic")
             self.periodic_planning()
         else:
@@ -227,7 +227,7 @@ class TrajPlanner():
             self.plan_server.set_succeeded(result)
 
     def report_metrics(self):
-        if self.planner_mode != 'nn':
+        if self.selected_planner != 'nn':
             average_iter_num = self.planner.iter_num / self.planner.opt_running_times
             rospy.loginfo("Average iter num: %d", average_iter_num)
 
@@ -375,15 +375,15 @@ class TrajPlanner():
     def first_plan(self):
         drone_state = self.drone_state
         time_start = time.time()
-        if self.planner_mode == 'basic' or self.planner_mode == 'warmstart':
+        if self.selected_planner == 'basic' or self.selected_planner == 'warmstart':
             self.basic_traj_plan(self.map, self.drone_state, self.target_state)
-        elif self.planner_mode == 'batch':
+        elif self.selected_planner == 'batch':
             self.batch_traj_plan(self.map, self.drone_state, self.target_state)
-        elif self.planner_mode == 'record':
+        elif self.selected_planner == 'record':
             self.record_traj_plan(self.map, self.depth_img, self.drone_state, self.drone_state, self.target_state)
-        elif self.planner_mode == 'nn':
+        elif self.selected_planner == 'nn':
             self.nn_traj_plan(self.depth_img, self.drone_state, self.drone_state, self.target_state)
-        elif self.planner_mode == 'enhanced':
+        elif self.selected_planner == 'enhanced':
             self.enhanced_traj_plan(self.map, self.depth_img, self.drone_state, self.drone_state, self.target_state)
         else:
             rospy.logerr("Invalid planner mode!")
@@ -424,17 +424,17 @@ class TrajPlanner():
 
         time_start = time.time()
 
-        if self.planner_mode == 'basic':
+        if self.selected_planner == 'basic':
             self.basic_traj_plan(self.map, drone_state_ahead, self.target_state)
-        elif self.planner_mode == 'batch':
+        elif self.selected_planner == 'batch':
             self.batch_traj_plan(self.map, drone_state_ahead, self.target_state)
-        elif self.planner_mode == 'record':
+        elif self.selected_planner == 'record':
             self.record_traj_plan(self.map, self.depth_img, self.drone_state, drone_state_ahead, self.target_state)
-        elif self.planner_mode == 'nn':
+        elif self.selected_planner == 'nn':
             self.nn_traj_plan(self.depth_img, self.drone_state, drone_state_ahead, self.target_state)
-        elif self.planner_mode == 'enhanced':
+        elif self.selected_planner == 'enhanced':
             self.enhanced_traj_plan(self.map, self.depth_img, self.drone_state, drone_state_ahead, self.target_state)
-        elif self.planner_mode == 'warmstart':
+        elif self.selected_planner == 'warmstart':
             self.warmstart_traj_plan(self.map, drone_state_ahead, self.target_state, self.int_wpts_local, self.planner.ts)
         else:
             rospy.logerr("Invalid planner mode!")
