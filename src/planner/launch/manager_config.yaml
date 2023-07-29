@@ -1,2 +1,3 @@
-auto_mission: False
 recording_data: False
+mission_mode: "manual" # 'manual', 'random', or 'predefined'
+predefined_goal: [[13, 6], [13, -6], [0, 0]] # this is only used when mission_mode is 'predefined'

@@ -1,26 +1,26 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-13 09:51:44
+LastEditTime: 2023-07-29 20:48:03
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from pyquaternion import Quaternion
-from planner.msg import *
-import actionlib
-from visualization_msgs.msg import Marker
-from nav_msgs.msg import Odometry
-from mavros_msgs.msg import State, PositionTarget
-from mavros_msgs.srv import CommandBool, CommandBoolRequest, SetMode, SetModeRequest, CommandTOL, CommandTOLRequest
-import rospy
-import numpy as np
-from transitions import Machine
-from transitions.extensions import GraphMachine
-from geometry_msgs.msg import PoseStamped
-from esdf import ESDF
-import rosbag
 import datetime
+import rosbag
+from esdf import ESDF
+from geometry_msgs.msg import PoseStamped
+from transitions.extensions import GraphMachine
+from transitions import Machine
+import numpy as np
+import rospy
+from mavros_msgs.srv import CommandBool, CommandBoolRequest, SetMode, SetModeRequest, CommandTOL, CommandTOLRequest
+from mavros_msgs.msg import State, PositionTarget
+from nav_msgs.msg import Odometry
+from visualization_msgs.msg import Marker
+import actionlib
+from planner.msg import *
+from pyquaternion import Quaternion
 
 
 class DroneState():
@@ -45,8 +45,9 @@ class Manager():
         self.drone_state = DroneState()
 
         # customized parameters
-        self.auto_mission = rospy.get_param("~auto_mission", False)
         self.recording_data = rospy.get_param("~recording_data", False)
+        self.mission_mode = rospy.get_param("~mission_mode", 'manual')
+        self.predefined_goal = rospy.get_param("~predefined_goal", [[0.0, 0.0]])
 
         # Parameters
         self.offb_req.custom_mode = 'OFFBOARD'
@@ -60,6 +61,8 @@ class Manager():
         self.odom_received = False
         self.has_goal = False
         self.rosbag_is_on = False
+        self.goal_index = 0
+        self.max_goal_index = len(self.predefined_goal) - 1
 
         # Client / Service init
         self.arming_client = rospy.ServiceProxy("mavros/cmd/arming", CommandBool)
@@ -85,7 +88,7 @@ class Manager():
         # Publishers
         self.local_pos_cmd_pub = rospy.Publisher("mavros/setpoint_raw/local", PositionTarget, queue_size=10)
         self.target_vis_pub = rospy.Publisher('global_target', Marker, queue_size=10)
-        self.random_target_pub = rospy.Publisher('/move_base_simple/goal', PoseStamped, queue_size=10)
+        self.next_goal_pub = rospy.Publisher('/move_base_simple/goal', PoseStamped, queue_size=10)
 
         # FSM
         self.fsm = GraphMachine(model=self, states=['INIT', 'TAKINGOFF', 'HOVER', 'MISSION'], initial='INIT')
@@ -152,10 +155,26 @@ class Manager():
         rospy.loginfo("Reached goal!")
         self.reach_goal()
 
-        if self.auto_mission:
-            self.generate_goal()
+        if self.mission_mode == "random":
+            self.set_random_goal()
+        elif self.mission_mode == "predefined" and self.goal_index <= self.max_goal_index:
+            self.set_predefined_goal()
+            self.goal_index += 1
 
-    def generate_goal(self):
+        # if mission_mode is 'maunal', do nothing and wait for the next target
+
+    def set_predefined_goal(self):
+        '''
+        set a predefined goal
+        '''
+        target = PoseStamped()
+        target.header.frame_id = "map"
+        target.pose.position.x = self.predefined_goal[self.goal_index][0]
+        target.pose.position.y = self.predefined_goal[self.goal_index][1]
+        target.pose.position.z = self.hover_height
+        self.next_goal_pub.publish(target)
+
+    def set_random_goal(self):
         '''
         randomly generate a goal
         '''
@@ -176,7 +195,7 @@ class Manager():
         target.pose.position.y = y
         target.pose.position.z = self.hover_height
 
-        self.random_target_pub.publish(target)
+        self.next_goal_pub.publish(target)
 
     def vis_target(self):
         marker = Marker()
