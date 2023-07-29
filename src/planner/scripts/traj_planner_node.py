@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-27 16:00:05
+LastEditTime: 2023-07-28 22:20:42
 '''
 import os
 import sys
@@ -40,6 +40,7 @@ class PlannerConfig():
         self.init_wpts_num = int(rospy.get_param("~init_wpts_num", 2))  # the initial number of waypoints
         self.init_T = rospy.get_param("~init_T", 2.5)  # the initial T of each segment
         self.des_pos_z = rospy.get_param("~des_pos_z", 2.0)  # the desired z position of the drone
+        self.collision_cost_tol = rospy.get_param("~collision_cost_tol", 10)  # the tolerance of collision cost
 
 
 class DroneState():
@@ -167,7 +168,7 @@ class TrajPlanner():
         self.planner.opt_running_times = 0
         self.total_planning_duration = 0.0
         self.total_planning_times = 0
-        self.weighted_cost = 0.0
+        # self.weighted_cost = 0.0
         self.drone_state_list = []
         self.metric_weights = np.array([1, 1, 1])  # planning_time, distance, feasibility, collision
         self.metric_timer = rospy.Timer(rospy.Duration(self.metric_eva_interval), self.record_metric_cb)
@@ -226,13 +227,14 @@ class TrajPlanner():
             self.plan_server.set_succeeded(result)
 
     def report_metrics(self):
-        average_iter_num = self.planner.iter_num / self.planner.opt_running_times
+        if self.planner_mode != 'nn':
+            average_iter_num = self.planner.iter_num / self.planner.opt_running_times
+            rospy.loginfo("Average iter num: %d", average_iter_num)
 
         average_planning_duration = self.total_planning_duration / self.total_planning_times
 
         weighted_metric = self.get_weighted_metric(self.map, self.drone_state_list)
 
-        rospy.loginfo("Average iter num: %d", average_iter_num)
         rospy.loginfo("Average planning duration: %f", average_planning_duration)
         rospy.loginfo("Weighted metric: %s\n", weighted_metric)
 
@@ -293,7 +295,7 @@ class TrajPlanner():
                     return
 
         self.visualize_des_wpts()
-        self.visualize_des_path()
+        self.visualize_des_path() 
 
     def online_planning(self):
         while not self.odom_received:
@@ -390,10 +392,10 @@ class TrajPlanner():
         rospy.loginfo("Planning time: {}".format(time_end - time_start))
 
         # collect metrics
-        if self.record_metric:
-            self.total_planning_duration += time_end - time_start
-            self.total_planning_times += 1
-            self.weighted_cost += self.planner.final_cost
+        # if self.record_metric:
+        #     self.total_planning_duration += time_end - time_start
+        #     self.total_planning_times += 1
+            # self.weighted_cost += self.planner.final_cost
 
         # calculate the int_wpts regarding drone_state_ahead
         self.int_wpts_local = self.get_int_wpts_local(drone_state, self.planner.int_wpts)
@@ -444,7 +446,7 @@ class TrajPlanner():
         if self.record_metric:
             self.total_planning_duration += time_end - time_start
             self.total_planning_times += 1
-            self.weighted_cost += self.planner.final_cost
+            # self.weighted_cost += self.planner.final_cost
 
         # calculate the int_wpts regarding drone_state_ahead
         self.int_wpts_local = self.get_int_wpts_local(drone_state_ahead, self.planner.int_wpts)

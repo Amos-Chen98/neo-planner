@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-27 15:51:07
+LastEditTime: 2023-07-29 10:44:19
 '''
 import math
 import pprint
@@ -22,6 +22,7 @@ class DefaultConfig():
         self.init_seg_len = 2.0  # (valid when init_wpts_mode = 'adaptive') the initial length of each segment
         self.init_wpts_num = 2  # (valid when init_wpts_mode = 'fixed') the number of intermediate waypoints
         self.init_T = 2.0  # the initial T of each segment
+        self.collision_cost_tol = 10  # the tolerance of collision cost
 
 
 class MinJerkPlanner(TrajUtils):
@@ -39,6 +40,7 @@ class MinJerkPlanner(TrajUtils):
         self.T_min = config.T_min
         self.T_max = config.T_max
         self.safe_dis = config.safe_dis
+        self.collision_cost_tol = config.collision_cost_tol
 
         # Hyper params in cost func
         self.weights = np.array(config.weights)
@@ -231,7 +233,7 @@ class MinJerkPlanner(TrajUtils):
         self.weighted_cost = self.costs * self.weights
         self.final_cost = self.weighted_cost.sum()
         collision_cost = self.weighted_cost[3]
-        if collision_cost > 10:
+        if collision_cost > self.collision_cost_tol:
             raise ValueError("collision cost too large")
 
     def print_results(self):
