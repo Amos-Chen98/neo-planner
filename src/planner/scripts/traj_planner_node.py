@@ -1,30 +1,31 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-28 22:20:42
+LastEditTime: 2023-07-30 13:50:27
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-import copy
-from cv_bridge import CvBridge
-from sensor_msgs.msg import Image
-from visualizer import Visualizer
-from visualization_msgs.msg import MarkerArray
-import rospy
-import numpy as np
-from mavros_msgs.msg import State, PositionTarget
-from mavros_msgs.srv import SetMode, SetModeRequest
-from expert_planner import MinJerkPlanner
-from pyquaternion import Quaternion
-import time
-from esdf import ESDF
-from nav_msgs.msg import Odometry, Path, OccupancyGrid
-import actionlib
-from planner.msg import *
-from nn_planner import NNPlanner
-from record_planner import RecordPlanner
 from enhanced_planner import EnhancedPlanner
+from record_planner import RecordPlanner
+from nn_planner import NNPlanner
+from planner.msg import *
+import actionlib
+from nav_msgs.msg import Odometry, Path, OccupancyGrid
+from esdf import ESDF
+import time
+from pyquaternion import Quaternion
+from expert_planner import MinJerkPlanner
+from mavros_msgs.srv import SetMode, SetModeRequest
+from mavros_msgs.msg import State, PositionTarget
+import numpy as np
+import rospy
+from visualization_msgs.msg import MarkerArray
+from visualizer import Visualizer
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
+import copy
+
 
 
 class PlannerConfig():
@@ -231,11 +232,11 @@ class TrajPlanner():
             average_iter_num = self.planner.iter_num / self.planner.opt_running_times
             rospy.loginfo("Average iter num: %d", average_iter_num)
 
-        average_planning_duration = self.total_planning_duration / self.total_planning_times
+        if self.replan_mode != 'global':
+            average_planning_duration = self.total_planning_duration / self.total_planning_times
+            rospy.loginfo("Average planning duration: %f", average_planning_duration)
 
         weighted_metric = self.get_weighted_metric(self.map, self.drone_state_list)
-
-        rospy.loginfo("Average planning duration: %f", average_planning_duration)
         rospy.loginfo("Weighted metric: %s\n", weighted_metric)
 
     def get_weighted_metric(self, map, drone_state_list):
@@ -295,7 +296,7 @@ class TrajPlanner():
                     return
 
         self.visualize_des_wpts()
-        self.visualize_des_path() 
+        self.visualize_des_path()
 
     def online_planning(self):
         while not self.odom_received:
@@ -354,7 +355,7 @@ class TrajPlanner():
 
         # get local target pos
         if seed > 1e-3:
-            local_target_pos = current_pos + self.longitu_step_dis * longitu_dir + np.random.normal(0, 1, 2) # 0 for mean, 1 for std
+            local_target_pos = current_pos + self.longitu_step_dis * longitu_dir + np.random.normal(0, 1, 2)  # 0 for mean, 1 for std
         else:
             local_target_pos = current_pos + self.longitu_step_dis * longitu_dir
 
@@ -395,7 +396,7 @@ class TrajPlanner():
         # if self.record_metric:
         #     self.total_planning_duration += time_end - time_start
         #     self.total_planning_times += 1
-            # self.weighted_cost += self.planner.final_cost
+        # self.weighted_cost += self.planner.final_cost
 
         # calculate the int_wpts regarding drone_state_ahead
         self.int_wpts_local = self.get_int_wpts_local(drone_state, self.planner.int_wpts)
