@@ -11,6 +11,7 @@
     <arg name="frame_id" default="map"/>
     <!-- pcl topic name -->
     <arg name="pcl_topic" default="/pointcloud/output"/>
+    <arg name="gazebo_world" default="dyna_world"/>
 
     <!-- PX4 SITL, Gazebo, and MAVROS -->
     <include file="$(find simulator)/launch/px4_utils.launch">
@@ -20,18 +21,19 @@
         <arg name="R" value="$(arg R)"/>
         <arg name="P" value="$(arg P)"/>
         <arg name="Y" value="$(arg Y)"/>
+        <arg name="gazebo_world" value="$(arg gazebo_world)" />
     </include>
 
     <!-- publish pointcloud -->
     <node pkg="simulator" type="publish_pointcloud" name="publish_pointcloud">
-        <param name="path" type="str" value="$(find simulator)/worlds/dyna_world.pcd" />
+        <param name="path" type="str" value="$(find simulator)/worlds/$(arg gazebo_world).pcd" />
         <param name="frame_id" type="str" value="$(arg frame_id)" />
         <param name="topic" type="str" value="$(arg pcl_topic)" />
         <param name="hz" type="int" value="2" />
     </node>
 
+    <include file="$(find planner)/launch/map_server_global.launch" />
 
-    <include file="$(find planner)/launch/map_server.launch" />
     <include file="$(find planner)/launch/tf_server.launch" />
 
     <!-- Visualizer -->

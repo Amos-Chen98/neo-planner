@@ -12,7 +12,7 @@
     <!-- vehicle model and world -->
     <arg name="est" default="ekf2"/>
     <arg name="vehicle" default="iris"/>
-    <arg name="world" default="$(find simulator)/worlds/dyna_world.world"/>
+    <arg name="gazebo_world" default="my_world"/>
     <arg name="sdf" default="$(find mavlink_sitl_gazebo)/models/iris_depth_camera/iris_depth_camera.sdf"/>
 
     <!-- gazebo configs -->
@@ -34,7 +34,7 @@
         <arg name="R" value="$(arg R)"/>
         <arg name="P" value="$(arg P)"/>
         <arg name="Y" value="$(arg Y)"/>
-        <arg name="world" value="$(arg world)"/>
+        <arg name="world" value="$(find simulator)/worlds/$(arg gazebo_world).world"/>
         <arg name="vehicle" value="$(arg vehicle)"/>
         <arg name="sdf" value="$(arg sdf)"/>
         <arg name="gui" value="$(arg gui)"/>

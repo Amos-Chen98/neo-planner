@@ -12,7 +12,7 @@ init_T: 2.5
 collision_cost_tol: 10
 
 # mission
-replan_mode: periodic # 'global', 'online', or 'periodic'
+replan_mode: global # 'global', 'online', or 'periodic'
 planning_time_ahead: 1.0
 des_pos_z: 2.0
 longitu_step_dis: 5.0
