@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-29 10:44:19
+LastEditTime: 2023-07-30 14:25:49
 '''
 import math
 import pprint
@@ -152,9 +152,9 @@ class MinJerkPlanner(TrajUtils):
                 batch_opt_wpts[i] = self.int_wpts
                 batch_opt_ts[i] = self.ts
                 batch_cost[i] = self.weighted_cost.sum()
-                # print(f"batch_cost[{i}] = {batch_cost[i]}")
+                print(f"batch_cost[{i}] = {batch_cost[i]}")
             except Exception as ex:
-                # print(f"The {i}th attempt is deprecated for {ex}")
+                print(f"The {i}th attempt is deprecated for {ex}")
                 batch_cost[i] = np.inf
 
             # check if there is one batch that is feasible

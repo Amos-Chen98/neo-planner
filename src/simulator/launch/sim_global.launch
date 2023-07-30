@@ -11,7 +11,7 @@
     <arg name="frame_id" default="map"/>
     <!-- pcl topic name -->
     <arg name="pcl_topic" default="/pointcloud/output"/>
-    <arg name="gazebo_world" default="dyna_world"/>
+    <arg name="gazebo_world" default="my_world"/>
 
     <!-- PX4 SITL, Gazebo, and MAVROS -->
     <include file="$(find simulator)/launch/px4_utils.launch">
