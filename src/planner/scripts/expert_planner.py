@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-30 14:25:49
+LastEditTime: 2023-07-30 21:36:55
 '''
 import math
 import pprint
@@ -121,13 +121,12 @@ class MinJerkPlanner(TrajUtils):
         batch_init_wpts[0] = int_wpts  # the first candidate is the straight line
 
         lateral_dir_flag = 0
-        lateral_move_dis = 0.5
+        lateral_move_dis = 0.6
 
         # other candidates
         for i in range(1, self.batch_num):
             batch_init_wpts[i] = batch_init_wpts[0] + lateral_move_dis * lateral_dir[lateral_dir_flag]
             lateral_dir_flag = 1 - lateral_dir_flag
-            lateral_move_dis += 0.5
 
         # generate init ts
         ts = self.init_T * np.ones((self.init_wpts_num+1,))  # allocate time for each piece
