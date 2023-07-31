@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-31 21:58:20
+LastEditTime: 2023-07-31 22:21:57
 '''
 import os
 import sys
@@ -577,14 +577,15 @@ class TrajPlanner():
         # local target
         self.local_target_marker = Marker()
         self.local_target_marker.header.frame_id = "map"
-        self.local_target_marker.type = Marker.ARROW
-        self.local_target_marker.scale.x = 1.0
-        self.local_target_marker.scale.y = 0.15
-        self.local_target_marker.scale.z = 0.15
+        self.local_target_marker.type = Marker.SPHERE
+        self.local_target_marker.scale.x = 0.4
+        self.local_target_marker.scale.y = 0.4
+        self.local_target_marker.scale.z = 0.4
         self.local_target_marker.color.a = 1
         self.local_target_marker.color.r = 1
         self.local_target_marker.color.g = 1
         self.local_target_marker.color.b = 0
+        self.local_target_marker.pose.orientation.w = 1.0
 
         # des wpts
         self.wpts_markerarray = MarkerArray()
@@ -619,12 +620,6 @@ class TrajPlanner():
         self.local_target_marker.pose.position.x = self.target_state[0][0]
         self.local_target_marker.pose.position.y = self.target_state[0][1]
         self.local_target_marker.pose.position.z = self.des_pos_z
-        target_yaw = np.arctan2(self.target_state[1][1], self.target_state[1][0])
-        target_quat = quaternion_from_euler(0, 0, target_yaw)
-        self.local_target_marker.pose.orientation.x = target_quat[0]
-        self.local_target_marker.pose.orientation.y = target_quat[1]
-        self.local_target_marker.pose.orientation.z = target_quat[2]
-        self.local_target_marker.pose.orientation.w = target_quat[3]
 
         self.local_target_pub.publish(self.local_target_marker)
 
