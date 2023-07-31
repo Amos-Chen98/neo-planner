@@ -1,30 +1,32 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-31 19:02:43
+LastEditTime: 2023-07-31 21:58:20
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from enhanced_planner import EnhancedPlanner
-from record_planner import RecordPlanner
-from nn_planner import NNPlanner
-from planner.msg import *
-import actionlib
-from nav_msgs.msg import Odometry, Path, OccupancyGrid
-from esdf import ESDF
-import time
-from pyquaternion import Quaternion
-from expert_planner import MinJerkPlanner
-from mavros_msgs.srv import SetMode, SetModeRequest
-from mavros_msgs.msg import State, PositionTarget
-import numpy as np
-import rospy
-from visualization_msgs.msg import Marker, MarkerArray
-from visualizer import Visualizer
-from sensor_msgs.msg import Image
-from cv_bridge import CvBridge
+from tf.transformations import quaternion_from_euler
 import copy
+from cv_bridge import CvBridge
+from sensor_msgs.msg import Image
+from visualizer import Visualizer
+from visualization_msgs.msg import Marker, MarkerArray
+import rospy
+import numpy as np
+from mavros_msgs.msg import State, PositionTarget
+from mavros_msgs.srv import SetMode, SetModeRequest
+from expert_planner import MinJerkPlanner
+from pyquaternion import Quaternion
+import time
+from esdf import ESDF
+from nav_msgs.msg import Odometry, Path, OccupancyGrid
+import actionlib
+from planner.msg import *
+from nn_planner import NNPlanner
+from record_planner import RecordPlanner
+from enhanced_planner import EnhancedPlanner
+
 
 
 class PlannerConfig():
@@ -121,6 +123,7 @@ class TrajPlanner():
         self.drone_snapshots_pub = rospy.Publisher('robotMarker', MarkerArray, queue_size=10)
         self.des_wpts_pub = rospy.Publisher('des_wpts', MarkerArray, queue_size=10)
         self.des_path_pub = rospy.Publisher('des_path', MarkerArray, queue_size=10)
+        self.local_target_pub = rospy.Publisher('local_target', Marker, queue_size=10)
 
         rospy.loginfo(f"Global planner initialized! Selected planner: {self.selected_planner}")
 
@@ -171,7 +174,7 @@ class TrajPlanner():
         self.total_planning_times = 0
         # self.weighted_cost = 0.0
         self.drone_state_list = []
-        self.metric_weights = np.array([1, 1, 1])  # planning_time, distance, feasibility, collision
+        self.metric_weights = np.array([1, 1, 1])  # distance, feasibility, collision
         self.metric_timer = rospy.Timer(rospy.Duration(self.metric_eva_interval), self.record_metric_cb)
 
     def record_metric_cb(self, event):
@@ -281,6 +284,7 @@ class TrajPlanner():
     def try_local_planning(self):
         seed = 0
         self.set_local_target(seed)
+        self.visualize_local_target()
         while True:
             try:
                 self.replan()
@@ -570,6 +574,19 @@ class TrajPlanner():
             self.des_state_index += 1
 
     def init_marker_arrays(self):
+        # local target
+        self.local_target_marker = Marker()
+        self.local_target_marker.header.frame_id = "map"
+        self.local_target_marker.type = Marker.ARROW
+        self.local_target_marker.scale.x = 1.0
+        self.local_target_marker.scale.y = 0.15
+        self.local_target_marker.scale.z = 0.15
+        self.local_target_marker.color.a = 1
+        self.local_target_marker.color.r = 1
+        self.local_target_marker.color.g = 1
+        self.local_target_marker.color.b = 0
+
+        # des wpts
         self.wpts_markerarray = MarkerArray()
         max_wpts_length = 20
         for i in range(max_wpts_length):
@@ -584,6 +601,7 @@ class TrajPlanner():
 
             self.wpts_markerarray.markers.append(marker)
 
+        # des path
         self.path_markerarray = MarkerArray()
         max_path_length = 1000
         for i in range(max_path_length):
@@ -596,13 +614,28 @@ class TrajPlanner():
 
             self.path_markerarray.markers.append(marker)
 
+    def visualize_local_target(self):
+        self.local_target_marker.header.stamp = rospy.Time.now()
+        self.local_target_marker.pose.position.x = self.target_state[0][0]
+        self.local_target_marker.pose.position.y = self.target_state[0][1]
+        self.local_target_marker.pose.position.z = self.des_pos_z
+        target_yaw = np.arctan2(self.target_state[1][1], self.target_state[1][0])
+        target_quat = quaternion_from_euler(0, 0, target_yaw)
+        self.local_target_marker.pose.orientation.x = target_quat[0]
+        self.local_target_marker.pose.orientation.y = target_quat[1]
+        self.local_target_marker.pose.orientation.z = target_quat[2]
+        self.local_target_marker.pose.orientation.w = target_quat[3]
+
+        self.local_target_pub.publish(self.local_target_marker)
+
     def visualize_des_wpts(self):
         '''
         Visualize the desired waypoints as markers
         '''
         pos_array = self.planner.int_wpts  # shape: (2,n)
         pos_array = np.vstack((pos_array, self.des_pos_z * np.ones([1, pos_array.shape[1]]))).T
-        self.wpts_markerarray = self.visualizer.modify_wpts_markerarray(self.wpts_markerarray, pos_array)
+        self.wpts_markerarray = self.visualizer.modify_wpts_markerarray(
+            self.wpts_markerarray, pos_array)  # the id of self.wpts_markerarray will be the same
         self.des_wpts_pub.publish(self.wpts_markerarray)
 
     def visualize_des_path(self):
