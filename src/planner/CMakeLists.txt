@@ -170,6 +170,7 @@ catkin_install_python(PROGRAMS
     scripts/manager_node.py
     scripts/traj_planner_node.py
     scripts/odom2base_tf.py
+    scripts/traj_planner_demo_node.py
     DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
