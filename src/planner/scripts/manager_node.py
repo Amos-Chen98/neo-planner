@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-29 20:48:03
+LastEditTime: 2023-07-31 20:36:21
 '''
 import os
 import sys
@@ -48,11 +48,11 @@ class Manager():
         self.recording_data = rospy.get_param("~recording_data", False)
         self.mission_mode = rospy.get_param("~mission_mode", 'manual')
         self.predefined_goal = rospy.get_param("~predefined_goal", [[0.0, 0.0]])
+        self.hover_height = rospy.get_param("~hover_height", 2.0)
 
         # Parameters
         self.offb_req.custom_mode = 'OFFBOARD'
         self.arm_req.value = True
-        self.hover_height = 2.0
         self.pos_cmd.coordinate_frame = 1
         self.pos_cmd.position.z = self.hover_height
         self.global_target = None
