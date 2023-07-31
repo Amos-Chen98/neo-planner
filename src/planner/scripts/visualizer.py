@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-02 11:15:28
+LastEditTime: 2023-07-31 19:04:31
 '''
 
 import rospy
@@ -14,31 +14,39 @@ from geometry_msgs.msg import Point
 
 
 class Visualizer():
+    def modify_wpts_markerarray(self, wpts_markerarray, pos_array):
+        for i in range(len(pos_array)):
+            wpts_markerarray.markers[i].header.stamp = rospy.get_rostime()
+            wpts_markerarray.markers[i].action = Marker.ADD
+            wpts_markerarray.markers[i].pose.position.x = pos_array[i][0]
+            wpts_markerarray.markers[i].pose.position.y = pos_array[i][1]
+            wpts_markerarray.markers[i].pose.position.z = pos_array[i][2]
+            color = cm.jet(int(i*1.0/len(pos_array)*256))
+            wpts_markerarray.markers[i].color = ColorRGBA(color[0], color[1], color[2], color[3])
 
-    def get_path(self, pos_array, vel_array):
-        path = MarkerArray()
+        for i in range(len(pos_array), len(wpts_markerarray.markers)):
+            wpts_markerarray.markers[i].action = Marker.DELETE
+
+        return wpts_markerarray
+
+    def modify_path_markerarray(self, path_markerarray, pos_array, vel_array):
         vel_max = np.max(vel_array)
         color_codes = (vel_array/vel_max*256).astype(int)
 
         for i in range(len(pos_array)-1):
-            marker = Marker()
-            marker.header.frame_id = "map"
-            marker.header.seq = i
-            marker.header.stamp = rospy.get_rostime()
-            marker.id = i
-            marker.type = Marker.LINE_STRIP
-            marker.action = Marker.ADD
+            path_markerarray.markers[i].header.stamp = rospy.get_rostime()
+            path_markerarray.markers[i].action = Marker.ADD
             line_head = [pos_array[i][0], pos_array[i][1], pos_array[i][2]]
             line_tail = [pos_array[i+1][0], pos_array[i+1][1], pos_array[i+1][2]]
-            marker.points = [Point(line_head[0], line_head[1], line_head[2]), Point(line_tail[0], line_tail[1], line_tail[2])]
-            marker.pose.orientation.w = 1.0
-            marker.scale.x = 0.1
+            path_markerarray.markers[i].points = [Point(line_head[0], line_head[1], line_head[2]),
+                                                  Point(line_tail[0], line_tail[1], line_tail[2])]
             color = cm.jet(color_codes[i])
-            marker.color = ColorRGBA(color[0], color[1], color[2], color[3])
+            path_markerarray.markers[i].color = ColorRGBA(color[0], color[1], color[2], color[3])
 
-            path.markers.append(marker)
+        for i in range(len(pos_array)-1, len(path_markerarray.markers)):
+            path_markerarray.markers[i].action = Marker.DELETE
 
-        return path
+        return path_markerarray
 
     def get_marker_array(self, pos_array, marker_typeID, scale=1, step_length=1):
         '''

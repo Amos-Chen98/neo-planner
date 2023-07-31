@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-30 13:50:27
+LastEditTime: 2023-07-31 19:02:43
 '''
 import os
 import sys
@@ -20,12 +20,11 @@ from mavros_msgs.srv import SetMode, SetModeRequest
 from mavros_msgs.msg import State, PositionTarget
 import numpy as np
 import rospy
-from visualization_msgs.msg import MarkerArray
+from visualization_msgs.msg import Marker, MarkerArray
 from visualizer import Visualizer
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import copy
-
 
 
 class PlannerConfig():
@@ -66,6 +65,7 @@ class TrajPlanner():
         self.planner_config = PlannerConfig()
         self.state_cmd = PositionTarget()
         self.state_cmd.coordinate_frame = 1
+        self.init_marker_arrays()
 
         # Parameters
         self.replan_mode = rospy.get_param("~replan_mode", 'online')  # 'online' or 'global (plan once)'
@@ -566,19 +566,35 @@ class TrajPlanner():
 
         self.local_pos_cmd_pub.publish(self.state_cmd)
 
-        # if self.des_state_index < self.des_state_length - 1 and (self.des_state_index < self.future_index or self.near_global_target):
         if self.des_state_index < self.des_state_length - 1:
             self.des_state_index += 1
 
-    def visualize_drone_snapshots(self):
-        '''
-        publish snapshots of drone model (mesh) along the trajectory
-        '''
-        pos_array = self.planner.get_pos_array()
-        pos_array = np.hstack((pos_array, self.des_pos_z * np.ones([len(pos_array), 1])))
-        drone_snapshots = self.visualizer.get_marker_array(pos_array, 10, 2)
-        self.drone_snapshots_pub.publish(drone_snapshots)
-        rospy.loginfo("Drone_snapshots published!")
+    def init_marker_arrays(self):
+        self.wpts_markerarray = MarkerArray()
+        max_wpts_length = 20
+        for i in range(max_wpts_length):
+            marker = Marker()
+            marker.id = i
+            marker.header.frame_id = "map"
+            marker.type = Marker.SPHERE
+            marker.pose.orientation.w = 1.0
+            marker.scale.x = 0.4
+            marker.scale.y = 0.4
+            marker.scale.z = 0.4
+
+            self.wpts_markerarray.markers.append(marker)
+
+        self.path_markerarray = MarkerArray()
+        max_path_length = 1000
+        for i in range(max_path_length):
+            marker = Marker()
+            marker.id = i
+            marker.header.frame_id = "map"
+            marker.type = Marker.LINE_STRIP
+            marker.pose.orientation.w = 1.0
+            marker.scale.x = 0.1
+
+            self.path_markerarray.markers.append(marker)
 
     def visualize_des_wpts(self):
         '''
@@ -586,8 +602,8 @@ class TrajPlanner():
         '''
         pos_array = self.planner.int_wpts  # shape: (2,n)
         pos_array = np.vstack((pos_array, self.des_pos_z * np.ones([1, pos_array.shape[1]]))).T
-        des_wpts = self.visualizer.get_marker_array(pos_array, 2, 0.4)
-        self.des_wpts_pub.publish(des_wpts)
+        self.wpts_markerarray = self.visualizer.modify_wpts_markerarray(self.wpts_markerarray, pos_array)
+        self.des_wpts_pub.publish(self.wpts_markerarray)
 
     def visualize_des_path(self):
         '''
@@ -596,8 +612,19 @@ class TrajPlanner():
         pos_array = self.planner.get_pos_array()
         pos_array = np.hstack((pos_array, self.des_pos_z * np.ones([len(pos_array), 1])))
         vel_array = np.linalg.norm(self.planner.get_vel_array(), axis=1)  # shape: (n,)
-        des_path = self.visualizer.get_path(pos_array, vel_array)
-        self.des_path_pub.publish(des_path)
+        self.path_markerarray = self.visualizer.modify_path_markerarray(self.path_markerarray, pos_array, vel_array)
+        self.des_path_pub.publish(self.path_markerarray)
+
+    def visualize_drone_snapshots(self):
+        '''
+        publish snapshots of drone model (mesh) along the trajectory
+        this is not used
+        '''
+        pos_array = self.planner.get_pos_array()
+        pos_array = np.hstack((pos_array, self.des_pos_z * np.ones([len(pos_array), 1])))
+        drone_snapshots = self.visualizer.get_marker_array(pos_array, 10, 2)
+        self.drone_snapshots_pub.publish(drone_snapshots)
+        rospy.loginfo("Drone_snapshots published!")
 
 
 if __name__ == "__main__":
