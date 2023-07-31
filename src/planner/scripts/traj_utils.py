@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-06-30 17:07:07
+LastEditTime: 2023-07-31 16:01:38
 '''
 
 import numpy as np
@@ -203,8 +203,7 @@ class TrajUtils():
         '''
         return the full pos array
         '''
-        if self.coeffs == []:
-            self.get_coeffs(self.int_wpts, self.ts)
+        self.get_coeffs(self.int_wpts, self.ts)
 
         t_samples = np.arange(0, sum(self.ts), 0.1)
         pos_array = np.zeros((t_samples.shape[0], self.D))
