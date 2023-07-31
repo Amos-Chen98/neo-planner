@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-31 15:41:26
+LastEditTime: 2023-07-31 16:09:16
 '''
 import os
 import sys
@@ -66,7 +66,6 @@ class TrajPlanner():
         self.planner_config = PlannerConfig()
         self.state_cmd = PositionTarget()
         self.state_cmd.coordinate_frame = 1
-        # self.plan_marker_array = MarkerArray()
         self.init_plan_marker_array()
 
         # Parameters
@@ -606,7 +605,8 @@ class TrajPlanner():
 
         color_scheme = [ColorRGBA(1, 1, 0, 1), # yellow
                         ColorRGBA(0, 1, 0, 1), # green
-                        ColorRGBA(0, 0, 1, 1), # blue
+                        ColorRGBA(0, 0, 1, 1), # blue        # if self.coeffs == []:
+
                         ColorRGBA(1, 1, 0, 1),
                         ColorRGBA(0, 1, 0, 1),
                         ColorRGBA(0, 0, 1, 1)]
