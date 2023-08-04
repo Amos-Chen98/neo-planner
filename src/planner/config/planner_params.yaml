@@ -1,5 +1,0 @@
-v_max: 5.0
-T_min: 2.0 # The minimum T of each piece
-T_max: 20.0
-kappa: 50 # the sample number on every piece
-weights: [1.0, 1.0, 0.001] # the weights of different costs: [energy cost, time cost, feasibility cost]

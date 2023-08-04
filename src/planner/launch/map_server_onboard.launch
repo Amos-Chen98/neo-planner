@@ -27,8 +27,8 @@
         <param name="pointcloud_min_z" value="0" />
 
         <!-- generate 2D occupancy map from this interval -->
-        <param name="occupancy_min_z" value="1.9" />
-        <param name="occupancy_max_z" value="2.1" />
+        <param name="occupancy_min_z" value="1.8" />
+        <param name="occupancy_max_z" value="2.2" />
 
     </node>
 
