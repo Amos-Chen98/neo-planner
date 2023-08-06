@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-14 17:07:35
+LastEditTime: 2023-08-06 21:59:59
 '''
 import torch
 import numpy as np
@@ -15,6 +15,8 @@ import torch.onnx
 import torchvision
 import torchvision.models as models
 import cv2
+import onnx
+import onnxruntime
 
 
 IMG_WIDTH = 480
@@ -29,6 +31,7 @@ img_path = '/training_data/starred/depth_img'
 csv_path = '/training_data/starred/train.csv'
 pth_save_path = '/saved_net/planner_net.pth'
 onnx_save_path = '/saved_net/planner_net.onnx'
+trt_save_path = '/saved_net/planner_net.trt'
 
 
 def process_input_np(depth_img, motion_info):
@@ -134,7 +137,7 @@ class PlannerNet(nn.Module):
         return x
 
 
-class NetOperator():
+class NNTrainer():
     def __init__(self):
         print(f"PyTorch version: {torch.__version__}")
         print(f"torchvision version: {torchvision.__version__}")
@@ -175,12 +178,15 @@ class NetOperator():
         # print summary of the network
         summary(self.planner_net, (BATCH_SIZE, IMG_WIDTH * IMG_HEIGHT + VECTOR_SIZE), device=self.device)
 
-    def train_and_save_net(self):
+    def train_net(self):
+
+        self.build_dataset()
+        self.init_net()
         optimizer = optim.Adam(self.planner_net.parameters(), lr=0.001)
 
         print("Start training...")
+        time_start = time.time()
 
-        # train the network
         for epoch in range(EPOCHS):
             running_loss = 0.0
             for i, data in enumerate(self.train_dataloader, 0):
@@ -206,11 +212,40 @@ class NetOperator():
             # print the training loss of each epoch
             print('Epoch %d loss: %.3f' % (epoch + 1, running_loss / len(self.train_dataloader)))
 
-        # save the trained model
-        torch.save(self.planner_net.state_dict(), self.pth_save_path)  # save a pth model
-        self.save_onnx()  # save an onnx model
+        time_end = time.time()
+        training_time = time_end - time_start
 
-    def save_onnx(self):
+        # convert the training time to hour:minute:second
+        m, s = divmod(training_time, 60)
+        h, m = divmod(m, 60)
+        print("\nTraining time cost: %d:%02d:%02d\n" % (h, m, s))
+
+    def save_test_pth_model(self):
+        torch.save(self.planner_net.state_dict(), self.pth_save_path)
+        print("pth model saved!")
+
+        self.test_pth_model()
+
+    def test_pth_model(self):
+        pth_model = PlannerNet()
+        pth_model.load_state_dict(torch.load(self.pth_save_path))
+        pth_model.to(self.device)  # move the network to GPU
+
+        # evaluate the network
+        pth_model.eval()
+
+        with torch.no_grad():
+            total_loss = 0.0
+            for i, data in enumerate(self.test_dataloader, 0):
+                data = [d.to(self.device) for d in data]  # move data to GPU
+                inputs, expert_outputs = data
+                outputs = pth_model(inputs)
+                loss = self.criterion(outputs, expert_outputs)
+                total_loss += loss.item()
+
+            print('Test loss of pth model: %.3f' % (total_loss / len(self.test_dataloader)))
+
+    def save_test_onnx_model(self):
         dummy_input = torch.randn(1, IMG_WIDTH*IMG_HEIGHT+VECTOR_SIZE)
         dummy_input = dummy_input.to(self.device)  # move the dummy input to GPU
         torch.onnx.export(self.planner_net,
@@ -219,52 +254,27 @@ class NetOperator():
                           input_names=['input'],
                           output_names=['output']
                           )
-        print("planner_net.onnx saved!")
+        print("onnx model saved!")
 
-    def load_and_test_net(self):
-        planner_net_test = PlannerNet()
-        planner_net_test.load_state_dict(torch.load(self.pth_save_path))
-        planner_net_test.to(self.device)  # move the network to GPU
+        self.test_onnx_model()
 
-        # evaluate the network
-        planner_net_test.eval()
+    def test_onnx_model(self):
+        # load the onnx model
+        onnx_model = onnx.load(self.onnx_save_path)
+        onnx.checker.check_model(onnx_model)
+        print("onnx model checked.")
 
-        with torch.no_grad():
-            total_loss = 0.0
-            for i, data in enumerate(self.test_dataloader, 0):
-                data = [d.to(self.device) for d in data]  # move data to GPU
-                inputs, expert_outputs = data
-                outputs = planner_net_test(inputs)
-                loss = self.criterion(outputs, expert_outputs)
-                total_loss += loss.item()
-
-            print('Test loss: %.3f' % (total_loss / len(self.test_dataloader)))
+    def generate_a_random_input(self):
+        img = torch.randn(1, 1, IMG_WIDTH, IMG_HEIGHT)
+        vector = torch.randn(1, VECTOR_SIZE)
 
 
 if __name__ == '__main__':
 
-    net_operator = NetOperator()
-    net_operator.build_dataset()
-    net_operator.init_net()
+    nn_trainer = NNTrainer()
 
-    time_start = time.time()
-    net_operator.train_and_save_net()
-    time_end = time.time()
-    training_time = time_end - time_start
+    nn_trainer.train_net()
 
-    # convert the training time to hour:minute:second
-    m, s = divmod(training_time, 60)
-    h, m = divmod(m, 60)
-    print("\nTraining time cost: %d:%02d:%02d\n" % (h, m, s))
+    nn_trainer.save_test_pth_model()
 
-    net_operator.load_and_test_net()
-
-    # generate a random input
-    # planner_net = PlannerNet()
-    # img = torch.randn(1, 1, IMG_WIDTH, IMG_HEIGHT)
-    # vector = torch.randn(1, VECTOR_SIZE)
-    # time_start = time.time()
-    # output = planner_net((img, vector))
-    # time_end = time.time()
-    # print("time cost: ", time_end - time_start)
-    # print("output shape: ", output.shape)
+    nn_trainer.save_test_onnx_model()
