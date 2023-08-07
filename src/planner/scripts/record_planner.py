@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-06 21:03:13
+LastEditTime: 2023-08-07 11:19:24
 '''
 import os
 import sys
@@ -20,7 +20,6 @@ def form_nn_input(depth_img, drone_state, des_pos_z, plan_init_state, target_sta
     depth_image_norm = cv2.normalize(depth_img, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
 
     # current drone state
-    drone_global_pos = drone_state.global_pos  # size: (3,)
     drone_local_vel = drone_state.local_vel  # size: (3,)
     drone_quat = drone_state.attitude  # size: (4,)
     # drone_attitude = np.array([drone_quat.w, drone_quat.x, drone_quat.y, drone_quat.z])  # size: (4,)
@@ -54,7 +53,7 @@ def form_nn_input(depth_img, drone_state, des_pos_z, plan_init_state, target_sta
                                   plan_target_pos,
                                   plan_target_vel), axis=0)
 
-    return depth_image_norm, motion_info, drone_global_pos
+    return depth_image_norm, motion_info
 
 
 def form_nn_output(drone_state, des_pos_z, int_wpts):
@@ -149,7 +148,7 @@ class RecordPlanner(MinJerkPlanner):
         # mon-day-hour-min-sec-ms, [:-3] because the last 3 digits are microsecond
 
         # process input data
-        depth_image_norm, motion_info, _ = form_nn_input(depth_img, drone_state, self.des_pos_z, plan_init_state, target_state)
+        depth_image_norm, motion_info = form_nn_input(depth_img, drone_state, self.des_pos_z, plan_init_state, target_state)
 
         # process output result: int_wpts, in body frame
         int_wpts_local = form_nn_output(drone_state, self.des_pos_z, int_wpts)

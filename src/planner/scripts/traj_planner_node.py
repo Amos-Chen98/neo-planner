@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-31 22:21:57
+LastEditTime: 2023-08-07 10:53:07
 '''
 import os
 import sys
@@ -402,7 +402,7 @@ class TrajPlanner():
         #     self.total_planning_times += 1
         # self.weighted_cost += self.planner.final_cost
 
-        # calculate the int_wpts regarding drone_state_ahead
+        # calculate the int_wpts regarding drone_state_ahead, for warmstart planning only
         self.int_wpts_local = self.get_int_wpts_local(drone_state, self.planner.int_wpts)
 
         # First planning! Retrieve planned trajectory
@@ -453,7 +453,7 @@ class TrajPlanner():
             self.total_planning_times += 1
             # self.weighted_cost += self.planner.final_cost
 
-        # calculate the int_wpts regarding drone_state_ahead
+        # calculate the int_wpts regarding drone_state_ahead, for warmstart planning only
         self.int_wpts_local = self.get_int_wpts_local(drone_state_ahead, self.planner.int_wpts)
 
         # retrieve planned trajectory

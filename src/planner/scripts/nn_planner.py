@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-02 17:07:51
+LastEditTime: 2023-08-07 12:15:41
 '''
 import os
 import sys
@@ -14,13 +14,20 @@ import onnxruntime  # torch must be included before onnxruntime, ref:https://sta
 from record_planner import form_nn_input
 
 
+
 class NNPlanner(TrajUtils):
     def __init__(self, des_pos_z=2.0):
         super().__init__()
 
         rospkg_path = current_path[:-8]  # -8 remove '/scripts'
-        model_path = rospkg_path + '/saved_net/planner_net.onnx'
+        onnx_model_path = rospkg_path + '/saved_net/planner_net.onnx'
 
+        self.init_onnx_model(onnx_model_path)
+        self.init_planning_params(des_pos_z)
+
+        print("NNPlanner initialized")
+
+    def init_onnx_model(self, onnx_model_path):
         # load onnx model, ONNX runtime reference: https://onnxruntime.ai/docs/api/python/api_summary.html
         print("ONNX runtime version: ", onnxruntime.__version__)
 
@@ -34,7 +41,7 @@ class NNPlanner(TrajUtils):
             provider = ['CPUExecutionProvider']
             print("CPUExecutionProvider is available")
 
-        self.session = onnxruntime.InferenceSession(model_path,
+        self.session = onnxruntime.InferenceSession(onnx_model_path,
                                                     providers=provider)
 
         self.onnx_input_name = self.session.get_inputs()[0].name
@@ -44,6 +51,7 @@ class NNPlanner(TrajUtils):
         print("ONNX input name: ", self.onnx_input_name)
         print("ONNX output name: ", self.onnx_output_name)
 
+    def init_planning_params(self, des_pos_z):
         # Planning parameters
         self.M = 3
         self.s = 3
@@ -53,13 +61,17 @@ class NNPlanner(TrajUtils):
         self.tail_state = np.zeros((self.s, self.D))
         self.des_pos_z = des_pos_z
 
-        print("NNPlanner initialized")
-
     def nn_traj_plan(self, depth_img, drone_state, plan_init_state, target_state):
-        depth_image_norm, motion_info, drone_global_pos = form_nn_input(depth_img, drone_state, self.des_pos_z, plan_init_state, target_state)
-        self.plan(depth_image_norm, motion_info, drone_global_pos)
+        depth_image_norm, motion_info = form_nn_input(depth_img, drone_state, self.des_pos_z, plan_init_state, target_state)
+        self.drone_state = drone_state
+        self.head_state[0, :self.D] = plan_init_state.global_pos[:2]
+        self.head_state[1, :self.D] = plan_init_state.global_vel[:2]
+        self.tail_state[0, :self.D] = target_state[0, :2]
+        self.tail_state[1, :self.D] = target_state[1, :2]
 
-    def plan(self, depth_image_norm, motion_info, drone_global_pos):
+        self.onnx_predict(depth_image_norm, motion_info)
+
+    def onnx_predict(self, depth_image_norm, motion_info):
         '''
         input:
         depth_image_norm: one depth img of original size
@@ -71,7 +83,7 @@ class NNPlanner(TrajUtils):
                                     plan_target_vel), axis=0) (3,)
         Stores the results in self.int_wpts (D, M-1), self.ts (M, 1)
         '''
-        ortvalue = self.convert_input(depth_image_norm, motion_info, drone_global_pos)
+        ortvalue = self.get_ortvalue(depth_image_norm, motion_info)
 
         output = self.session.run([self.onnx_output_name],
                                   {self.onnx_input_name: ortvalue})[0]  # size: (1, 9)
@@ -85,25 +97,13 @@ class NNPlanner(TrajUtils):
         # print("int_wpts: ", self.int_wpts)
         # print("ts: ", self.ts)
 
-    def convert_input(self, depth_image_norm, motion_info, drone_global_pos):
+    def get_ortvalue(self, depth_image_norm, motion_info):
         '''
         convert input to the format that ONNX model accepts
-        also get self.head_state and self.tail_state from motion_info
         '''
-
         input_np = np.array([process_input_np(depth_image_norm, motion_info)])  # to make the shape (xx,) to (1, xx)
 
         ortvalue = onnxruntime.OrtValue.ortvalue_from_numpy(input_np)
-
-        # get boundary conditions, this is used for calculating full state cmd
-        self.head_state[0, :self.D] = motion_info[12:14]  # init pos_x, pos_y
-        self.head_state[1, :self.D] = motion_info[15:17]  # init vel_x, vel_y
-        self.tail_state[0, :self.D] = motion_info[18:20]  # target pos_x, pos_y
-        self.tail_state[1, :self.D] = motion_info[21:23]  # target vel_x, vel_y
-
-        # get drone local state
-        self.drone_attitude = motion_info[3:12].reshape(3, 3)  # as a rotation matrix
-        self.drone_global_pos = drone_global_pos
 
         return ortvalue
 
@@ -111,9 +111,12 @@ class NNPlanner(TrajUtils):
         '''
         convert wpts from body frame to world frame
         '''
-        # convert int_wpts to world frame
+        # drone_attitude = motion_info[3:12].reshape(3, 3)  # as a rotation matrix
+        drone_attitude = self.drone_state.attitude.rotation_matrix    # as a rotation matrix
+        drone_global_pos_2d = self.drone_state.global_pos
+
         int_wpts_world = np.zeros((self.nn_output_D, self.M-1))
         for i in range(self.M-1):
-            int_wpts_world[:, i] = self.drone_attitude @ int_wpts[:, i] + self.drone_global_pos
+            int_wpts_world[:, i] = drone_attitude @ int_wpts[:, i] + drone_global_pos_2d
 
         return int_wpts_world
