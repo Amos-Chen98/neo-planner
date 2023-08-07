@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-31 15:36:27
+LastEditTime: 2023-08-07 15:16:24
 '''
 from nav_msgs.msg import Path
 import rospy
@@ -21,7 +21,7 @@ class Visualizer():
         self.drone_marker = Marker()
         self.drone_marker.header.frame_id = "map"
         self.drone_marker.type = self.drone_marker.MESH_RESOURCE
-        self.drone_marker.mesh_resource = "package://simulator/models/meshes/iris.stl"
+        self.drone_marker.mesh_resource = "package://planner/models/meshes/iris.stl"
         self.drone_marker.color.r = 81/256
         self.drone_marker.color.g = 196/256
         self.drone_marker.color.b = 211/256
@@ -34,7 +34,6 @@ class Visualizer():
         self.odom_sub = rospy.Subscriber('/mavros/local_position/odom', Odometry, self.odom_cb)
 
         # Publishers
-        self.marker_pub = rospy.Publisher('/robotMarker', MarkerArray, queue_size=10)
         self.real_path_pub = rospy.Publisher('/real_path', Path, queue_size=10)
         self.drone_marker_pub = rospy.Publisher('/drone_marker', Marker, queue_size=10)
 

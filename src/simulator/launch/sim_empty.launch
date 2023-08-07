@@ -4,9 +4,9 @@
 	<include file="$(find px4)/launch/mavros_posix_sitl.launch" />
 
     <!-- Visualizer -->
-    <node pkg="simulator" type="visualizer_node.py" name="visualizer" />
+    <node pkg="planner" type="visualizer_node.py" name="visualizer" />
 
     <!-- Rviz -->
-    <node pkg="rviz" type="rviz" name="rviz" args="-d $(find simulator)/rviz/rviz_config.rviz" />
+    <node pkg="rviz" type="rviz" name="rviz" args="-d $(find planner)/rviz/rviz_config.rviz" />
 
 </launch>

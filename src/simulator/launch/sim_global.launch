@@ -32,17 +32,4 @@
         <param name="hz" type="int" value="2" />
     </node>
 
-    <include file="$(find planner)/launch/map_server_global.launch" />
-
-    <include file="$(find planner)/launch/tf_server.launch" />
-
-    <!-- Visualizer -->
-    <node pkg="simulator" type="visualizer_node.py" name="visualizer" />
-
-    <!-- Rviz -->
-    <node pkg="rviz" type="rviz" name="rviz" args="-d $(find simulator)/rviz/rviz_config.rviz" />
-
-    <!-- plotjunggler -->
-    <!-- <node pkg="plotjuggler" type="plotjuggler" name="plotjuggler" args="-l $(find simulator)/rviz/plotjuggler_config.xml" /> -->
-
 </launch>

@@ -35,4 +35,13 @@
     <!-- get ESDF map -->
     <node pkg="planner" type="esdf_vis_node.py" name="esdf_vis" output="screen" />
 
+    <!-- TF -->
+    <include file="$(find planner)/launch/tf_server.launch" />
+
+    <!-- Visualizer -->
+    <node pkg="planner" type="visualizer_node.py" name="visualizer" />
+
+    <!-- Rviz -->
+    <node pkg="rviz" type="rviz" name="rviz" args="-d $(find planner)/rviz/rviz_config.rviz" />
+
 </launch>

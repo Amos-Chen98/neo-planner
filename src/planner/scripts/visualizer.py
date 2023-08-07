@@ -86,8 +86,8 @@ class Visualizer():
             marker.color = ColorRGBA(color[0], color[1], color[2], color[3])
 
             if marker_typeID == 10:
-                marker.mesh_resource = "package://simulator/models/meshes/iris.stl"
-                # marker.mesh_resource = "package://simulator/models/meshes/quad.stl"
+                marker.mesh_resource = "package://planner/models/meshes/iris.stl"
+                # marker.mesh_resource = "package://planner/models/meshes/quad.stl"
 
             markerArray.markers.append(marker)
 

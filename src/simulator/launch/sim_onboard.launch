@@ -22,14 +22,4 @@
         <arg name="gazebo_world" value="$(arg gazebo_world)" />
     </include>
 
-    <include file="$(find planner)/launch/map_server_onboard.launch" />
-
-    <include file="$(find planner)/launch/tf_server.launch" />
-
-    <!-- Visualizer -->
-    <node pkg="simulator" type="visualizer_node.py" name="visualizer" />
-
-    <!-- Rviz -->
-    <node pkg="rviz" type="rviz" name="rviz" args="-d $(find simulator)/rviz/rviz_config.rviz" />
-
 </launch>
