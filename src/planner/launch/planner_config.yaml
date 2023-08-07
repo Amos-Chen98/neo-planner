@@ -19,6 +19,6 @@ longitu_step_dis: 5.0
 lateral_step_length: 1.0
 target_reach_threshold: 0.2
 cmd_hz: 300
-selected_planner: basic # 'basic', 'batch', 'record', 'nn', 'enhanced', or 'warmstart'
+selected_planner: nn # 'basic', 'batch', 'record', 'nn', 'enhanced', or 'warmstart'
 replan_period: 1.0
 record_metric: True
