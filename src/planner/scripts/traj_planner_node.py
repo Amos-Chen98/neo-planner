@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-08-07 10:53:07
+LastEditTime: 2023-08-08 14:35:44
 '''
 import os
 import sys
@@ -8,6 +8,7 @@ current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
 from tf.transformations import quaternion_from_euler
 import copy
+import cv2
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
 from visualizer import Visualizer
