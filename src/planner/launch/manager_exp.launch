@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<launch>
+    <node pkg="planner" type="manager_node.py" name="manager" output="screen">
+        <rosparam file="$(find planner)/launch/manager_config_exp.yaml" command="load"/>
+    </node>
+
+</launch>
