@@ -12,10 +12,11 @@ import onnxruntime  # torch must be included before onnxruntime, ref:https://sta
 import numpy as np
 from traj_utils import TrajUtils
 from nn_trainer import process_input_np
-import pycuda.driver as cuda
-import tensorrt as trt
-import pycuda.autoinit # this must be included
-import cv2
+import time
+# import pycuda.driver as cuda
+# import tensorrt as trt
+# import pycuda.autoinit # this must be included
+# import cv2
 
 
 IMG_WIDTH = 480
@@ -62,58 +63,58 @@ class NNPlanner(TrajUtils):
         print("ONNX input name: ", self.onnx_input_name)
         print("ONNX output name: ", self.onnx_output_name)
 
-    def init_trt_model(self, trt_model_path):
-        print("TensorRT version: ", trt.__version__)
-        TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
-        with open(trt_model_path, "rb") as f, trt.Runtime(TRT_LOGGER) as runtime:
-            self.engine = runtime.deserialize_cuda_engine(f.read())
+    # def init_trt_model(self, trt_model_path):
+    #     print("TensorRT version: ", trt.__version__)
+    #     TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
+    #     with open(trt_model_path, "rb") as f, trt.Runtime(TRT_LOGGER) as runtime:
+    #         self.engine = runtime.deserialize_cuda_engine(f.read())
         
-        self.context = self.engine.create_execution_context()
+    #     self.context = self.engine.create_execution_context()
 
-        input_index = self.engine.get_binding_index("input")
-        output_index = self.engine.get_binding_index("output")
-        input_shape = self.engine.get_binding_shape(input_index)
-        self.output_shape = self.engine.get_binding_shape(output_index)
-        print("input shape: ", input_shape)
-        print("output shape: ", self.output_shape)
+    #     input_index = self.engine.get_binding_index("input")
+    #     output_index = self.engine.get_binding_index("output")
+    #     input_shape = self.engine.get_binding_shape(input_index)
+    #     self.output_shape = self.engine.get_binding_shape(output_index)
+    #     print("input shape: ", input_shape)
+    #     print("output shape: ", self.output_shape)
 
-        input_dtype = trt.nptype(self.engine.get_binding_dtype(input_index))
-        self.output_dtype = trt.nptype(self.engine.get_binding_dtype(output_index))
+    #     input_dtype = trt.nptype(self.engine.get_binding_dtype(input_index))
+    #     self.output_dtype = trt.nptype(self.engine.get_binding_dtype(output_index))
 
-        input_size = np.product(input_shape) * np.dtype(input_dtype).itemsize
-        output_size = np.product(self.output_shape) * np.dtype(self.output_dtype).itemsize
-        # input_size = trt.volume(input_shape) * trt.float16.itemsize
-        # output_size = trt.volume(self.output_shape) * trt.float16.itemsize
+    #     input_size = np.product(input_shape) * np.dtype(input_dtype).itemsize
+    #     output_size = np.product(self.output_shape) * np.dtype(self.output_dtype).itemsize
+    #     # input_size = trt.volume(input_shape) * trt.float16.itemsize
+    #     # output_size = trt.volume(self.output_shape) * trt.float16.itemsize
         
-        # Allocate device memory for input and output
-        self.d_input = cuda.mem_alloc(int(input_size)) # allocate space in device (GPU)
-        self.d_output = cuda.mem_alloc(int(output_size))
-        # self.d_input = cuda.mem_alloc(int(input_size)) # allocate space in device (GPU)
-        # self.d_output = cuda.mem_alloc(int(output_size))
+    #     # Allocate device memory for input and output
+    #     self.d_input = cuda.mem_alloc(int(input_size)) # allocate space in device (GPU)
+    #     self.d_output = cuda.mem_alloc(int(output_size))
+    #     # self.d_input = cuda.mem_alloc(int(input_size)) # allocate space in device (GPU)
+    #     # self.d_output = cuda.mem_alloc(int(output_size))
         
-    def process_trt_input(self, depth_img, motion_info):
-        '''
-        :param depth_img: numpy array
-        :param motion_info: numpy array
-        :return: numpy array
-        '''
-        depth_img_resized = cv2.resize(depth_img, (IMG_WIDTH, IMG_HEIGHT))
-        img_flatten = depth_img_resized.reshape(-1)
-        return np.concatenate((img_flatten.astype(np.float16), motion_info.astype(np.float16)))
+    # def process_trt_input(self, depth_img, motion_info):
+    #     '''
+    #     :param depth_img: numpy array
+    #     :param motion_info: numpy array
+    #     :return: numpy array
+    #     '''
+    #     depth_img_resized = cv2.resize(depth_img, (IMG_WIDTH, IMG_HEIGHT))
+    #     img_flatten = depth_img_resized.reshape(-1)
+    #     return np.concatenate((img_flatten.astype(np.float16), motion_info.astype(np.float16)))
 
-    def trt_predict(self, depth_image_norm, motion_info):
-        input = np.random.rand(*INPUT_SHAPE).astype(np.float16)
-        print("real input shape: ", input.shape)
-        cuda.memcpy_htod(self.d_input, input) # from host(memory) to device (GPU)
+    # def trt_predict(self, depth_image_norm, motion_info):
+    #     input = np.random.rand(*INPUT_SHAPE).astype(np.float16)
+    #     print("real input shape: ", input.shape)
+    #     cuda.memcpy_htod(self.d_input, input) # from host(memory) to device (GPU)
 
-        # Execute inference
-        self.context.execute_v2(bindings=[int(self.d_input), int(self.d_output)])
+    #     # Execute inference
+    #     self.context.execute_v2(bindings=[int(self.d_input), int(self.d_output)])
 
-        # Copy output from device memory
-        output = np.empty(self.output_shape, dtype=self.output_dtype)
-        cuda.memcpy_dtoh(output, self.d_output)
+    #     # Copy output from device memory
+    #     output = np.empty(self.output_shape, dtype=self.output_dtype)
+    #     cuda.memcpy_dtoh(output, self.d_output)
         
-        print("output: ", output)
+    #     print("output: ", output)
 
         # int_wpts_local = output[0][:self.nn_output_D*(self.M-1)].reshape(self.M-1, self.nn_output_D).T  # col major, so transpose
         # self.ts = output[0][self.nn_output_D*(self.M-1):]
@@ -171,6 +172,7 @@ class NNPlanner(TrajUtils):
         self.des_pos_z = des_pos_z
 
     def nn_traj_plan(self, depth_img, drone_state, plan_init_state, target_state):
+        time_start = time.time()
         depth_image_norm, motion_info = form_nn_input(depth_img, drone_state, self.des_pos_z, plan_init_state, target_state)
         self.drone_state = drone_state
         self.head_state[0, :self.D] = plan_init_state.global_pos[:2]
@@ -178,8 +180,10 @@ class NNPlanner(TrajUtils):
         self.tail_state[0, :self.D] = target_state[0, :2]
         self.tail_state[1, :self.D] = target_state[1, :2]
 
-        # self.onnx_predict(depth_image_norm, motion_info)
-        self.trt_predict(depth_image_norm, motion_info)
+        self.onnx_predict(depth_image_norm, motion_info)
+        # self.trt_predict(depth_image_norm, motion_info)
+        time_end = time.time()
+        print("ONNX inference time: {}".format(time_end - time_start))
 
     def onnx_predict(self, depth_image_norm, motion_info):
         '''

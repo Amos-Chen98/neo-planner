@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-31 20:36:21
+LastEditTime: 2023-08-11 13:55:05
 '''
 import os
 import sys
@@ -56,6 +56,8 @@ class Manager():
         self.pos_cmd.coordinate_frame = 1
         self.pos_cmd.position.z = self.hover_height
         self.global_target = None
+        self.takeoff_pos_x = 0.0
+        self.takeoff_pos_y = 0.0
 
         # Flags and counters
         self.odom_received = False
@@ -254,6 +256,9 @@ class Manager():
         self.drone_state.attitude = quat
 
     def takeoff(self):
+        self.takeoff_pos_x = self.drone_state.global_pos[0]
+        self.takeoff_pos_y = self.drone_state.global_pos[1]
+
         self.takeoff_cmd_timer = rospy.Timer(rospy.Duration(0.1), self.takeoff_cmd_cb)
 
         if not self.flight_state.armed and self.arming_client.call(self.arm_req).success == True:
@@ -283,8 +288,8 @@ class Manager():
         if self.flight_state.mode != "OFFBOARD":
             self.set_mode_client.call(self.offb_req)
 
-        self.pos_cmd.position.x = self.drone_state.global_pos[0]
-        self.pos_cmd.position.y = self.drone_state.global_pos[1]
+        self.pos_cmd.position.x = self.takeoff_pos_x
+        self.pos_cmd.position.y = self.takeoff_pos_y
         self.local_pos_cmd_pub.publish(self.pos_cmd)
 
         if self.drone_state.global_pos[2] >= self.hover_height - 0.05:

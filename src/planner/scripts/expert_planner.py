@@ -5,7 +5,7 @@ LastEditTime: 2023-07-30 21:36:55
 import math
 import pprint
 import numpy as np
-import scipy
+import scipy.optimize as opt
 import math
 from traj_utils import TrajUtils
 
@@ -209,7 +209,7 @@ class MinJerkPlanner(TrajUtils):
 
         x0 = np.concatenate((np.reshape(self.int_wpts, (self.D*(self.M - 1),)), self.tau), axis=0)
 
-        res = scipy.optimize.minimize(self.get_cost,
+        res = opt.minimize(self.get_cost,
                                       x0,
                                       method='L-BFGS-B',
                                       jac=self.get_grad,
