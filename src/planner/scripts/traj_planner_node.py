@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-08-08 14:35:44
+LastEditTime: 2023-08-11 13:57:46
 '''
 import os
 import sys
@@ -398,9 +398,9 @@ class TrajPlanner():
         rospy.loginfo("Planning time: {}".format(time_end - time_start))
 
         # collect metrics
-        # if self.record_metric:
-        #     self.total_planning_duration += time_end - time_start
-        #     self.total_planning_times += 1
+        if self.record_metric:
+            self.total_planning_duration += time_end - time_start
+            self.total_planning_times += 1
         # self.weighted_cost += self.planner.final_cost
 
         # calculate the int_wpts regarding drone_state_ahead, for warmstart planning only
@@ -564,9 +564,11 @@ class TrajPlanner():
         self.state_cmd.acceleration_or_force.y = self.des_state_array[self.des_state_index][2][1]
         self.state_cmd.acceleration_or_force.z = 0
 
-        self.state_cmd.yaw = np.arctan2(self.des_state_array[self.des_state_index][0][1] - self.des_state_array[self.des_state_index - 1][0][1],
-                                        self.des_state_array[self.des_state_index][0][0] - self.des_state_array[self.des_state_index - 1][0][0])
+        # self.state_cmd.yaw = np.arctan2(self.des_state_array[self.des_state_index][0][1] - self.des_state_array[self.des_state_index - 1][0][1],
+        #                                 self.des_state_array[self.des_state_index][0][0] - self.des_state_array[self.des_state_index - 1][0][0])
 
+        self.state_cmd.yaw = 0.0
+        
         self.state_cmd.header.stamp = rospy.Time.now()
 
         self.local_pos_cmd_pub.publish(self.state_cmd)
