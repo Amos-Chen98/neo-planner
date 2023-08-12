@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-08-12 16:29:57
+LastEditTime: 2023-08-12 16:36:41
 '''
 import os
 import sys
@@ -31,7 +31,7 @@ class NNPlanner(TrajUtils):
         super().__init__()
 
         rospkg_path = current_path[:-8]  # -8 remove '/scripts'
-        onnx_model_path = rospkg_path + '/saved_net/starred/planner_net.onnx'
+        onnx_model_path = rospkg_path + '/saved_net/planner_net.onnx'
 
         self.init_onnx_model(onnx_model_path)
 
