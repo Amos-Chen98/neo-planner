@@ -2,7 +2,7 @@
 <launch>
     <arg name="frame_id" default="map"/>
     <arg name="pcl_topic" default="/camera/depth/points"/>
-    <arg name="sensor_max_range" default="5.0"/>
+    <arg name="sensor_max_range" default="6.0"/>
 
     <!-- Octomap -->
     <node pkg="octomap_server" type="octomap_server_node" name="octomap_server">
@@ -28,7 +28,7 @@
 
         <!-- generate 2D occupancy map from this interval -->
         <param name="occupancy_min_z" value="1.8" />
-        <param name="occupancy_max_z" value="2.2" />
+        <param name="occupancy_max_z" value="10" />
 
     </node>
 
