@@ -22,3 +22,4 @@ cmd_hz: 300
 selected_planner: nn # 'basic', 'batch', 'record', 'nn', 'enhanced', or 'warmstart'
 replan_period: 1.0
 record_metric: True
+yaw_shift_tol: 0.17453

@@ -1,32 +1,32 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-08-11 13:57:46
+LastEditTime: 2023-08-15 13:14:46
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from tf.transformations import quaternion_from_euler
-import copy
-import cv2
-from cv_bridge import CvBridge
-from sensor_msgs.msg import Image
-from visualizer import Visualizer
-from visualization_msgs.msg import Marker, MarkerArray
-import rospy
-import numpy as np
-from mavros_msgs.msg import State, PositionTarget
-from mavros_msgs.srv import SetMode, SetModeRequest
-from expert_planner import MinJerkPlanner
-from pyquaternion import Quaternion
-import time
-from esdf import ESDF
-from nav_msgs.msg import Odometry, Path, OccupancyGrid
-import actionlib
-from planner.msg import *
-from nn_planner import NNPlanner
-from record_planner import RecordPlanner
+from tf.transformations import euler_from_quaternion
 from enhanced_planner import EnhancedPlanner
+from record_planner import RecordPlanner
+from nn_planner import NNPlanner
+from planner.msg import *
+import actionlib
+from nav_msgs.msg import Odometry, Path, OccupancyGrid
+from esdf import ESDF
+import time
+from pyquaternion import Quaternion
+from expert_planner import MinJerkPlanner
+from mavros_msgs.srv import SetMode, SetModeRequest
+from mavros_msgs.msg import State, PositionTarget
+import numpy as np
+import rospy
+from visualization_msgs.msg import Marker, MarkerArray
+from visualizer import Visualizer
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
+import cv2
+import copy
 
 
 
@@ -52,6 +52,7 @@ class DroneState():
         self.global_vel = np.zeros(3)
         self.local_vel = np.zeros(3)
         self.attitude = Quaternion()  # ref: http://kieranwynn.github.io/pyquaternion/
+        self.yaw = 0.0
 
 
 class TrajPlanner():
@@ -82,6 +83,7 @@ class TrajPlanner():
         self.move_vel = self.planner_config.v_max*0.8
         self.des_pos_z = self.planner_config.des_pos_z
         self.record_metric = rospy.get_param("~record_metric", False)
+        self.yaw_shift_tol = rospy.get_param("~yaw_shift_tol", 0.17453)
 
         # Planner
         if self.selected_planner in ['basic', 'batch', 'warmstart']:
@@ -155,6 +157,14 @@ class TrajPlanner():
         self.drone_state.global_vel = global_vel
         self.drone_state.local_vel = local_vel
         self.drone_state.attitude = quat
+
+        # get yaw from quaternion
+        euler = euler_from_quaternion([data.pose.pose.orientation.x,
+                                       data.pose.pose.orientation.y,
+                                       data.pose.pose.orientation.z,
+                                       data.pose.pose.orientation.w])
+
+        self.drone_state.yaw = euler[2]
 
         if self.target_received and np.linalg.norm(global_pos[:2] - self.global_target) < self.target_reach_threshold:
             rospy.loginfo("Global target reached!\n")
@@ -239,6 +249,8 @@ class TrajPlanner():
         if self.replan_mode != 'global':
             average_planning_duration = self.total_planning_duration / self.total_planning_times
             rospy.loginfo("Average planning duration: %f", average_planning_duration)
+
+        rospy.loginfo("Total planning times: %d", self.total_planning_times)
 
         weighted_metric = self.get_weighted_metric(self.map, self.drone_state_list)
         rospy.loginfo("Weighted metric: %s\n", weighted_metric)
@@ -564,11 +576,24 @@ class TrajPlanner():
         self.state_cmd.acceleration_or_force.y = self.des_state_array[self.des_state_index][2][1]
         self.state_cmd.acceleration_or_force.z = 0
 
+        # self.state_cmd.yaw = 0.0
+
         # self.state_cmd.yaw = np.arctan2(self.des_state_array[self.des_state_index][0][1] - self.des_state_array[self.des_state_index - 1][0][1],
         #                                 self.des_state_array[self.des_state_index][0][0] - self.des_state_array[self.des_state_index - 1][0][0])
 
-        self.state_cmd.yaw = 0.0
-        
+        des_yaw = np.arctan2(self.des_state_array[self.des_state_index][0][1] - self.des_state_array[self.des_state_index - 1][0][1],
+                             self.des_state_array[self.des_state_index][0][0] - self.des_state_array[self.des_state_index - 1][0][0])
+
+        yaw_shift = des_yaw - self.drone_state.yaw
+        if abs(yaw_shift) < self.yaw_shift_tol:
+            self.state_cmd.yaw = des_yaw
+        else:
+            self.state_cmd.yaw = self.drone_state.yaw + np.sign(yaw_shift)*self.yaw_shift_tol
+
+        # print("current yaw: {}".format(self.drone_state.yaw*180/np.pi))
+        # print("Des yaw: {}".format(des_yaw*180/np.pi))
+        # print("State cmd yaw: {}".format(self.state_cmd.yaw*180/np.pi))
+
         self.state_cmd.header.stamp = rospy.Time.now()
 
         self.local_pos_cmd_pub.publish(self.state_cmd)
