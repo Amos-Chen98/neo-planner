@@ -14,7 +14,7 @@ Before using this project, please make sure the following dependencies have been
 - PX4-Autopilot:
 
 ```
-git clone <https://github.com/PX4/PX4-Autopilot.git>
+git clone https://github.com/PX4/PX4-Autopilot.git
 cd PX4-Autopilot
 git checkout v1.13.2
 git submodule update --init --recursive
@@ -64,7 +64,7 @@ ls model.tar.g* | xargs -n1 tar xzvf
 1. Clone and build this repo:
 
 ```bash
-git clone <https://github.com/Amos-Chen98/drone_ws.git>
+git clone https://github.com/Amos-Chen98/drone_ws.git
 cd drone_ws
 catkin build
 ```
