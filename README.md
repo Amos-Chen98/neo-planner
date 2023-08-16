@@ -81,7 +81,26 @@ export GAZEBO_PLUGIN_PATH=$GAZEBO_PLUGIN_PATH:/usr/lib/x86_64-linux-gnu/gazebo-1
 
 ## **Usage**
 
-### **1. Generate octomap from Gazebo world**
+### **1. Trajectory planning and tracking**
+
+updated 08/16/2023.
+
+Step 1: launch QGC,
+
+Step 2: Launch the following files:
+
+```bash
+roslaunch simulator sim_onboard.launch
+roslaunch planner map_server_onboard.launch
+roslaunch planner planner.launch
+roslaunch planner manager.launch
+```
+
+Step 3: Set goal point with `2D Nav Goal` in RViz, and you will see the drone perform trajectory planning and tracking.
+
+### **2. Generate octomap from Gazebo world**
+
+If you want to generate ground truth octomap for test or training, follow the instructions.
 
 updated 01/23/2023
 
@@ -106,20 +125,3 @@ $ rosservice call /world/build_octomap '{bounding_box_origin: {x: 0, y: 0, z: 15
 ```
 
 Note that the above rosservice call has a few adjustable variables. The bounding box origin can be set as desired (in meters) as well as the bounding box lengths (in meters) relative to the bounding box origin. The bounding box lengths are done in both (+/-) directions relative to the origin. For example, in the `rosservice` call above, from `(0, 0, 0)`, our bounding box will start at **-15 meters** and end at **+15 meters** in the X and Y directions. In the Z direction, we will start at **0 meters** and end at **30 meters**.
-
-### **2. Trajectory planning and tracking**
-
-updated 08/16/2023.
-
-Step 1: launch QGC,
-
-Step 2: Launch the following files:
-
-```bash
-roslaunch simulator sim_onboard.launch
-roslaunch planner map_server_onboard.launch
-roslaunch planner planner.launch
-roslaunch planner manager.launch
-```
-
-Step 3: Set goal point with `2D Nav Goal` in RViz, and you will see the drone perform trajectory planning and tracking.
