@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-08-15 13:14:46
+LastEditTime: 2023-08-16 17:24:33
 '''
 import os
 import sys
@@ -578,17 +578,17 @@ class TrajPlanner():
 
         # self.state_cmd.yaw = 0.0
 
-        # self.state_cmd.yaw = np.arctan2(self.des_state_array[self.des_state_index][0][1] - self.des_state_array[self.des_state_index - 1][0][1],
-        #                                 self.des_state_array[self.des_state_index][0][0] - self.des_state_array[self.des_state_index - 1][0][0])
+        self.state_cmd.yaw = np.arctan2(self.des_state_array[self.des_state_index][0][1] - self.des_state_array[self.des_state_index - 1][0][1],
+                                        self.des_state_array[self.des_state_index][0][0] - self.des_state_array[self.des_state_index - 1][0][0])
 
-        des_yaw = np.arctan2(self.des_state_array[self.des_state_index][0][1] - self.des_state_array[self.des_state_index - 1][0][1],
-                             self.des_state_array[self.des_state_index][0][0] - self.des_state_array[self.des_state_index - 1][0][0])
+        # des_yaw = np.arctan2(self.des_state_array[self.des_state_index][0][1] - self.des_state_array[self.des_state_index - 1][0][1],
+        #                      self.des_state_array[self.des_state_index][0][0] - self.des_state_array[self.des_state_index - 1][0][0])
 
-        yaw_shift = des_yaw - self.drone_state.yaw
-        if abs(yaw_shift) < self.yaw_shift_tol:
-            self.state_cmd.yaw = des_yaw
-        else:
-            self.state_cmd.yaw = self.drone_state.yaw + np.sign(yaw_shift)*self.yaw_shift_tol
+        # yaw_shift = des_yaw - self.drone_state.yaw
+        # if abs(yaw_shift) < self.yaw_shift_tol:
+        #     self.state_cmd.yaw = des_yaw
+        # else:
+        #     self.state_cmd.yaw = self.drone_state.yaw + np.sign(yaw_shift)*self.yaw_shift_tol
 
         # print("current yaw: {}".format(self.drone_state.yaw*180/np.pi))
         # print("Des yaw: {}".format(des_yaw*180/np.pi))
