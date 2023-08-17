@@ -72,7 +72,7 @@ catkin build
 
 1. Configure the environment variables: Add the following lines to `.bashrc`/`.zshrc`
 
-```
+```bash
 alias drone_ws_go='source <path_to_drone_ws>/devel/setup.bash;
 source ~/PX4-Autopilot/Tools/setup_gazebo.bash ~/PX4-Autopilot ~/PX4-Autopilot/build/px4_sitl_default;
 export ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:~/PX4-Autopilot;
