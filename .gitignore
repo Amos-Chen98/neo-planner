@@ -61,3 +61,6 @@ training_data/
 # saved_net/
 planning_result/
 *.bag
+
+# IDEA
+.idea
