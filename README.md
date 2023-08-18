@@ -13,10 +13,10 @@ Before using this project, please make sure the following dependencies have been
 - ROS1 with Gazebo: https://wiki.ros.org/noetic/Installation/Ubuntu
 - PX4-Autopilot:
 
-```
+```bash
 git clone https://github.com/PX4/PX4-Autopilot.git
 cd PX4-Autopilot
-git checkout v1.13.2
+git reset --hard v1.13.2  # harder than git checkout
 git submodule update --init --recursive
 bash Tools/setup/ubuntu.sh
 make px4_sitl gazebo
@@ -35,8 +35,8 @@ Ref:  https://docs.px4.io/main/en/dev_setup/dev_env_linux_ubuntu.html
 Besides, install the following dependencies.
 
 ```bash
-sudo apt-get install ros-noetic-octomap*
-sudo apt-get install ros-noetic-octovis
+sudo apt install ros-noetic-octomap*
+sudo apt install ros-noetic-octovis
 pip install octomap-python
 pip install pyquaternion
 pip install scipy
@@ -52,11 +52,12 @@ pip install torchvision
 
 ```bash
 cd ~/.gazebo/
-mkdir -p models
+mkdir models
 cd models
 wget http://file.ncnynl.com/ros/gazebo_models.txt
 wget -i gazebo_models.txt
 ls model.tar.g* | xargs -n1 tar xzvf
+rm model.tar.g*
 ```
 
 ### **Install this project (as a ROS workspace)**
@@ -69,15 +70,17 @@ cd drone_ws
 catkin build
 ```
 
-1. Configure the environment variables: Add the following lines to `.bashrc`
+1. Configure the environment variables: Add the following lines to `.bashrc`/`.zshrc`
 
+```bash
+alias drone_ws_go='source <path_to_drone_ws>/devel/setup.bash;
+source ~/PX4-Autopilot/Tools/setup_gazebo.bash ~/PX4-Autopilot ~/PX4-Autopilot/build/px4_sitl_default;
+export ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:~/PX4-Autopilot;
+export ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:~/PX4-Autopilot/Tools/sitl_gazebo;
+export GAZEBO_PLUGIN_PATH=$GAZEBO_PLUGIN_PATH:/usr/lib/x86_64-linux-gnu/gazebo-11/plugins'
 ```
-source <path_to_drone_ws>/devel/setup.bash
-source ~/PX4-Autopilot/Tools/setup_gazebo.bash ~/PX4-Autopilot ~/PX4-Autopilot/build/px4_sitl_default
-export ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:~/PX4-Autopilot
-export ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:~/PX4-Autopilot/Tools/sitl_gazebo
-export GAZEBO_PLUGIN_PATH=$GAZEBO_PLUGIN_PATH:/usr/lib/x86_64-linux-gnu/gazebo-11/plugins
-```
+
+Run `drone_ws_go`  in shell to activate.
 
 ## **Usage**
 
@@ -85,7 +88,7 @@ export GAZEBO_PLUGIN_PATH=$GAZEBO_PLUGIN_PATH:/usr/lib/x86_64-linux-gnu/gazebo-1
 
 updated 08/16/2023.
 
-Step 1: launch QGC,
+Step 1: launch QGC
 
 Step 2: Launch the following files:
 
