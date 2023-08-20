@@ -10,6 +10,7 @@ init_seg_len: 2.0
 init_wpts_num: 2
 init_T: 2.5
 collision_cost_tol: 10
+opt_tol: 1e-1
 
 # mission
 replan_mode: periodic # 'global', 'online', or 'periodic'

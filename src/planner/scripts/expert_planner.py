@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-30 21:36:55
+LastEditTime: 2023-08-20 22:55:37
 '''
 import math
 import pprint
@@ -23,6 +23,7 @@ class DefaultConfig():
         self.init_wpts_num = 2  # (valid when init_wpts_mode = 'fixed') the number of intermediate waypoints
         self.init_T = 2.0  # the initial T of each segment
         self.collision_cost_tol = 10  # the tolerance of collision cost
+        self.opt_tol = 1e-4  # the tolerance of optimization
 
 
 class MinJerkPlanner(TrajUtils):
@@ -42,10 +43,11 @@ class MinJerkPlanner(TrajUtils):
         self.safe_dis = config.safe_dis
         self.collision_cost_tol = config.collision_cost_tol
 
-        # Hyper params in cost func
+        # Hyper params in optimization
         self.weights = np.array(config.weights)
         self.delta_t = config.delta_t
         self.get_beta_full()
+        self.opt_tol = config.opt_tol
 
         # Initial conditions
         self.init_wpts_mode = config.init_wpts_mode

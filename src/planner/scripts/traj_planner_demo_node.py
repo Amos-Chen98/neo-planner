@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-31 16:09:16
+LastEditTime: 2023-08-20 22:58:09
 '''
 import os
 import sys
@@ -43,6 +43,7 @@ class PlannerConfig():
         self.init_T = rospy.get_param("~init_T", 2.5)  # the initial T of each segment
         self.des_pos_z = rospy.get_param("~des_pos_z", 2.0)  # the desired z position of the drone
         self.collision_cost_tol = rospy.get_param("~collision_cost_tol", 10)  # the tolerance of collision cost
+        self.opt_tol = float(rospy.get_param("~opt_tol", 1e-4))  # the tolerance of optimization
 
 
 class DroneState():

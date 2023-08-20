@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-08-16 17:24:33
+LastEditTime: 2023-08-20 22:59:51
 '''
 import os
 import sys
@@ -44,6 +44,7 @@ class PlannerConfig():
         self.init_T = rospy.get_param("~init_T", 2.5)  # the initial T of each segment
         self.des_pos_z = rospy.get_param("~des_pos_z", 2.0)  # the desired z position of the drone
         self.collision_cost_tol = rospy.get_param("~collision_cost_tol", 10)  # the tolerance of collision cost
+        self.opt_tol = float(rospy.get_param("~opt_tol", 1e-4))  # the tolerance of optimization
 
 
 class DroneState():
@@ -589,10 +590,6 @@ class TrajPlanner():
         #     self.state_cmd.yaw = des_yaw
         # else:
         #     self.state_cmd.yaw = self.drone_state.yaw + np.sign(yaw_shift)*self.yaw_shift_tol
-
-        # print("current yaw: {}".format(self.drone_state.yaw*180/np.pi))
-        # print("Des yaw: {}".format(des_yaw*180/np.pi))
-        # print("State cmd yaw: {}".format(self.state_cmd.yaw*180/np.pi))
 
         self.state_cmd.header.stamp = rospy.Time.now()
 
