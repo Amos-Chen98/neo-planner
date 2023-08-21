@@ -128,3 +128,22 @@ $ rosservice call /world/build_octomap '{bounding_box_origin: {x: 0, y: 0, z: 15
 ```
 
 Note that the above rosservice call has a few adjustable variables. The bounding box origin can be set as desired (in meters) as well as the bounding box lengths (in meters) relative to the bounding box origin. The bounding box lengths are done in both (+/-) directions relative to the origin. For example, in the `rosservice` call above, from `(0, 0, 0)`, our bounding box will start at **-15 meters** and end at **+15 meters** in the X and Y directions. In the Z direction, we will start at **0 meters** and end at **30 meters**.
+
+## 3. Object tracking
+
+updated 08/20/2023
+
+This is an application of the planner: using the planner to perform object tracking while avoiding obstacles.
+
+Step 1: launch QGC
+
+Step 2: Launch the following files:
+
+```bash
+roslaunch simulator sim_onboard.launch
+roslaunch planner map_server_onboard.launch
+roslaunch roslaunch planner tracker_planner.launch
+roslaunch roslaunch planner tracker_manager.launch
+```
+
+By default, the planner takes in the moving object's pose through the topic `/move_base_simple/goal`. You can dynamically send the target pose to this topic for tracking.
