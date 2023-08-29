@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+    <arg name="frame_id" default="map"/>
+    <arg name="pcl_topic" default="/camera/depth/color/points"/>
+    <arg name="sensor_max_range" default="9.0"/>
+
+    <!-- Octomap -->
+    <node pkg="octomap_server" type="octomap_server_node" name="octomap_server">
+        <remap from="/octomap_full" to="/octomap" />
+        <!-- name of the fixed frame, needs to be "/map" for SLAM -->
+        <param name="frame_id" type="string" value="$(arg frame_id)" />
+
+        <!-- topic from where pointcloud2 messages are subscribed -->
+        <remap from="/cloud_in" to="$(arg pcl_topic)" />
+
+        <!-- resolution in meters per pixel -->
+        <param name="resolution" value="0.1" />
+
+        <!-- max range / depth resolution of the kinect in meter -->
+        <param name="sensor_model/max_range" value="$(arg sensor_max_range)" />
+        <param name="latch" value="false" />
+
+        <param name="filter_ground" value="ture" />
+
+        <!-- max/min height for occupancy map, should be in meters -->
+        <param name="pointcloud_max_z" value="1.0" />
+        <param name="pointcloud_min_z" value="0.2" />
+
+        <!-- generate 2D occupancy map from this interval -->
+        <param name="occupancy_min_z" value="0.8" />
+        <param name="occupancy_max_z" value="1.0" />
+
+    </node>
+
+    <node pkg="planner" type="visualizer_node.py" name="visualizer" />
+    <node pkg="rviz" type="rviz" name="rviz" args="-d $(find planner)/rviz/post_map_fpv.rviz" />
+
+    <!-- <node pkg="planner" type="visualizer_demo_node.py" name="visualizer" output="screen" />
+    <node pkg="rviz" type="rviz" name="rviz" args="-d $(find planner)/rviz/post_map_snapshots.rviz" /> -->
+
+</launch>

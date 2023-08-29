@@ -176,6 +176,7 @@ catkin_install_python(PROGRAMS
     scripts/visualizer_node.py
     scripts/tracker_manager_node.py
     scripts/tracker_planner_node.py
+    scripts/visualizer_demo_node.py
     DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
