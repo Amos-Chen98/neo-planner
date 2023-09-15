@@ -1,32 +1,34 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-08-20 22:59:51
+LastEditTime: 2023-09-15 18:37:53
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-from tf.transformations import euler_from_quaternion
-from enhanced_planner import EnhancedPlanner
-from record_planner import RecordPlanner
-from nn_planner import NNPlanner
-from planner.msg import *
-import actionlib
-from nav_msgs.msg import Odometry, Path, OccupancyGrid
-from esdf import ESDF
-import time
-from pyquaternion import Quaternion
-from expert_planner import MinJerkPlanner
-from mavros_msgs.srv import SetMode, SetModeRequest
-from mavros_msgs.msg import State, PositionTarget
-import numpy as np
-import rospy
-from visualization_msgs.msg import Marker, MarkerArray
-from visualizer import Visualizer
-from sensor_msgs.msg import Image
-from cv_bridge import CvBridge
-import cv2
+import datetime
+import pandas as pd
 import copy
+import cv2
+from cv_bridge import CvBridge
+from sensor_msgs.msg import Image
+from visualizer import Visualizer
+from visualization_msgs.msg import Marker, MarkerArray
+import rospy
+import numpy as np
+from mavros_msgs.msg import State, PositionTarget
+from mavros_msgs.srv import SetMode, SetModeRequest
+from expert_planner import MinJerkPlanner
+from pyquaternion import Quaternion
+import time
+from esdf import ESDF
+from nav_msgs.msg import Odometry, Path, OccupancyGrid
+import actionlib
+from planner.msg import *
+from nn_planner import NNPlanner
+from record_planner import RecordPlanner
+from enhanced_planner import EnhancedPlanner
+from tf.transformations import euler_from_quaternion
 
 
 
@@ -106,7 +108,7 @@ class TrajPlanner():
         self.des_state_index = 0
         self.future_index = 99999
         self.des_state_length = 99999  # this is used to check if the des_state_index is valid
-        self.metric_eva_interval = 0.5
+        self.metric_eva_interval = 0.1
 
         # Server
         self.plan_server = actionlib.SimpleActionServer('plan', PlanAction, self.execute_mission, False)
@@ -184,13 +186,15 @@ class TrajPlanner():
         self.planner.opt_running_times = 0
         self.total_planning_duration = 0.0
         self.total_planning_times = 0
-        # self.weighted_cost = 0.0
+        self.timestamp_list = []
         self.drone_state_list = []
+        self.des_drone_state_list = []
         self.metric_weights = np.array([1, 1, 1])  # distance, feasibility, collision
-        self.metric_timer = rospy.Timer(rospy.Duration(self.metric_eva_interval), self.record_metric_cb)
 
     def record_metric_cb(self, event):
+        self.timestamp_list.append(event.current_real.to_sec())
         self.drone_state_list.append(copy.copy(self.drone_state))  # if not using copy, the drone_state_list will be all the same
+        self.des_drone_state_list.append(copy.copy(self.des_state_array[self.des_state_index]))
 
     def end_mission(self):
         self.tracking_cmd_timer.shutdown()
@@ -255,6 +259,31 @@ class TrajPlanner():
 
         weighted_metric = self.get_weighted_metric(self.map, self.drone_state_list)
         rospy.loginfo("Weighted metric: %s\n", weighted_metric)
+
+        self.save_tracking_err()
+
+    def save_tracking_err(self):
+        # save drone_state_list and des_drone_state_list to a local csv file
+        rospkg_path = current_path[:-8]  # -8 remove '/scripts'
+        csv_path = rospkg_path + '/data_csv/'
+        now = datetime.datetime.now()
+        timestamp = int(now.strftime("%m%d%H%M%S%f")[:-3])
+        csv_filename = csv_path + str(timestamp) + '.csv'
+
+        df = pd.DataFrame(columns=['time', 'global_pos_x', 'global_pos_y', 'global_vel_x', 'global_vel_y',
+                                   'des_global_pos_x', 'des_global_pos_y', 'des_global_vel_x', 'des_global_vel_y'])
+
+        # convert drone_state_list to a dataframe
+        for i in range(len(self.drone_state_list)):
+            df.loc[i] = [self.timestamp_list[i],
+                         self.drone_state_list[i].global_pos[0], self.drone_state_list[i].global_pos[1],
+                         self.drone_state_list[i].global_vel[0], self.drone_state_list[i].global_vel[1],
+                         self.des_drone_state_list[i][0][0], self.des_drone_state_list[i][0][1],
+                         self.des_drone_state_list[i][1][0], self.des_drone_state_list[i][1][1]]
+
+        df.to_csv(csv_filename, index=False)
+
+        rospy.loginfo("Tracking results saved! ID: %d", timestamp)
 
     def get_weighted_metric(self, map, drone_state_list):
         raw_cost = np.zeros(3)   # planning_time, distance, feasibility, collision
@@ -414,7 +443,7 @@ class TrajPlanner():
         if self.record_metric:
             self.total_planning_duration += time_end - time_start
             self.total_planning_times += 1
-        # self.weighted_cost += self.planner.final_cost
+            self.metric_timer = rospy.Timer(rospy.Duration(self.metric_eva_interval), self.record_metric_cb)
 
         # calculate the int_wpts regarding drone_state_ahead, for warmstart planning only
         self.int_wpts_local = self.get_int_wpts_local(drone_state, self.planner.int_wpts)
@@ -458,6 +487,9 @@ class TrajPlanner():
         else:
             rospy.logerr("Invalid planner mode!")
 
+        # add planning latency
+        time.sleep(0.8)
+
         time_end = time.time()
         rospy.loginfo("Planning time: {}".format(time_end - time_start))
 
@@ -465,7 +497,6 @@ class TrajPlanner():
         if self.record_metric:
             self.total_planning_duration += time_end - time_start
             self.total_planning_times += 1
-            # self.weighted_cost += self.planner.final_cost
 
         # calculate the int_wpts regarding drone_state_ahead, for warmstart planning only
         self.int_wpts_local = self.get_int_wpts_local(drone_state_ahead, self.planner.int_wpts)
