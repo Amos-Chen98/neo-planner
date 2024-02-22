@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-09-15 18:37:53
+LastEditTime: 2024-02-22 19:40:08
 '''
 import os
 import sys
@@ -488,7 +488,7 @@ class TrajPlanner():
             rospy.logerr("Invalid planner mode!")
 
         # add planning latency
-        time.sleep(0.8)
+        # time.sleep(0.8)
 
         time_end = time.time()
         rospy.loginfo("Planning time: {}".format(time_end - time_start))
