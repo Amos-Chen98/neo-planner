@@ -37,10 +37,10 @@ Besides, install the following dependencies.
 ```bash
 sudo apt install ros-noetic-octomap*
 sudo apt install ros-noetic-octovis
+sudo apt install graphviz graphviz-dev
 pip install octomap-python
 pip install pyquaternion
 pip install scipy
-sudo apt-get install graphviz graphviz-dev
 pip install transitions[diagrams]
 pip install onnx
 pip install onnxruntime-gpu
@@ -103,6 +103,20 @@ roslaunch planner manager.launch
 
 Step 3: Set goal point with `2D Nav Goal` in RViz, and you will see the drone perform trajectory planning and tracking.
 
+Or, if you want to set a precise goal point, use the ROS command:
+
+```
+rostopic pub /move_base_simple/goal geometry_msgs/PoseStamped '{header: {stamp: now, frame_id: "map"}, pose: {position: {x: 30.0, y: 0.0, z: 0.0}, orientation: {w: 1.0}}}'
+```
+
+**Configurable parameters**:
+
+The parameters of the planner node is defined in `src/planner/launch/planner_config.yaml`
+
+The parameters of the manager node is defined in `src/planner/launch/manager_config.yaml`
+
+The parameters of the octomap_server is defined in `src/planner/launch/map_server_onboard.launch`
+
 ### 2. Object tracking
 
 updated 08/20/2023
@@ -124,7 +138,7 @@ By default, the planner takes in the moving object's pose through the topic `/mo
 
 ## Customized development
 
-### 1. Batch random generation of gazebo world
+### 1. Batch random generation of Gazebo world
 
 updated 02/26/2024
 
@@ -159,6 +173,4 @@ $ rosservice call /world/build_octomap '{bounding_box_origin: {x: 0, y: 0, z: 15
 ```
 
 Note that the above rosservice call has a few adjustable variables. The bounding box origin can be set as desired (in meters) as well as the bounding box lengths (in meters) relative to the bounding box origin. The bounding box lengths are done in both (+/-) directions relative to the origin. For example, in the `rosservice` call above, from `(0, 0, 0)`, our bounding box will start at **-15 meters** and end at **+15 meters** in the X and Y directions. In the Z direction, we will start at **0 meters** and end at **30 meters**.
-
-### 
 
