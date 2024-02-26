@@ -142,7 +142,7 @@ By default, the planner takes in the moving object's pose through the topic `/mo
 
 updated 02/26/2024
 
-Run `src/simulator/worlds/generate_worlds.py`
+Run `src/simulator/scripts/generate_worlds.py`
 
 The configurable parameters are in the file.
 
