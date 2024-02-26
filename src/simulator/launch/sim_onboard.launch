@@ -9,7 +9,7 @@
     <arg name="Y" default="0"/>
     <!-- fixed frame id -->
     <arg name="frame_id" default="map"/>
-    <arg name="gazebo_world" default="bricks"/>
+    <arg name="gazebo_world" default="poles"/>
 
     <!-- PX4 SITL, Gazebo, and MAVROS -->
     <include file="$(find simulator)/launch/px4_utils.launch">
