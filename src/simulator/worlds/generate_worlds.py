@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-02-26 10:02:13
+LastEditTime: 2024-02-26 10:50:36
 This file has no connection to ROS. It is used to generate gazebo worlds.
 '''
 
@@ -22,7 +22,7 @@ class GeneratorConfig:
         # -------------------customized parameters-------------------
         template_world_name = 'poles.world'
 
-        self.new_model_num = [5, 10, 15, 20]  # the number of models in each new world, can be regarded as the density of obstacles
+        self.new_model_num = [5, 10, 15, 20, 30, 40]  # the number of models in each new world, can be regarded as the density of obstacles
         self.new_model_pose_range = [3, 27, -5, 5]  # [x_min, x_max, y_min, y_max
         self.new_model_size_range = [0.5, 1.5, 0.5, 1.5, 3, 6]  # [x_min, x_max, y_min, y_max, z_min, z_max]
 
@@ -103,6 +103,21 @@ class WorldGenerator:
             # set model size and pose
             new_model.size = np.array([model_size_x, model_size_y, model_size_z])
             new_model.pose = np.array([model_pose_x, model_pose_y, model_pose_z, 0, 0, 0])
+
+            # Determine if the position of the model conflicts with existing models
+            while True:
+                conflict = False
+                for j in range(i):
+                    if abs(new_model.pose[0] - self.new_models[j].pose[0]) < (new_model.size[0] + self.new_models[j].size[0]) / 2 and abs(new_model.pose[1] - self.new_models[j].pose[1]) < (new_model.size[1] + self.new_models[j].size[1]) / 2:
+                        conflict = True
+                        break
+                if conflict:
+                    model_pose_x = np.random.rand() * model_pose_x_range + self.config.new_model_pose_range[0]
+                    model_pose_y = np.random.rand() * model_pose_y_range + self.config.new_model_pose_range[2]
+                    model_pose_z = model_size_z / 2
+                    new_model.pose = np.array([model_pose_x, model_pose_y, model_pose_z, 0, 0, 0])
+                else:
+                    break
 
             # print("---------model", i, "---------")
             # print("Size:", new_model.size)
