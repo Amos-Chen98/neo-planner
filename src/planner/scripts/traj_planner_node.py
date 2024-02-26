@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-02-22 19:40:08
+LastEditTime: 2024-02-26 21:47:16
 '''
 import os
 import sys
@@ -258,9 +258,9 @@ class TrajPlanner():
         rospy.loginfo("Total planning times: %d", self.total_planning_times)
 
         weighted_metric = self.get_weighted_metric(self.map, self.drone_state_list)
-        rospy.loginfo("Weighted metric: %s\n", weighted_metric)
+        rospy.loginfo("Weighted cost: %s\n", weighted_metric)
 
-        self.save_tracking_err()
+        # self.save_tracking_err()
 
     def save_tracking_err(self):
         # save drone_state_list and des_drone_state_list to a local csv file
