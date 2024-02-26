@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-02-26 10:50:36
+LastEditTime: 2024-02-26 22:47:22
 This file has no connection to ROS. It is used to generate gazebo worlds.
 '''
 
@@ -39,18 +39,35 @@ class GeneratorConfig:
             if new_world_names_ref.count(new_world_names_ref[i]) > 1:
                 self.new_world_names[i] += '(' + str(new_world_names_ref[0:i].count(new_world_names_ref[i]) + 1) + ')'
 
-        self.template_world_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), template_world_name)
-        self.new_world_path_list = [os.path.join(os.path.abspath(os.path.dirname(__file__)), name + '.world') for name in self.new_world_names]
+        current_path = os.path.abspath(os.path.dirname(__file__))[:-8]  # -8 remove '/scripts'
+
+        self.template_world_path = current_path + '/worlds/' + template_world_name
+
+        self.new_world_path_list = [current_path + '/worlds/' + name + '.world' for name in self.new_world_names]
 
 
 class WorldGenerator:
     def __init__(self, config=GeneratorConfig()):
         self.config = config
 
-        self.init_template_world()  # clear all existing models (obstacles, not including the ground plane)
+    def batch_generate_world(self):
+        for i in range(self.config.new_world_num):
+            self.generate_world(i)
+
+    def generate_world(self, world_index):
+        self.init_template_world()
+        model_num = self.config.new_model_num[world_index]
+        world_path = self.config.new_world_path_list[world_index]
+        self.generate_models(model_num)
+
+        for i in range(model_num):
+            self.add_world_model(self.new_models[i].size, self.new_models[i].name)
+            self.add_state_model(self.new_models[i].pose, self.new_models[i].name)
+
+        world_generator.save_world(world_path)
 
     def init_template_world(self):
-
+        # clear all existing models (obstacles, not including the ground plane)
         self.tree = ET.parse(self.config.template_world_path)
         self.root = self.tree.getroot()  # the root is sdf
         self.world = self.root.find('world')  # sdf > world
@@ -59,7 +76,7 @@ class WorldGenerator:
         self.all_world_models = self.world.findall('model')
         self.all_state_models = self.state.findall('model')
 
-        self.template_world_model = self.all_world_models[1]  # [0] is the ground_plane
+        self.template_world_model = self.all_world_models[1]  # [0] is the ground_plane, [1] is a box model
         self.template_state_model = self.all_state_models[1]  # [0] is the ground_plane
 
         # Remove all existing models in the template world
@@ -78,8 +95,6 @@ class WorldGenerator:
         Generate new models with random size and pose
         '''
         self.new_models = []
-
-        # print("new_model_num: %d\n" % model_num)
 
         for i in range(model_num):
             new_model = Model()
@@ -104,11 +119,12 @@ class WorldGenerator:
             new_model.size = np.array([model_size_x, model_size_y, model_size_z])
             new_model.pose = np.array([model_pose_x, model_pose_y, model_pose_z, 0, 0, 0])
 
-            # Determine if the position of the model conflicts with existing models
+            # Determine if the position of the model conflicts with existing models, if so, regenerate the position
             while True:
                 conflict = False
                 for j in range(i):
-                    if abs(new_model.pose[0] - self.new_models[j].pose[0]) < (new_model.size[0] + self.new_models[j].size[0]) / 2 and abs(new_model.pose[1] - self.new_models[j].pose[1]) < (new_model.size[1] + self.new_models[j].size[1]) / 2:
+                    if abs(new_model.pose[0] - self.new_models[j].pose[0]) < (new_model.size[0] + self.new_models[j].size[0]) / 2 and \
+                            abs(new_model.pose[1] - self.new_models[j].pose[1]) < (new_model.size[1] + self.new_models[j].size[1]) / 2:
                         conflict = True
                         break
                 if conflict:
@@ -119,28 +135,7 @@ class WorldGenerator:
                 else:
                     break
 
-            # print("---------model", i, "---------")
-            # print("Size:", new_model.size)
-            # print("Pose:", new_model.pose)
-            # print("")
-
             self.new_models.append(new_model)
-
-    def generate_world(self, world_index):
-        self.init_template_world()
-        model_num = self.config.new_model_num[world_index]
-        world_path = self.config.new_world_path_list[world_index]
-        self.generate_models(model_num)
-
-        for i in range(model_num):
-            self.add_world_model(self.new_models[i].size, self.new_models[i].name)
-            self.add_state_model(self.new_models[i].pose, self.new_models[i].name)
-
-        world_generator.save_world(world_path)
-
-    def batch_generate_world(self):
-        for i in range(self.config.new_world_num):
-            self.generate_world(i)
 
     def add_world_model(self, model_size_value, model_name):
         '''
