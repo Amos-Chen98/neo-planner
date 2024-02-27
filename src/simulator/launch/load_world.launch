@@ -4,7 +4,7 @@
     <arg name="debug" default="false"/>
     <arg name="verbose" default="false"/>
     <arg name="paused" default="false"/>
-    <arg name="gazebo_world" value="my_world"/>
+    <arg name="gazebo_world" value="rand_world_20"/>
 
     <include file="$(find gazebo_ros)/launch/empty_world.launch">
         <arg name="world_name" value="$(find simulator)/worlds/$(arg gazebo_world).world"/>

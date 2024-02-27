@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-02-26 22:47:22
+LastEditTime: 2024-02-27 10:53:29
 This file has no connection to ROS. It is used to generate gazebo worlds.
 '''
 
@@ -8,6 +8,7 @@ import os
 import xml.etree.ElementTree as ET
 import copy
 import numpy as np
+import yaml
 
 
 class Model():
@@ -19,14 +20,26 @@ class Model():
 
 class GeneratorConfig:
     def __init__(self):
-        # -------------------customized parameters-------------------
+        current_path = os.path.abspath(os.path.dirname(__file__))
         template_world_name = 'poles.world'
+        config_file_path = current_path + '/generator_config.yaml'
 
-        self.new_model_num = [5, 10, 15, 20, 30, 40]  # the number of models in each new world, can be regarded as the density of obstacles
-        self.new_model_pose_range = [3, 27, -5, 5]  # [x_min, x_max, y_min, y_max
-        self.new_model_size_range = [0.5, 1.5, 0.5, 1.5, 3, 6]  # [x_min, x_max, y_min, y_max, z_min, z_max]
+        with open(config_file_path) as f:
+            config = yaml.load(f, Loader=yaml.FullLoader)
 
-        # -------------------end of customized parameters-------------------
+        self.new_model_num = config['new_model_num']
+
+        self.model_pose_x_min = config['model_pose_x_min']
+        self.model_pose_x_max = config['model_pose_x_max']
+        self.model_pose_y_min = config['model_pose_y_min']
+        self.model_pose_y_max = config['model_pose_y_max']
+
+        self.model_size_x_min = config['model_size_x_min']
+        self.model_size_x_max = config['model_size_x_max']
+        self.model_size_y_min = config['model_size_y_min']
+        self.model_size_y_max = config['model_size_y_max']
+        self.model_size_z_min = config['model_size_z_min']
+        self.model_size_z_max = config['model_size_z_max']
 
         self.new_world_num = len(self.new_model_num)  # the number of new worlds to be generated
 
@@ -39,11 +52,8 @@ class GeneratorConfig:
             if new_world_names_ref.count(new_world_names_ref[i]) > 1:
                 self.new_world_names[i] += '(' + str(new_world_names_ref[0:i].count(new_world_names_ref[i]) + 1) + ')'
 
-        current_path = os.path.abspath(os.path.dirname(__file__))[:-8]  # -8 remove '/scripts'
-
-        self.template_world_path = current_path + '/worlds/' + template_world_name
-
-        self.new_world_path_list = [current_path + '/worlds/' + name + '.world' for name in self.new_world_names]
+        self.template_world_path = current_path[:-8] + '/worlds/' + template_world_name  # -8 remove '/scripts'
+        self.new_world_path_list = [current_path[:-8] + '/worlds/' + name + '.world' for name in self.new_world_names]
 
 
 class WorldGenerator:
@@ -101,18 +111,18 @@ class WorldGenerator:
             new_model.name = 'model' + str(i)
 
             # get model size
-            model_size_x_range = self.config.new_model_size_range[1] - self.config.new_model_size_range[0]
-            model_size_y_range = self.config.new_model_size_range[3] - self.config.new_model_size_range[2]
-            model_size_z_range = self.config.new_model_size_range[5] - self.config.new_model_size_range[4]
-            model_size_x = np.random.rand() * model_size_x_range + self.config.new_model_size_range[0]
-            model_size_y = np.random.rand() * model_size_y_range + self.config.new_model_size_range[2]
-            model_size_z = np.random.rand() * model_size_z_range + self.config.new_model_size_range[4]
+            model_size_x_range = self.config.model_size_x_max - self.config.model_size_x_min
+            model_size_y_range = self.config.model_size_y_max - self.config.model_size_y_min
+            model_size_z_range = self.config.model_size_z_max - self.config.model_size_z_min
+            model_size_x = np.random.rand() * model_size_x_range + self.config.model_size_x_min
+            model_size_y = np.random.rand() * model_size_y_range + self.config.model_size_y_min
+            model_size_z = np.random.rand() * model_size_z_range + self.config.model_size_z_min
 
             # get model pose
-            model_pose_x_range = self.config.new_model_pose_range[1] - self.config.new_model_pose_range[0]
-            model_pose_y_range = self.config.new_model_pose_range[3] - self.config.new_model_pose_range[2]
-            model_pose_x = np.random.rand() * model_pose_x_range + self.config.new_model_pose_range[0]
-            model_pose_y = np.random.rand() * model_pose_y_range + self.config.new_model_pose_range[2]
+            model_pose_x_range = self.config.model_pose_x_max - self.config.model_pose_x_min
+            model_pose_y_range = self.config.model_pose_y_max - self.config.model_pose_y_min
+            model_pose_x = np.random.rand() * model_pose_x_range + self.config.model_pose_x_min
+            model_pose_y = np.random.rand() * model_pose_y_range + self.config.model_pose_y_min
             model_pose_z = model_size_z / 2
 
             # set model size and pose
@@ -128,8 +138,8 @@ class WorldGenerator:
                         conflict = True
                         break
                 if conflict:
-                    model_pose_x = np.random.rand() * model_pose_x_range + self.config.new_model_pose_range[0]
-                    model_pose_y = np.random.rand() * model_pose_y_range + self.config.new_model_pose_range[2]
+                    model_pose_x = np.random.rand() * model_pose_x_range + self.config.model_pose_x_min
+                    model_pose_y = np.random.rand() * model_pose_y_range + self.config.model_pose_y_min
                     model_pose_z = model_size_z / 2
                     new_model.pose = np.array([model_pose_x, model_pose_y, model_pose_z, 0, 0, 0])
                 else:

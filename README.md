@@ -101,12 +101,19 @@ roslaunch planner planner.launch
 roslaunch planner manager.launch
 ```
 
-Step 3: Set goal point with `2D Nav Goal` in RViz, and you will see the drone perform trajectory planning and tracking.
-
-Or, if you want to set a precise goal point, use the ROS command:
+Step 3: Set a goal point with `2D Nav Goal` in RViz. Or, if you want to set a precise goal point, use the ROS command:
 
 ```
 rostopic pub /move_base_simple/goal geometry_msgs/PoseStamped '{header: {stamp: now, frame_id: "map"}, pose: {position: {x: 30.0, y: 0.0, z: 0.0}, orientation: {w: 1.0}}}'
+```
+
+Then you will see the drone perform trajectory planning and tracking.
+
+The above Step 2-3 is equal to running the following command:
+
+```
+cd <path_to_drone_ws>
+./sim.sh
 ```
 
 **Configurable parameters**:
@@ -140,11 +147,11 @@ By default, the planner takes in the moving object's pose through the topic `/mo
 
 ### 1. Batch random generation of Gazebo world
 
-updated 02/26/2024
+updated 02/27/2024
 
 Run `src/simulator/scripts/generate_worlds.py`
 
-The configurable parameters are in the file.
+The configurable parameters are listed in `src/simulator/scripts/generator_config.yaml`
 
 ### **2. Generate octomap from Gazebo world**
 

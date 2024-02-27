@@ -1,0 +1,13 @@
+new_model_num: [5, 10, 15, 20, 40]
+
+model_pose_x_min: 3
+model_pose_x_max: 27
+model_pose_y_min: -5
+model_pose_y_max: 5
+
+model_size_x_min: 0.5
+model_size_x_max: 1.5
+model_size_y_min: 0.5
+model_size_y_max: 1.5
+model_size_z_min: 3
+model_size_z_max: 6
