@@ -92,13 +92,10 @@ updated 08/16/2023.
 
 Step 1: launch QGC
 
-Step 2: Launch the following files:
+Step 2: Launch the following file:
 
 ```bash
-roslaunch simulator sim_onboard.launch
-roslaunch planner map_server_onboard.launch
-roslaunch planner planner.launch
-roslaunch planner manager.launch
+roslaunch planner bringup.launch
 ```
 
 Step 3: Set a goal point with `2D Nav Goal` in RViz. Or, if you want to set a precise goal point, use the ROS command:
@@ -112,8 +109,8 @@ Then you will see the drone perform trajectory planning and tracking.
 The above Step 2-3 is equal to running the following command:
 
 ```
-cd <path_to_drone_ws>
-./sim.sh
+roscd planner
+./scripts/bash/demo.sh
 ```
 
 **Configurable parameters**:

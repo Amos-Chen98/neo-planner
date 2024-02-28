@@ -1,0 +1,9 @@
+<launch>
+  <!-- Launch the simulator -->
+  <include file="$(find simulator)/launch/sim_onboard.launch"/>
+
+  <!-- Launch the planner components -->
+  <include file="$(find planner)/launch/map_server_onboard.launch"/>
+  <include file="$(find planner)/launch/planner.launch"/>
+  <include file="$(find planner)/launch/manager.launch"/>
+</launch>
