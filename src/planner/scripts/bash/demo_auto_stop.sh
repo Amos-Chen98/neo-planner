@@ -8,6 +8,10 @@ GNOME_PID=$!
 # Sleep for 25 seconds to allow roslaunch to start and stabilize
 sleep 25
 
+# rosbag record in the background, assuming this is a once-off command and does not need to be explicitly killed
+time_now=$(date +"%Y-%m-%d-%H-%M-%S")
+rosbag record -a -x "/camera.*" -O /tmp/demo_$time_now.bag &
+
 # Publish a goal, assuming this is a once-off command and does not need to be explicitly killed
 rostopic pub -1 /move_base_simple/goal geometry_msgs/PoseStamped '{header: {stamp: now, frame_id: "map"}, pose: {position: {x: 30.0, y: 0.0, z: 0.0}, orientation: {w: 1.0}}}' &
 
