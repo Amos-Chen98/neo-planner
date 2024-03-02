@@ -1,7 +1,8 @@
 <launch>
-    <!--  include a parameter called headless -->
     <arg name="headless" default="false"/>
     <arg name="rviz_config" default="$(find planner)/rviz/rviz_config.rviz"/>
+    <arg name="is_save_metric" default="true"/>
+    <arg name="max_target_find_time" default="30"/>
 
     <!-- Launch the simulator -->
     <include file="$(find simulator)/launch/sim_onboard.launch">
@@ -12,6 +13,9 @@
     <include file="$(find planner)/launch/map_server_onboard.launch">
         <arg name="rviz_config" value="$(arg rviz_config)"/>
     </include>
-    <include file="$(find planner)/launch/planner.launch"/>
+    <include file="$(find planner)/launch/planner.launch">
+        <arg name="is_save_metric" value="$(arg is_save_metric)"/>
+        <arg name="max_target_find_time" value="$(arg max_target_find_time)"/>
+    </include>
     <include file="$(find planner)/launch/manager.launch"/>
 </launch>

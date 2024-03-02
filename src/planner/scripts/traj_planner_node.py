@@ -4,6 +4,7 @@ LastEditTime: 2024-02-26 21:47:16
 '''
 import os
 import sys
+
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
 import datetime
@@ -29,7 +30,6 @@ from nn_planner import NNPlanner
 from record_planner import RecordPlanner
 from enhanced_planner import EnhancedPlanner
 from tf.transformations import euler_from_quaternion
-
 
 
 class PlannerConfig():
@@ -76,17 +76,24 @@ class TrajPlanner():
 
         # Parameters
         self.replan_mode = rospy.get_param("~replan_mode", 'online')  # 'online' or 'global (plan once)'
-        self.planning_time_ahead = rospy.get_param("~planning_time_ahead", 1.0)  # the time ahead of the current time to plan the trajectory
+        self.planning_time_ahead = rospy.get_param("~planning_time_ahead",
+                                                   1.0)  # the time ahead of the current time to plan the trajectory
         self.longitu_step_dis = rospy.get_param("~longitu_step_dis", 5.0)  # the distance forward in each replanning
-        self.lateral_step_length = rospy.get_param("~lateral_step_length", 1.0)  # if local target pos in obstacle, take lateral step
+        self.lateral_step_length = rospy.get_param("~lateral_step_length",
+                                                   1.0)  # if local target pos in obstacle, take lateral step
         self.target_reach_threshold = rospy.get_param("~target_reach_threshold", 0.2)
         self.cmd_hz = rospy.get_param("~cmd_hz", 300)
-        self.selected_planner = rospy.get_param("~selected_planner", 'basic')  # 'basic', 'batch', 'expert', 'record', 'nn', or 'enhanced'
-        self.replan_period = rospy.get_param("~replan_period", 0.5)  # the interval between replanning， 0 means replan right after the previous plan
-        self.move_vel = self.planner_config.v_max*0.8
+        self.selected_planner = rospy.get_param("~selected_planner",
+                                                'basic')  # 'basic', 'batch', 'expert', 'record', 'nn', or 'enhanced'
+        self.replan_period = rospy.get_param("~replan_period",
+                                             0.5)  # the interval between replanning， 0 means replan right after the previous plan
+        self.move_vel = self.planner_config.v_max * 0.8
         self.des_pos_z = self.planner_config.des_pos_z
         self.record_metric = rospy.get_param("~record_metric", False)
         self.yaw_shift_tol = rospy.get_param("~yaw_shift_tol", 0.17453)
+
+        self.is_save_metric = rospy.get_param("~is_save_metric", False)  # whether to save the metric
+        self.max_target_find_time = rospy.get_param("~max_target_find_time", 30.0)  # the max time to find the target
 
         # Planner
         if self.selected_planner in ['basic', 'batch', 'warmstart']:
@@ -109,6 +116,7 @@ class TrajPlanner():
         self.future_index = 99999
         self.des_state_length = 99999  # this is used to check if the des_state_index is valid
         self.metric_eva_interval = 0.1
+        self.target_find_start_time = rospy.Time.now().to_sec()
 
         # Server
         self.plan_server = actionlib.SimpleActionServer('plan', PlanAction, self.execute_mission, False)
@@ -190,10 +198,12 @@ class TrajPlanner():
         self.drone_state_list = []
         self.des_drone_state_list = []
         self.metric_weights = np.array([1, 1, 1])  # distance, feasibility, collision
+        self.target_find_start_time = rospy.Time.now().to_sec()
 
     def record_metric_cb(self, event):
         self.timestamp_list.append(event.current_real.to_sec())
-        self.drone_state_list.append(copy.copy(self.drone_state))  # if not using copy, the drone_state_list will be all the same
+        self.drone_state_list.append(
+            copy.copy(self.drone_state))  # if not using copy, the drone_state_list will be all the same
         self.des_drone_state_list.append(copy.copy(self.des_state_array[self.des_state_index]))
 
     def end_mission(self):
@@ -231,7 +241,15 @@ class TrajPlanner():
         self.report_planning_result()
 
     def report_planning_result(self):
-        while not self.plan_server.is_preempt_requested() and not self.reached_target:
+        while True:
+            if self.plan_server.is_preempt_requested():
+                break
+            if self.reached_target:
+                break
+            if rospy.Time.now().to_sec() - self.target_find_start_time > self.max_target_find_time:
+                rospy.loginfo("Target not found within the max time!\n")
+                break
+
             time.sleep(0.01)
 
         if self.record_metric:
@@ -241,12 +259,15 @@ class TrajPlanner():
             rospy.loginfo("Planning preempted!\n")
             self.end_mission()
             self.plan_server.set_preempted()
-        else:  # this means the target is reached
+        else:
             result = PlanResult()
-            result.success = True
+            result.success = self.reached_target
             self.plan_server.set_succeeded(result)
 
     def report_metrics(self):
+        average_iter_num = int(0)
+        average_planning_duration = float(0.0)
+
         if self.selected_planner != 'nn':
             average_iter_num = self.planner.iter_num / self.planner.opt_running_times
             rospy.loginfo("Average iter num: %d", average_iter_num)
@@ -260,7 +281,20 @@ class TrajPlanner():
         weighted_metric = self.get_weighted_metric(self.map, self.drone_state_list)
         rospy.loginfo("Weighted cost: %s\n", weighted_metric)
 
-        # self.save_tracking_err()
+        if self.is_save_metric:
+            # open a file: data/planning_metrics.txt
+            rospkg_path = current_path[:-8]  # -8 remove '/scripts'
+            file_path = rospkg_path + '/data/planning_metrics.txt'
+            with open(file_path, 'a') as file:
+                # write the following content in a line, separated by space
+                # data time now, weighted_metric, average_iter_num, average_planning_duration, total_planning_times
+                file.write(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + ' ')
+                file.write(str(self.reached_target) + ' ')
+                self.tar
+                file.write(str(weighted_metric) + ' ')
+                file.write(str(average_iter_num) + ' ')
+                file.write(str(average_planning_duration) + ' ')
+                file.write(str(self.total_planning_times) + '\n')
 
     def save_tracking_err(self):
         # save drone_state_list and des_drone_state_list to a local csv file
@@ -286,7 +320,7 @@ class TrajPlanner():
         rospy.loginfo("Tracking results saved! ID: %d", timestamp)
 
     def get_weighted_metric(self, map, drone_state_list):
-        raw_cost = np.zeros(3)   # planning_time, distance, feasibility, collision
+        raw_cost = np.zeros(3)  # planning_time, distance, feasibility, collision
 
         for i in range(len(drone_state_list)):
             pos = drone_state_list[i].global_pos[:2]
@@ -294,20 +328,20 @@ class TrajPlanner():
 
             # distance
             if i > 0:
-                pre_pos = drone_state_list[i-1].global_pos[:2]
+                pre_pos = drone_state_list[i - 1].global_pos[:2]
                 raw_cost[0] += np.linalg.norm(pos - pre_pos)
 
             # feasibility
-            violate_vel = sum(vel**2) - self.planner_config.v_max**2
+            violate_vel = sum(vel ** 2) - self.planner_config.v_max ** 2
             if violate_vel > 0:
-                raw_cost[1] += violate_vel**3
+                raw_cost[1] += violate_vel ** 3
 
             # collision
             edt_dis = map.get_edt_dis(pos)
             violate_dis = self.planner_config.safe_dis - edt_dis
 
             if violate_dis > 0.0:
-                raw_cost[2] += violate_dis**3
+                raw_cost[2] += violate_dis ** 3
 
         weighted_metric = np.dot(raw_cost, self.metric_weights)
 
@@ -356,9 +390,9 @@ class TrajPlanner():
         self.visualize_des_path()
 
         while (
-            not self.reached_target
-            and not self.near_global_target
-            and not self.plan_server.is_preempt_requested()
+                not self.reached_target
+                and not self.near_global_target
+                and not self.plan_server.is_preempt_requested()
         ):
             self.try_local_planning()
 
@@ -377,9 +411,9 @@ class TrajPlanner():
 
     def replan_cb(self, event):
         if (
-            not self.reached_target
-            and not self.near_global_target
-            and not self.plan_server.is_preempt_requested()
+                not self.reached_target
+                and not self.near_global_target
+                and not self.plan_server.is_preempt_requested()
         ):
             self.try_local_planning()
 
@@ -394,7 +428,7 @@ class TrajPlanner():
             self.near_global_target = True
             return
 
-        longitu_dir = (global_target_pos - current_pos)/np.linalg.norm(global_target_pos - current_pos)
+        longitu_dir = (global_target_pos - current_pos) / np.linalg.norm(global_target_pos - current_pos)
         lateral_dir = np.array([[longitu_dir[1], -longitu_dir[0]],
                                 [-longitu_dir[1], longitu_dir[0]]])
         lateral_dir_flag = 0
@@ -402,7 +436,8 @@ class TrajPlanner():
 
         # get local target pos
         if seed > 1e-3:
-            local_target_pos = current_pos + self.longitu_step_dis * longitu_dir + np.random.normal(0, 1, 2)  # 0 for mean, 1 for std
+            local_target_pos = current_pos + self.longitu_step_dis * longitu_dir + np.random.normal(0, 1,
+                                                                                                    2)  # 0 for mean, 1 for std
         else:
             local_target_pos = current_pos + self.longitu_step_dis * longitu_dir
 
@@ -412,7 +447,7 @@ class TrajPlanner():
             lateral_move_dis += self.lateral_step_length
 
         # get local target vel
-        goal_dir = (global_target_pos - local_target_pos)/np.linalg.norm(global_target_pos - local_target_pos)
+        goal_dir = (global_target_pos - local_target_pos) / np.linalg.norm(global_target_pos - local_target_pos)
         local_target_vel = np.array([self.move_vel * goal_dir[0], self.move_vel * goal_dir[1]])
 
         local_target = np.array([local_target_pos,
@@ -483,7 +518,8 @@ class TrajPlanner():
         elif self.selected_planner == 'enhanced':
             self.enhanced_traj_plan(self.map, self.depth_img, self.drone_state, drone_state_ahead, self.target_state)
         elif self.selected_planner == 'warmstart':
-            self.warmstart_traj_plan(self.map, drone_state_ahead, self.target_state, self.int_wpts_local, self.planner.ts)
+            self.warmstart_traj_plan(self.map, drone_state_ahead, self.target_state, self.int_wpts_local,
+                                     self.planner.ts)
         else:
             rospy.logerr("Invalid planner mode!")
 
@@ -590,7 +626,7 @@ class TrajPlanner():
         '''
         self.enter_offboard()
 
-        self.tracking_cmd_timer = rospy.Timer(rospy.Duration(1/self.cmd_hz), self.tracking_cmd_timer_cb)
+        self.tracking_cmd_timer = rospy.Timer(rospy.Duration(1 / self.cmd_hz), self.tracking_cmd_timer_cb)
 
     def tracking_cmd_timer_cb(self, event):
         '''
@@ -610,8 +646,9 @@ class TrajPlanner():
 
         # self.state_cmd.yaw = 0.0
 
-        self.state_cmd.yaw = np.arctan2(self.des_state_array[self.des_state_index][0][1] - self.des_state_array[self.des_state_index - 1][0][1],
-                                        self.des_state_array[self.des_state_index][0][0] - self.des_state_array[self.des_state_index - 1][0][0])
+        self.state_cmd.yaw = np.arctan2(
+            self.des_state_array[self.des_state_index][0][1] - self.des_state_array[self.des_state_index - 1][0][1],
+            self.des_state_array[self.des_state_index][0][0] - self.des_state_array[self.des_state_index - 1][0][0])
 
         # des_yaw = np.arctan2(self.des_state_array[self.des_state_index][0][1] - self.des_state_array[self.des_state_index - 1][0][1],
         #                      self.des_state_array[self.des_state_index][0][0] - self.des_state_array[self.des_state_index - 1][0][0])
@@ -712,7 +749,6 @@ class TrajPlanner():
 
 
 if __name__ == "__main__":
-
     traj_planner = TrajPlanner()
 
     rospy.spin()
