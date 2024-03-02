@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-02-26 21:47:16
+LastEditTime: 2024-03-02 21:04:57
 '''
 import os
 import sys
@@ -94,7 +94,7 @@ class TrajPlanner():
 
         self.is_save_metric = rospy.get_param("~is_save_metric", False)  # whether to save the metric
         self.max_target_find_time = rospy.get_param("~max_target_find_time", 30.0)  # the max time to find the target
-        self.name_gazebo_world = rospy.get_param("~name_gazebo_world", "poles")
+        self.gazebo_world = rospy.get_param("~gazebo_world", "poles")
 
         # Planner
         if self.selected_planner in ['basic', 'batch', 'warmstart']:
@@ -292,7 +292,7 @@ class TrajPlanner():
                 # write the following content in a line, separated by space
                 # data time now, weighted_metric, average_iter_num, average_planning_duration, total_planning_times
                 file.write(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + ' ')
-                file.write(self.name_gazebo_world + ' ')
+                file.write(self.gazebo_world + ' ')
                 file.write(self.selected_planner + ' ')
                 file.write(self.replan_mode + ' ')
                 file.write(str(self.reached_target) + ' ')
