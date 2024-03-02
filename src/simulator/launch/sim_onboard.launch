@@ -1,5 +1,8 @@
 <?xml version="1.0"?>
 <launch>
+    <!--  config of simulator-->
+    <arg name="headless" default="false"/>
+
     <!-- drone init state -->
     <arg name="x" default="0"/>
     <arg name="y" default="0"/>
@@ -20,6 +23,7 @@
         <arg name="P" value="$(arg P)"/>
         <arg name="Y" value="$(arg Y)"/>
         <arg name="gazebo_world" value="$(arg gazebo_world)" />
+        <arg name="gui" value="$(eval not arg('headless'))"/>
     </include>
 
 </launch>

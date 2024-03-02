@@ -1,9 +1,17 @@
 <launch>
-  <!-- Launch the simulator -->
-  <include file="$(find simulator)/launch/sim_onboard.launch"/>
+    <!--  include a parameter called headless -->
+    <arg name="headless" default="false"/>
+    <arg name="rviz_config" default="$(find planner)/rviz/rviz_config.rviz"/>
 
-  <!-- Launch the planner components -->
-  <include file="$(find planner)/launch/map_server_onboard.launch"/>
-  <include file="$(find planner)/launch/planner.launch"/>
-  <include file="$(find planner)/launch/manager.launch"/>
+    <!-- Launch the simulator -->
+    <include file="$(find simulator)/launch/sim_onboard.launch">
+        <arg name="headless" value="$(arg headless)"/>
+    </include>
+
+    <!-- Launch the planner components -->
+    <include file="$(find planner)/launch/map_server_onboard.launch">
+        <arg name="rviz_config" value="$(arg rviz_config)"/>
+    </include>
+    <include file="$(find planner)/launch/planner.launch"/>
+    <include file="$(find planner)/launch/manager.launch"/>
 </launch>

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Launch roslaunch in a new GNOME terminal tab and capture its PID
-gnome-terminal --tab --title="bring up" --command="roslaunch planner bringup.launch" &
+gnome-terminal --tab --title="bring up" --command="roslaunch planner bringup.launch headless:=true" &
 GNOME_PID=$!
 
 # Sleep for 25 seconds to allow roslaunch to start and stabilize
