@@ -94,6 +94,7 @@ class TrajPlanner():
 
         self.is_save_metric = rospy.get_param("~is_save_metric", False)  # whether to save the metric
         self.max_target_find_time = rospy.get_param("~max_target_find_time", 30.0)  # the max time to find the target
+        self.name_gazebo_world = rospy.get_param("~name_gazebo_world", "poles")
 
         # Planner
         if self.selected_planner in ['basic', 'batch', 'warmstart']:
@@ -116,7 +117,8 @@ class TrajPlanner():
         self.future_index = 99999
         self.des_state_length = 99999  # this is used to check if the des_state_index is valid
         self.metric_eva_interval = 0.1
-        self.target_find_start_time = rospy.Time.now().to_sec()
+        self.target_find_start_time = 0.0
+        self.target_find_time = 0.0
 
         # Server
         self.plan_server = actionlib.SimpleActionServer('plan', PlanAction, self.execute_mission, False)
@@ -188,6 +190,7 @@ class TrajPlanner():
         self.des_state_index = 0
         if self.record_metric:
             self.init_metrics()
+        self.target_find_start_time = rospy.Time.now().to_sec()
 
     def init_metrics(self):
         self.planner.iter_num = 0
@@ -198,7 +201,6 @@ class TrajPlanner():
         self.drone_state_list = []
         self.des_drone_state_list = []
         self.metric_weights = np.array([1, 1, 1])  # distance, feasibility, collision
-        self.target_find_start_time = rospy.Time.now().to_sec()
 
     def record_metric_cb(self, event):
         self.timestamp_list.append(event.current_real.to_sec())
@@ -216,6 +218,7 @@ class TrajPlanner():
             self.replan_timer.shutdown()
         if self.record_metric:
             self.metric_timer.shutdown()
+        self.target_find_time = rospy.Time.now().to_sec() - self.target_find_start_time
 
     def depth_img_cb(self, img):
         self.depth_img = self.cv_bridge.imgmsg_to_cv2(img, desired_encoding="passthrough")
@@ -289,8 +292,14 @@ class TrajPlanner():
                 # write the following content in a line, separated by space
                 # data time now, weighted_metric, average_iter_num, average_planning_duration, total_planning_times
                 file.write(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + ' ')
+                file.write(self.name_gazebo_world + ' ')
+                file.write(self.selected_planner + ' ')
+                file.write(self.replan_mode + ' ')
                 file.write(str(self.reached_target) + ' ')
-                self.tar
+                file.write(str(self.global_target[0]) + ' ')  # x
+                file.write(str(self.global_target[1]) + ' ')  # y
+                file.write(str(self.target_find_time) + ' ')
+                file.write(str(self.max_target_find_time) + ' ')
                 file.write(str(weighted_metric) + ' ')
                 file.write(str(average_iter_num) + ' ')
                 file.write(str(average_planning_duration) + ' ')

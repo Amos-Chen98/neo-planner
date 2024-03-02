@@ -2,7 +2,7 @@
 max_target_find_time=45 # Maximum simulation time in seconds
 
 # Launch roslaunch in a new GNOME terminal tab and capture its PID
-gnome-terminal --tab --title="bring up" --command="roslaunch planner bringup.launch headless:=true is_save_metric:=true max_target_find_time:=$max_target_find_time" &
+gnome-terminal --tab --title="bring up" --command="roslaunch planner bringup.launch headless:=true is_save_metric:=true max_target_find_time:=$max_target_find_time gazebo_world:=poles" &
 GNOME_PID=$!
 
 # Sleep for 25 seconds to allow roslaunch to start and stabilize
