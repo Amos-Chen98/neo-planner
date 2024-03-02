@@ -64,3 +64,5 @@ planning_result/
 /src/planner/data_csv
 # IDEA
 .idea
+# experimental data
+/src/planner/data/planning_metrics.txt

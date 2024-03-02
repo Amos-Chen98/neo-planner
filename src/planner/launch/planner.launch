@@ -1,6 +1,13 @@
 <?xml version="1.0"?>
 <launch>
+    <arg name="is_save_metric" default="true"/>
+    <arg name="max_target_find_time" default="30"/> <!-- seconds -->
+    <arg name="gazebo_world" default="poles"/>
+
     <node pkg="planner" type="traj_planner_node.py" name="planner" output="screen">
+        <param name="is_save_metric" value="$(arg is_save_metric)"/>
+        <param name="max_target_find_time" value="$(arg max_target_find_time)"/>
+        <param name="gazebo_world" value="$(arg gazebo_world)"/>
         <rosparam file="$(find planner)/launch/planner_config.yaml" command="load"/>
     </node>
 

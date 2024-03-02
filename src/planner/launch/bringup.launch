@@ -1,0 +1,26 @@
+<launch>
+    <arg name="headless" default="false"/>
+    <arg name="rviz_config" default="$(find planner)/rviz/rviz_config.rviz"/>
+    <arg name="gazebo_world" default="poles"/>
+    <arg name="is_save_metric" default="true"/>
+    <arg name="max_target_find_time" default="30"/>
+
+    <!-- Launch the simulator -->
+    <include file="$(find simulator)/launch/sim_onboard.launch">
+        <arg name="headless" value="$(arg headless)"/>
+        <arg name="gazebo_world" value="$(arg gazebo_world)"/>
+    </include>
+
+    <!-- Launch the planner components -->
+    <include file="$(find planner)/launch/map_server_onboard.launch">
+        <arg name="rviz_config" value="$(arg rviz_config)"/>
+    </include>
+
+    <include file="$(find planner)/launch/planner.launch">
+        <arg name="is_save_metric" value="$(arg is_save_metric)"/>
+        <arg name="max_target_find_time" value="$(arg max_target_find_time)"/>
+        <arg name="gazebo_world" value="$(arg gazebo_world)"/>
+    </include>
+
+    <include file="$(find planner)/launch/manager.launch"/>
+</launch>
