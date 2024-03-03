@@ -166,17 +166,17 @@ include_directories(
 # # Mark executable scripts (Python etc.) for installation
 # # in contrast to setup.py, you can choose the destination
 catkin_install_python(PROGRAMS
-    scripts/esdf_vis_node.py
-    scripts/manager_node.py
-    scripts/manager_test_node.py
-    scripts/traj_planner_node.py
-    scripts/traj_planner_test_node.py
-    scripts/odom2base_tf.py
-    scripts/traj_planner_demo_node.py
-    scripts/visualizer_node.py
-    scripts/tracker_manager_node.py
-    scripts/tracker_planner_node.py
-    scripts/visualizer_demo_node.py
+    scripts/ros_node/esdf_vis_node.py
+    scripts/ros_node/manager_node.py
+    scripts/ros_node/traj_planner_node.py
+    scripts/ros_node/odom2base_tf_node.py
+    scripts/ros_node/visualizer_node.py
+    scripts/ros_node/tracker_manager_node.py
+    scripts/ros_node/tracker_planner_node.py
+    scripts/ros_node_test/manager_test_node.py
+    scripts/ros_node_test/traj_planner_test_node.py
+    scripts/ros_node_test/traj_planner_demo_node.py
+    scripts/ros_node_test/visualizer_demo_node.py
     DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

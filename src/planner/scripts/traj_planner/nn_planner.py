@@ -1,13 +1,13 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-08-12 16:36:41
+LastEditTime: 2024-03-03 16:16:48
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
 import time
-from nn_trainer import process_input_np
+from nn_trainer.nn_trainer import process_input_np
 from traj_utils import TrajUtils
 import numpy as np
 import torch
@@ -30,7 +30,7 @@ class NNPlanner(TrajUtils):
     def __init__(self, des_pos_z=2.0):
         super().__init__()
 
-        rospkg_path = current_path[:-8]  # -8 remove '/scripts'
+        rospkg_path = current_path[:-21]  # -8 remove '/scripts', -13 remove '/traj_planner'
         onnx_model_path = rospkg_path + '/saved_net/planner_net.onnx'
 
         self.init_onnx_model(onnx_model_path)

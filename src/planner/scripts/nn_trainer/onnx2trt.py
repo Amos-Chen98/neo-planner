@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-08-06 21:15:19
+LastEditTime: 2024-03-03 17:00:39
 '''
 import os
 import torch
@@ -13,7 +13,7 @@ VECTOR_SIZE = 24
 INPUT_SIZE = IMG_WIDTH * IMG_HEIGHT + VECTOR_SIZE
 EXPLICIT_BATCH = 1
 
-current_path = os.path.dirname(os.path.abspath(__file__))[:-8]  # -7 remove '/scripts'
+current_path = os.path.dirname(os.path.abspath(__file__))[:-19]  # -8 removes '/scripts', -11 removes '/nn_trainer'
 onnx_save_path = '/saved_net/planner_net.onnx'
 trt_save_path = '/saved_net/planner_net.trt'
 

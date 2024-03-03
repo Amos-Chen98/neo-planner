@@ -1,14 +1,14 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-08-11 13:55:05
+LastEditTime: 2024-03-03 16:54:41
 '''
 import os
 import sys
-current_path = os.path.abspath(os.path.dirname(__file__))
+current_path = os.path.abspath(os.path.dirname(__file__))[:-9] # -9 removes '/ros_node'
 sys.path.insert(0, current_path)
 import datetime
 import rosbag
-from esdf import ESDF
+from map_server.esdf import ESDF
 from geometry_msgs.msg import PoseStamped
 from transitions.extensions import GraphMachine
 from transitions import Machine

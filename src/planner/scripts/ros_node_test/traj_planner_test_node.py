@@ -4,25 +4,25 @@ LastEditTime: 2023-08-15 13:15:43
 '''
 import os
 import sys
-current_path = os.path.abspath(os.path.dirname(__file__))
+current_path = os.path.abspath(os.path.dirname(__file__))[:-14] # -14 removes '/ros_node_test'
 sys.path.insert(0, current_path)
 from tf.transformations import euler_from_quaternion
-from enhanced_planner import EnhancedPlanner
-from record_planner import RecordPlanner
-from nn_planner import NNPlanner
+from traj_planner.enhanced_planner import EnhancedPlanner
+from traj_planner.record_planner import RecordPlanner
+from traj_planner.nn_planner import NNPlanner
 from planner.msg import *
 import actionlib
 from nav_msgs.msg import Odometry, Path, OccupancyGrid
-from esdf import ESDF
+from map_server.esdf import ESDF
 import time
 from pyquaternion import Quaternion
-from expert_planner import MinJerkPlanner
+from traj_planner.expert_planner import MinJerkPlanner
 from mavros_msgs.srv import SetMode, SetModeRequest
 from mavros_msgs.msg import State, PositionTarget
 import numpy as np
 import rospy
 from visualization_msgs.msg import Marker, MarkerArray
-from visualizer import Visualizer
+from visualizer.visualizer import Visualizer
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import cv2

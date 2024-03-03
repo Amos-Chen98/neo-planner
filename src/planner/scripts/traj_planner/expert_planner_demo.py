@@ -1,7 +1,11 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-31 15:47:46
+LastEditTime: 2024-03-03 17:01:39
 '''
+import os
+import sys
+current_path = os.path.abspath(os.path.dirname(__file__))
+sys.path.insert(0, current_path)
 import math
 import pprint
 import numpy as np

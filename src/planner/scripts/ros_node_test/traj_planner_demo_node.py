@@ -4,7 +4,7 @@ LastEditTime: 2023-08-20 22:58:09
 '''
 import os
 import sys
-current_path = os.path.abspath(os.path.dirname(__file__))
+current_path = os.path.abspath(os.path.dirname(__file__))[:-14] # -14 removes '/ros_node_test'
 sys.path.insert(0, current_path)
 import copy
 from cv_bridge import CvBridge
@@ -17,13 +17,13 @@ from mavros_msgs.srv import SetMode, SetModeRequest
 from expert_planner_demo import MinJerkPlanner
 from pyquaternion import Quaternion
 import time
-from esdf import ESDF
+from map_server.esdf import ESDF
 from nav_msgs.msg import Odometry, Path, OccupancyGrid
 import actionlib
 from planner.msg import *
-from nn_planner import NNPlanner
-from record_planner import RecordPlanner
-from enhanced_planner import EnhancedPlanner
+from traj_planner.nn_planner import NNPlanner
+from traj_planner.record_planner import RecordPlanner
+from traj_planner.enhanced_planner import EnhancedPlanner
 from std_msgs.msg import ColorRGBA
 from geometry_msgs.msg import Point
 

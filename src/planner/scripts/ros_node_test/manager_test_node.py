@@ -1,26 +1,26 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-08-21 11:56:04
+LastEditTime: 2024-03-03 17:03:06
 '''
 import os
 import sys
-current_path = os.path.abspath(os.path.dirname(__file__))
+current_path = os.path.abspath(os.path.dirname(__file__))[:-14] # -14 removes '/ros_node_test'
 sys.path.insert(0, current_path)
-from pyquaternion import Quaternion
-from planner.msg import *
-from visualization_msgs.msg import Marker
-from nav_msgs.msg import Odometry
-from mavros_msgs.msg import State, PositionTarget
-from mavros_msgs.srv import CommandBool, CommandBoolRequest, SetMode, SetModeRequest, CommandTOL, CommandTOLRequest
-import rospy
-import numpy as np
-from transitions import Machine
-from transitions.extensions import GraphMachine
-from geometry_msgs.msg import PoseStamped
-from esdf import ESDF
-import rosbag
 import datetime
-
+import rosbag
+from map_server.esdf import ESDF
+from geometry_msgs.msg import PoseStamped
+from transitions.extensions import GraphMachine
+from transitions import Machine
+import numpy as np
+import rospy
+from mavros_msgs.srv import CommandBool, CommandBoolRequest, SetMode, SetModeRequest, CommandTOL, CommandTOLRequest
+from mavros_msgs.msg import State, PositionTarget
+from nav_msgs.msg import Odometry
+from visualization_msgs.msg import Marker
+import actionlib
+from planner.msg import *
+from pyquaternion import Quaternion
 
 
 class DroneState():
@@ -71,17 +71,21 @@ class Manager():
         self.set_mode_client = rospy.ServiceProxy("mavros/set_mode", SetMode)
         self.takeoff_client = rospy.ServiceProxy("mavros/cmd/takeoff", CommandTOL)
 
+        # Action client
+        self.plan_client = actionlib.SimpleActionClient('plan', PlanAction)
+
         try:
             rospy.wait_for_service('mavros/cmd/arming')
             rospy.wait_for_service('mavros/set_mode')
             rospy.wait_for_service("mavros/cmd/takeoff")
+            self.plan_client.wait_for_server()
         except rospy.ROSException:
             exit('Wait for service timeout')
 
         # Subscribers
         self.flight_state_sub = rospy.Subscriber('mavros/state', State, self.flight_state_cb)
         self.odom_sub = rospy.Subscriber('mavros/local_position/odom', Odometry, self.odom_cb)
-        self.target_sub = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.vis_target)
+        self.target_sub = rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.trigger_plan)
 
         # Publishers
         self.local_pos_cmd_pub = rospy.Publisher("mavros/setpoint_raw/local", PositionTarget, queue_size=10)
@@ -89,9 +93,8 @@ class Manager():
         self.next_goal_pub = rospy.Publisher('/move_base_simple/goal', PoseStamped, queue_size=10)
 
         # FSM
-        self.fsm = GraphMachine(model=self, states=['INIT', 'TAKINGOFF', 'HOVER', 'MISSION'], initial='INIT')
-        self.fsm.add_transition(trigger='launch', source='INIT', dest='TAKINGOFF', before="get_odom", after=['takeoff', 'print_current_state'])
-        self.fsm.add_transition(trigger='reach_height', source='TAKINGOFF', dest='HOVER', after=['print_current_state'])
+        self.fsm = GraphMachine(model=self, states=['INIT', 'HOVER', 'MISSION'], initial='INIT')
+        self.fsm.add_transition(trigger='launch', source='INIT', dest='HOVER', before="get_odom", after=['print_current_state'])
         self.fsm.add_transition(trigger='set_goal', source='HOVER', dest='MISSION', after=['print_current_state', 'open_rosbag'])
         self.fsm.add_transition(trigger='set_goal', source='MISSION', dest='MISSION', after=['print_current_state', 'open_rosbag'])
         self.fsm.add_transition(trigger='reach_goal', source='MISSION', dest='HOVER', after=['print_current_state', 'close_rosbag'])
@@ -118,6 +121,23 @@ class Manager():
     def print_current_state(self):
         rospy.loginfo("Current state: %s", self.state)
 
+    def trigger_plan(self, target):
+        print("")
+        rospy.loginfo("Global target: x = %f, y = %f", target.pose.position.x, target.pose.position.y)
+        self.global_target = np.array([target.pose.position.x,
+                                       target.pose.position.y,
+                                       target.pose.position.z])
+        self.vis_target()
+        self.set_goal()
+        goal_msg = PlanGoal()
+        goal_msg.target = target
+        if self.has_goal == True:
+            self.plan_client.cancel_goal()
+        else:
+            self.has_goal = True
+
+        self.plan_client.send_goal(goal_msg, done_cb=self.finish_planning_cb)
+
     def open_rosbag(self):
         if self.recording_data:
             now = datetime.datetime.now()
@@ -131,6 +151,18 @@ class Manager():
             self.rosbag_is_on = False
             self.bag.close()
             rospy.loginfo("rosbag closed!")
+
+    def finish_planning_cb(self, state, result):
+        rospy.loginfo("Reached goal!")
+        self.reach_goal()
+
+        if self.mission_mode == "random":
+            self.set_random_goal()
+        elif self.mission_mode == "predefined" and self.goal_index <= self.max_goal_index:
+            self.set_predefined_goal()
+            self.goal_index += 1
+
+        # if mission_mode is 'maunal', do nothing and wait for the next target
 
     def set_predefined_goal(self):
         '''
@@ -166,13 +198,13 @@ class Manager():
 
         self.next_goal_pub.publish(target)
 
-    def vis_target(self, target):
+    def vis_target(self):
         marker = Marker()
         marker.header.frame_id = "map"
         marker.type = marker.SPHERE
         marker.action = marker.ADD
-        marker.pose.position.x = target.pose.position.x
-        marker.pose.position.y = target.pose.position.y
+        marker.pose.position.x = self.global_target[0]
+        marker.pose.position.y = self.global_target[1]
         marker.pose.position.z = self.hover_height
         marker.pose.orientation.x = 0.0
         marker.pose.orientation.y = 0.0
