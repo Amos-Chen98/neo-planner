@@ -1,8 +1,18 @@
 #!/bin/bash
+echo "=============================="
+
+gazebo_world=${1:-"poles"}  # Default to empty world if no argument is provided
+echo "The gazebo world is $gazebo_world"
+
+is_save_rosbag=${2:-"false"}  # Default to true if no argument is provided
+echo "The is_save_rosbag is $is_save_rosbag"
+
+echo "=============================="
+
 max_target_find_time=45 # Maximum simulation time in seconds
 
 # Launch roslaunch in a new GNOME terminal tab and capture its PID
-gnome-terminal --tab --title="bring up" --command="roslaunch planner bringup.launch headless:=true is_save_metric:=true max_target_find_time:=$max_target_find_time gazebo_world:=poles" &
+gnome-terminal --tab --title="bring up" --command="roslaunch planner bringup.launch headless:=true is_save_metric:=true max_target_find_time:=$max_target_find_time gazebo_world:=$gazebo_world" &
 GNOME_PID=$!
 
 # Sleep for 25 seconds to allow roslaunch to start and stabilize
@@ -10,7 +20,9 @@ sleep 25
 
 # rosbag record in the background, assuming this is a once-off command and does not need to be explicitly killed
 time_now=$(date +"%Y-%m-%d-%H-%M-%S")
-rosbag record -a -x "/camera.*" -O /tmp/demo_$time_now.bag &
+if [ "$is_save_rosbag" = "true" ]; then
+    rosbag record -a -x "/camera.*" -O /tmp/demo_$time_now.bag &
+fi
 
 # Publish a goal, assuming this is a once-off command and does not need to be explicitly killed
 rostopic pub -1 /move_base_simple/goal geometry_msgs/PoseStamped '{header: {stamp: now, frame_id: "map"}, pose: {position: {x: 30.0, y: 0.0, z: 0.0}, orientation: {w: 1.0}}}' &
