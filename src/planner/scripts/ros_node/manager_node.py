@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-03-03 16:54:41
+LastEditTime: 2024-03-03 21:20:24
 '''
 import os
 import sys
@@ -154,8 +154,11 @@ class Manager():
             rospy.loginfo("rosbag closed!")
 
     def finish_planning_cb(self, state, result):
-        rospy.loginfo("Reached goal!")
-        self.reach_goal()
+        if result.success:
+            rospy.loginfo("Mission succeeded!")
+            self.reach_goal()
+        else:
+            rospy.logerr("Mission failed!")
 
         if self.mission_mode == "random":
             self.set_random_goal()
