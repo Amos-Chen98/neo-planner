@@ -1,11 +1,11 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-03-03 16:52:27
+LastEditTime: 2024-03-03 21:17:36
 '''
 import os
 import sys
 
-current_path = os.path.abspath(os.path.dirname(__file__))[:-9] # -9 removes '/ros_node'
+current_path = os.path.abspath(os.path.dirname(__file__))[:-9]  # -9 removes '/ros_node'
 sys.path.insert(0, current_path)
 import datetime
 import pandas as pd
@@ -30,6 +30,7 @@ from traj_planner.nn_planner import NNPlanner
 from traj_planner.record_planner import RecordPlanner
 from traj_planner.enhanced_planner import EnhancedPlanner
 from tf.transformations import euler_from_quaternion
+
 
 
 class PlannerConfig():
@@ -141,7 +142,7 @@ class TrajPlanner():
         self.des_path_pub = rospy.Publisher('des_path', MarkerArray, queue_size=10)
         self.local_target_pub = rospy.Publisher('local_target', Marker, queue_size=10)
 
-        rospy.loginfo(f"Global planner initialized! Selected planner: {self.selected_planner}")
+        rospy.loginfo(f"Trajectory planner initialized! Selected planner: {self.selected_planner}")
 
     def flight_state_cb(self, data):
         self.flight_state = data
@@ -181,7 +182,7 @@ class TrajPlanner():
 
         if self.target_received and np.linalg.norm(global_pos[:2] - self.global_target) < self.target_reach_threshold:
             rospy.loginfo("Global target reached!\n")
-            self.end_mission()
+            self.end_mission(reached_target=True)
 
     def init_mission(self):
         self.target_received = True
@@ -208,10 +209,10 @@ class TrajPlanner():
             copy.copy(self.drone_state))  # if not using copy, the drone_state_list will be all the same
         self.des_drone_state_list.append(copy.copy(self.des_state_array[self.des_state_index]))
 
-    def end_mission(self):
+    def end_mission(self, reached_target):
         self.tracking_cmd_timer.shutdown()
         self.target_received = False
-        self.reached_target = True
+        self.reached_target = reached_target
         self.near_global_target = False
         self.des_state_index = 0
         if self.replan_mode == 'periodic':
@@ -260,9 +261,9 @@ class TrajPlanner():
 
         if self.plan_server.is_preempt_requested():
             rospy.loginfo("Planning preempted!\n")
-            self.end_mission()
+            self.end_mission(reached_target=False)
             self.plan_server.set_preempted()
-        else:
+        else: # means reached_target OR timeout!
             result = PlanResult()
             result.success = self.reached_target
             self.plan_server.set_succeeded(result)
@@ -367,6 +368,59 @@ class TrajPlanner():
         self.visualize_des_wpts()
         self.visualize_des_path()
 
+    def online_planning(self):
+        while not self.odom_received:
+            time.sleep(0.01)
+
+        self.try_first_plan()
+        self.start_tracking()
+
+        while (
+                not self.reached_target
+                and not self.near_global_target
+                and not self.plan_server.is_preempt_requested()
+        ):
+            self.try_local_planning()
+
+    def periodic_planning(self):
+        while not self.odom_received:
+            time.sleep(0.01)
+
+        self.try_first_plan()
+        self.start_tracking()
+
+        # after the first plan, replan periodically
+        self.replan_timer = rospy.Timer(rospy.Duration(self.replan_period), self.replan_cb)
+
+    def try_first_plan(self):
+        seed = 0
+        self.set_local_target(seed)
+        self.visualize_local_target()
+        while True:
+            try:
+                self.first_plan()
+                break
+            except Exception as ex:
+                rospy.logwarn("First planning failed: %s", ex)
+                seed += 1
+                self.set_local_target(seed)
+                if seed > 10:
+                    rospy.logerr("Entire planning failed!\n")
+                    self.end_mission(reached_target=False)
+                    self.plan_server.set_aborted()
+                    return
+
+        self.visualize_des_wpts()
+        self.visualize_des_path()
+
+    def replan_cb(self, event):
+        if (
+                not self.reached_target
+                and not self.near_global_target
+                and not self.plan_server.is_preempt_requested()
+        ):
+            self.try_local_planning()
+
     def try_local_planning(self):
         seed = 0
         self.set_local_target(seed)
@@ -381,50 +435,12 @@ class TrajPlanner():
                 self.set_local_target(seed)
                 if seed > 10:
                     rospy.logerr("Entire planning failed!\n")
-                    self.end_mission()
+                    self.end_mission(reached_target=False)
                     self.plan_server.set_aborted()
                     return
 
         self.visualize_des_wpts()
         self.visualize_des_path()
-
-    def online_planning(self):
-        while not self.odom_received:
-            time.sleep(0.01)
-
-        self.set_local_target()
-        self.first_plan()
-        self.start_tracking()
-        self.visualize_des_wpts()
-        self.visualize_des_path()
-
-        while (
-                not self.reached_target
-                and not self.near_global_target
-                and not self.plan_server.is_preempt_requested()
-        ):
-            self.try_local_planning()
-
-    def periodic_planning(self):
-        while not self.odom_received:
-            time.sleep(0.01)
-
-        self.set_local_target()
-        self.first_plan()
-        self.start_tracking()
-        self.visualize_des_wpts()
-        self.visualize_des_path()
-
-        # after the first plan, replan periodically
-        self.replan_timer = rospy.Timer(rospy.Duration(self.replan_period), self.replan_cb)
-
-    def replan_cb(self, event):
-        if (
-                not self.reached_target
-                and not self.near_global_target
-                and not self.plan_server.is_preempt_requested()
-        ):
-            self.try_local_planning()
 
     def set_local_target(self, seed=0):
         self.target_state = np.zeros((2, 2))
@@ -531,9 +547,6 @@ class TrajPlanner():
                                      self.planner.ts)
         else:
             rospy.logerr("Invalid planner mode!")
-
-        # add planning latency
-        # time.sleep(0.8)
 
         time_end = time.time()
         rospy.loginfo("Planning time: {}".format(time_end - time_start))
