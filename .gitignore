@@ -55,14 +55,14 @@ CATKIN_IGNORE
 # Editor
 .vscode
 
-# large files
-rosbag/
-training_data/
-# saved_net/
-planning_result/
-*.bag
-/src/planner/data_csv
 # IDEA
 .idea
+
+# large files
+src/planner/training_data
+
 # experimental data
-/src/planner/data/planning_metrics.txt
+*.bag
+src/planner/data
+src/planner/data_csv
+src/planner/planning_result
