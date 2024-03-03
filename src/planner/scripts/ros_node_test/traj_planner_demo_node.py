@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-08-20 22:58:09
+LastEditTime: 2024-03-03 17:25:31
 '''
 import os
 import sys
@@ -14,7 +14,7 @@ import rospy
 import numpy as np
 from mavros_msgs.msg import State, PositionTarget
 from mavros_msgs.srv import SetMode, SetModeRequest
-from expert_planner_demo import MinJerkPlanner
+from traj_planner.expert_planner_demo import MinJerkPlanner
 from pyquaternion import Quaternion
 import time
 from map_server.esdf import ESDF
