@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-08-06 21:59:59
+LastEditTime: 2024-03-03 16:12:24
 '''
 import torch
 import numpy as np
@@ -26,7 +26,7 @@ OUTPUT_SIZE = 9
 BATCH_SIZE = 64
 EPOCHS = 30
 
-current_path = os.path.dirname(os.path.abspath(__file__))[:-8]  # -7 remove '/scripts'
+current_path = os.path.dirname(os.path.abspath(__file__))[:-19]  # -8 removes '/scripts', -11 removes '/nn_trainer'
 img_path = '/training_data/starred/depth_img'
 csv_path = '/training_data/starred/train.csv'
 pth_save_path = '/saved_net/planner_net.pth'

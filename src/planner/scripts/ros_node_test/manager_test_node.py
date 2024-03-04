@@ -1,14 +1,14 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-08-11 13:55:05
+LastEditTime: 2024-03-03 17:03:06
 '''
 import os
 import sys
-current_path = os.path.abspath(os.path.dirname(__file__))
+current_path = os.path.abspath(os.path.dirname(__file__))[:-14] # -14 removes '/ros_node_test'
 sys.path.insert(0, current_path)
 import datetime
 import rosbag
-from esdf import ESDF
+from map_server.esdf import ESDF
 from geometry_msgs.msg import PoseStamped
 from transitions.extensions import GraphMachine
 from transitions import Machine
@@ -93,9 +93,8 @@ class Manager():
         self.next_goal_pub = rospy.Publisher('/move_base_simple/goal', PoseStamped, queue_size=10)
 
         # FSM
-        self.fsm = GraphMachine(model=self, states=['INIT', 'TAKINGOFF', 'HOVER', 'MISSION'], initial='INIT')
-        self.fsm.add_transition(trigger='launch', source='INIT', dest='TAKINGOFF', before="get_odom", after=['takeoff', 'print_current_state'])
-        self.fsm.add_transition(trigger='reach_height', source='TAKINGOFF', dest='HOVER', after=['print_current_state'])
+        self.fsm = GraphMachine(model=self, states=['INIT', 'HOVER', 'MISSION'], initial='INIT')
+        self.fsm.add_transition(trigger='launch', source='INIT', dest='HOVER', before="get_odom", after=['print_current_state'])
         self.fsm.add_transition(trigger='set_goal', source='HOVER', dest='MISSION', after=['print_current_state', 'open_rosbag'])
         self.fsm.add_transition(trigger='set_goal', source='MISSION', dest='MISSION', after=['print_current_state', 'open_rosbag'])
         self.fsm.add_transition(trigger='reach_goal', source='MISSION', dest='HOVER', after=['print_current_state', 'close_rosbag'])
@@ -305,7 +304,5 @@ if __name__ == "__main__":
     manager = Manager()
 
     manager.launch()
-
-    # manager.draw_fsm_graph()
 
     rospy.spin()

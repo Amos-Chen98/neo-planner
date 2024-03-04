@@ -1,13 +1,16 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-08-20 22:55:37
+LastEditTime: 2024-03-03 16:03:15
 '''
-import math
-import pprint
-import numpy as np
-import scipy.optimize as opt
-import math
+import os
+import sys
+current_path = os.path.abspath(os.path.dirname(__file__))
+sys.path.insert(0, current_path)
 from traj_utils import TrajUtils
+import scipy.optimize as opt
+import numpy as np
+import pprint
+import math
 
 
 class DefaultConfig():
@@ -212,18 +215,18 @@ class MinJerkPlanner(TrajUtils):
         x0 = np.concatenate((np.reshape(self.int_wpts, (self.D*(self.M - 1),)), self.tau), axis=0)
 
         res = opt.minimize(self.get_cost,
-                                      x0,
-                                      method='L-BFGS-B',
-                                      jac=self.get_grad,
-                                      bounds=None,
-                                      tol=1e-4,
-                                      callback=None,
-                                      options={'disp': 0,
-                                               'maxcor': 10,
-                                               'maxfun': 15000,
-                                               'maxiter': 15000,
-                                               'iprint': 0,
-                                               'maxls': 20})
+                           x0,
+                           method='L-BFGS-B',
+                           jac=self.get_grad,
+                           bounds=None,
+                           tol=1e-4,
+                           callback=None,
+                           options={'disp': 0,
+                                    'maxcor': 10,
+                                    'maxfun': 15000,
+                                    'maxiter': 15000,
+                                    'iprint': 0,
+                                    'maxls': 20})
 
         self.int_wpts = np.reshape(res.x[:self.D*(self.M - 1)], (self.D, self.M - 1))
         self.tau = res.x[self.D*(self.M - 1):]
