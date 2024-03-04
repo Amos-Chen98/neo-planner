@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-03-03 21:17:36
+LastEditTime: 2024-03-04 19:50:56
 '''
 import os
 import sys
@@ -201,7 +201,7 @@ class TrajPlanner():
         self.timestamp_list = []
         self.drone_state_list = []
         self.des_drone_state_list = []
-        self.metric_weights = np.array([1, 1, 1])  # distance, feasibility, collision
+        self.metric_weights = np.array([1, 1, 100])  # distance, feasibility, collision
 
     def record_metric_cb(self, event):
         self.timestamp_list.append(event.current_real.to_sec())
@@ -352,8 +352,12 @@ class TrajPlanner():
 
             if violate_dis > 0.0:
                 raw_cost[2] += violate_dis ** 3
-
+                
         weighted_metric = np.dot(raw_cost, self.metric_weights)
+
+        if weighted_metric > 10*self.planner_config.collision_cost_tol:
+            # if the cost is too high, the planning is considered failed
+            self.reached_target = False
 
         return weighted_metric
 
