@@ -13,14 +13,12 @@ collision_cost_tol: 5
 opt_tol: 1e-2
 
 # mission
-replan_mode: periodic # 'global', 'online', or 'periodic'
 planning_time_ahead: 1.0
 des_pos_z: 2.0
 longitu_step_dis: 5.0
 lateral_step_length: 1.0
 target_reach_threshold: 0.2
 cmd_hz: 60
-selected_planner: enhanced # 'basic', 'batch', 'record', 'nn', 'enhanced', or 'warmstart'
 replan_period: 1.0
 record_metric: True
 yaw_shift_tol: 0.17453

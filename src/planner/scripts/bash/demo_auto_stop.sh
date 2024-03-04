@@ -1,10 +1,16 @@
 #!/bin/bash
 echo "=============================="
 
-gazebo_world=${1:-"poles"}  # Default to empty world if no argument is provided
+selected_planner=${1:-"enhanced"}  # 'basic', 'batch', 'record', 'nn', 'enhanced', or 'warmstart'
+echo "The selected planner is $selected_planner"
+
+gazebo_world=${2:-"poles"}  # Default to empty world if no argument is provided
 echo "The gazebo world is $gazebo_world"
 
-is_save_rosbag=${2:-"false"}  # Default to true if no argument is provided
+replan_mode=${3:-"periodic"}  # 'global', 'online', or 'periodic'
+echo "The replan mode is $replan_mode"
+
+is_save_rosbag=${4:-"false"}  # Default to true if no argument is provided
 echo "The is_save_rosbag is $is_save_rosbag"
 
 echo "=============================="
@@ -12,7 +18,7 @@ echo "=============================="
 max_target_find_time=45 # Maximum simulation time in seconds
 
 # Launch roslaunch in a new GNOME terminal tab and capture its PID
-gnome-terminal --tab --title="bring up" --command="roslaunch planner bringup.launch headless:=true is_save_metric:=true max_target_find_time:=$max_target_find_time gazebo_world:=$gazebo_world" &
+gnome-terminal --tab --title="bring up" --command="roslaunch planner bringup.launch headless:=true is_save_metric:=true max_target_find_time:=$max_target_find_time gazebo_world:=$gazebo_world selected_planner:=$selected_planner replan_mode:=$replan_mode" &
 GNOME_PID=$!
 
 # Sleep for 25 seconds to allow roslaunch to start and stabilize

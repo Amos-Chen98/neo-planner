@@ -2,20 +2,23 @@
 is_save_rosbag=${2:-"false"}  # Default to true if no argument is provided
 echo "The is_save_rosbag is $is_save_rosbag"
 
+# selected_planner: 'basic', 'batch', 'record', 'nn', 'enhanced', or 'warmstart'
+# replan_mode: 'global', 'online', or 'periodic'
+
 echo "++++++++++ Execution stated. ++++++++++"
-./scripts/bash/demo_auto_stop.sh "rand_world_10" "$is_save_rosbag"
+./scripts/bash/demo_auto_stop.sh "nn" "rand_world_10" "periodic" "$is_save_rosbag"
 echo "++++++++++ Execution finished. ++++++++++"
 
 sleep 10
 
 echo "++++++++++ Execution stated. ++++++++++"
-./scripts/bash/demo_auto_stop.sh "rand_world_20" "$is_save_rosbag"
+./scripts/bash/demo_auto_stop.sh "basic" "rand_world_20" "periodic" "$is_save_rosbag"
 echo "++++++++++ Execution finished. ++++++++++"
 
 sleep 10
 
 echo "++++++++++ Execution stated. ++++++++++"
-./scripts/bash/demo_auto_stop.sh "rand_world_40" "$is_save_rosbag"
+./scripts/bash/demo_auto_stop.sh "enhanced" "rand_world_40" "periodic" "$is_save_rosbag"
 echo "++++++++++ Execution finished. ++++++++++"
 
 ## Check if the number of repetitions is provided as an argument
