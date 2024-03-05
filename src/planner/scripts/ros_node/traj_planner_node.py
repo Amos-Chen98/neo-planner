@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-03-04 19:50:56
+LastEditTime: 2024-03-05 21:20:54
 '''
 import os
 import sys
@@ -29,6 +29,7 @@ from traj_planner.expert_planner import MinJerkPlanner
 from traj_planner.nn_planner import NNPlanner
 from traj_planner.record_planner import RecordPlanner
 from traj_planner.enhanced_planner import EnhancedPlanner
+from traj_planner.geo_planner import GeoPlanner
 from tf.transformations import euler_from_quaternion
 
 
@@ -100,6 +101,8 @@ class TrajPlanner():
         # Planner
         if self.selected_planner in ['basic', 'batch', 'warmstart']:
             self.planner = MinJerkPlanner(self.planner_config)
+        elif self.selected_planner == 'geo':
+            self.planner = GeoPlanner(self.planner_config)
         elif self.selected_planner == 'record':
             self.planner = RecordPlanner(self.planner_config)
         elif self.selected_planner == 'nn':
@@ -491,6 +494,8 @@ class TrajPlanner():
             self.basic_traj_plan(self.map, self.drone_state, self.target_state)
         elif self.selected_planner == 'batch':
             self.batch_traj_plan(self.map, self.drone_state, self.target_state)
+        elif self.selected_planner == 'geo':
+            self.geo_traj_plan(self.map, self.drone_state, self.target_state)
         elif self.selected_planner == 'record':
             self.record_traj_plan(self.map, self.depth_img, self.drone_state, self.drone_state, self.target_state)
         elif self.selected_planner == 'nn':
@@ -540,6 +545,8 @@ class TrajPlanner():
             self.basic_traj_plan(self.map, drone_state_ahead, self.target_state)
         elif self.selected_planner == 'batch':
             self.batch_traj_plan(self.map, drone_state_ahead, self.target_state)
+        elif self.selected_planner == 'geo':
+            self.geo_traj_plan(self.map, drone_state_ahead, self.target_state)
         elif self.selected_planner == 'record':
             self.record_traj_plan(self.map, self.depth_img, self.drone_state, drone_state_ahead, self.target_state)
         elif self.selected_planner == 'nn':
@@ -613,6 +620,9 @@ class TrajPlanner():
         drone_state_2d = np.array([plan_init_state.global_pos[:2],
                                    plan_init_state.global_vel[:2]])
         self.planner.batch_plan(map, drone_state_2d, target_state)  # 2D planning, z is fixed
+
+    def geo_traj_plan(self, map, plan_init_state, target_state):
+        self.planner.geo_traj_plan(map, plan_init_state, target_state)
 
     def record_traj_plan(self, map, depth_img, drone_state, plan_init_state, target_state):
         self.planner.record_traj_plan(map, depth_img, drone_state, plan_init_state, target_state)

@@ -1,12 +1,12 @@
 <?xml version="1.0"?>
 <launch>
     <arg name="is_save_metric" default="true"/>
-    <arg name="max_target_find_time" default="30"/> <!-- seconds -->
+    <arg name="max_target_find_time" default="45"/> <!-- seconds -->
     <arg name="gazebo_world" default="poles"/>
     <arg name="selected_planner" default="enhanced"/>
-    <!--        selected_planner: enhanced # 'basic', 'batch', 'record', 'nn', 'enhanced', or 'warmstart'-->
+    <!-- selected_planner: 'basic', 'batch', 'geo', 'record', 'nn', 'enhanced', or 'warmstart'-->
     <arg name="replan_mode" default="periodic"/>
-    <!--    replan_mode: periodic # 'global', 'online', or 'periodic'-->
+    <!-- replan_mode: 'global', 'online', or 'periodic'-->
 
     <node pkg="planner" type="traj_planner_node.py" name="planner" output="screen">
         <param name="selected_planner" value="$(arg selected_planner)"/>
