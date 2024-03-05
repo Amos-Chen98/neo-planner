@@ -38,3 +38,6 @@ min_test_unit() {
 min_test_unit $num_repeats "rand_world_10"
 min_test_unit $num_repeats "rand_world_20"
 min_test_unit $num_repeats "rand_world_40"
+
+# analysis
+python3 scripts/bash/analyze_data.py
