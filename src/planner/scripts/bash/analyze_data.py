@@ -47,7 +47,7 @@ for planner in planners:
 
         # print average total planning times
         average_total_planning_times = filtered_data['total_planning_times'].mean()
-        print(planner + ' in ' + world + ' average total planning times: ' + str(average_total_planning_times))
+        print(planner + ' in ' + world + ' average total planning times: ' + str(average_total_planning_times) + '\n')
 
 
 #                 file.write(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + ' ')
