@@ -33,7 +33,6 @@ from traj_planner.geo_planner import GeoPlanner
 from tf.transformations import euler_from_quaternion
 
 
-
 class PlannerConfig():
     def __init__(self):
         self.v_max = rospy.get_param("~v_max", 1.0)
@@ -97,6 +96,7 @@ class TrajPlanner():
         self.is_save_metric = rospy.get_param("~is_save_metric", False)  # whether to save the metric
         self.max_target_find_time = rospy.get_param("~max_target_find_time", 30.0)  # the max time to find the target
         self.gazebo_world = rospy.get_param("~gazebo_world", "poles")
+        self.num_models = rospy.get_param("~world_num_models", 0)  # the number of models in the world
 
         # Planner
         if self.selected_planner in ['basic', 'batch', 'warmstart']:
@@ -266,7 +266,7 @@ class TrajPlanner():
             rospy.loginfo("Planning preempted!\n")
             self.end_mission(reached_target=False)
             self.plan_server.set_preempted()
-        else: # means reached_target OR timeout!
+        else:  # means reached_target OR timeout!
             result = PlanResult()
             result.success = self.reached_target
             self.plan_server.set_succeeded(result)
@@ -297,6 +297,7 @@ class TrajPlanner():
                 # data time now, weighted_metric, average_iter_num, average_planning_duration, total_planning_times
                 file.write(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + ' ')
                 file.write(self.gazebo_world + ' ')
+                file.write(str(self.num_models) + ' ')
                 file.write(self.selected_planner + ' ')
                 file.write(self.replan_mode + ' ')
                 file.write(str(self.reached_target) + ' ')
@@ -355,10 +356,10 @@ class TrajPlanner():
 
             if violate_dis > 0.0:
                 raw_cost[2] += violate_dis ** 3
-                
+
         weighted_metric = np.dot(raw_cost, self.metric_weights)
 
-        if weighted_metric > 10*self.planner_config.collision_cost_tol:
+        if weighted_metric > 10 * self.planner_config.collision_cost_tol:
             # if the cost is too high, the planning is considered failed
             self.reached_target = False
 

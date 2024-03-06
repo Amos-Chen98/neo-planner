@@ -3,6 +3,7 @@
     <arg name="is_save_metric" default="true"/>
     <arg name="max_target_find_time" default="45"/> <!-- seconds -->
     <arg name="gazebo_world" default="poles"/>
+    <arg name="world_num_models" default="0"/>
     <arg name="selected_planner" default="enhanced"/>
     <!-- selected_planner: 'basic', 'batch', 'geo', 'record', 'nn', 'enhanced', or 'warmstart'-->
     <arg name="replan_mode" default="periodic"/>
@@ -14,6 +15,7 @@
         <param name="is_save_metric" value="$(arg is_save_metric)"/>
         <param name="max_target_find_time" value="$(arg max_target_find_time)"/>
         <param name="gazebo_world" value="$(arg gazebo_world)"/>
+        <param name="world_num_models" value="$(arg world_num_models)"/>
         <rosparam file="$(find planner)/launch/planner_config.yaml" command="load"/>
     </node>
 

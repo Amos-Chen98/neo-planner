@@ -1,4 +1,4 @@
-new_model_num: [5, 10, 15, 20, 40]
+new_model_num: [ 10, 10, 10, 10, 10, 15, 15, 15, 15, 15, 20, 20, 20, 20, 20 ]
 
 model_pose_x_min: 3
 model_pose_x_max: 27
