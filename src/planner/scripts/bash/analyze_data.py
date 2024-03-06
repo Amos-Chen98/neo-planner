@@ -7,23 +7,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 
-rospack = rospkg.RosPack()
-param_path = os.path.join(rospack.get_path("planner"), "data", "planning_metrics.txt")
 
-# read data
-data = pd.read_csv(param_path, sep=' ', header=None)
-data.columns = ['date', 'time', 'world', 'planner', 'replan_mode', 'if_reached_target', 'target_x', 'target_y',
-                'target_find_time', 'max_target_find_time', 'weighted_metric', 'average_iter_num',
-                'average_planning_duration', 'total_planning_times']
-
-# filter data based on the 'planner' and 'world' columns. Loop through all the planners and worlds
-planners = data['planner'].unique()
-worlds = data['world'].unique()
-
-for planner in planners:
-    for world in worlds:
+def analyze_with_planner(in_data, world):
+    planners = in_data['planner'].unique()
+    for planner in planners:
         # filter the data
-        filtered_data = data[(data['planner'] == planner) & (data['world'] == world)]
+        filtered_data = in_data[in_data['planner'] == planner]
 
         # print success rate
         success_rate = filtered_data['if_reached_target'].sum() / len(filtered_data)
@@ -50,16 +39,26 @@ for planner in planners:
         print(planner + ' in ' + world + ' average total planning times: ' + str(average_total_planning_times) + '\n')
 
 
-#                 file.write(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + ' ')
-#                 file.write(self.gazebo_world + ' ')
-#                 file.write(self.selected_planner + ' ')
-#                 file.write(self.replan_mode + ' ')
-#                 file.write(str(self.reached_target) + ' ')
-#                 file.write(str(self.global_target[0]) + ' ')  # x
-#                 file.write(str(self.global_target[1]) + ' ')  # y
-#                 file.write(str(self.target_find_time) + ' ')
-#                 file.write(str(self.max_target_find_time) + ' ')
-#                 file.write(str(weighted_metric) + ' ')
-#                 file.write(str(average_iter_num) + ' ')
-#                 file.write(str(average_planning_duration) + ' ')
-#                 file.write(str(self.total_planning_times) + '\n')
+rospack = rospkg.RosPack()
+param_path = os.path.join(rospack.get_path("planner"), "data", "planning_metrics.txt")
+
+# read data
+data = pd.read_csv(param_path, sep=' ', header=None)
+data.columns = ['date', 'time', 'world', 'world_num_model', 'planner', 'replan_mode', 'if_reached_target', 'target_x',
+                'target_y',
+                'target_find_time', 'max_target_find_time', 'weighted_metric', 'average_iter_num',
+                'average_planning_duration', 'total_planning_times']
+
+
+multi_num_models = data['world_num_model'].unique()
+
+for num_model in multi_num_models:
+    data_num_model = data[data['world_num_model'] == num_model]
+    print('For ' + str(num_model) + ' models:')
+    if num_model == 0:
+        worlds = data_num_model['world'].unique()
+        for world in worlds:
+            data_filtered = data_num_model[data_num_model['world'] == world]
+            analyze_with_planner(data_filtered, world)
+    else:
+        analyze_with_planner(data_num_model, str(num_model))
