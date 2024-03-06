@@ -18,6 +18,8 @@ def analyze_with_planner(in_data, world):
         success_rate = filtered_data['if_reached_target'].sum() / len(filtered_data)
         print(planner + ' in ' + world + ' success rate: ' + str(success_rate))
 
+        filtered_data = filtered_data[filtered_data['if_reached_target'] == 1]  # only consider the successful cases
+
         # print average weighted metric
         average_weighted_metric = filtered_data['weighted_metric'].mean()
         print(planner + ' in ' + world + ' average weighted metric: ' + str(average_weighted_metric))
@@ -48,7 +50,6 @@ data.columns = ['date', 'time', 'world', 'world_num_model', 'planner', 'replan_m
                 'target_y',
                 'target_find_time', 'max_target_find_time', 'weighted_metric', 'average_iter_num',
                 'average_planning_duration', 'total_planning_times']
-
 
 multi_num_models = data['world_num_model'].unique()
 
