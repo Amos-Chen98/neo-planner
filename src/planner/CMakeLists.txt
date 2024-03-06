@@ -176,6 +176,7 @@ catkin_install_python(PROGRAMS
     scripts/ros_node_test/manager_test_node.py
     scripts/ros_node_test/traj_planner_test_node.py
     scripts/ros_node_test/traj_planner_demo_node.py
+    scripts/ros_node_test/traj_planner_all_demo_node.py
     scripts/ros_node_test/visualizer_demo_node.py
     DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
