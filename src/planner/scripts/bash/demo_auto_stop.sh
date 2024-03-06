@@ -27,14 +27,14 @@ sleep 25
 # rosbag record in the background, assuming this is a once-off command and does not need to be explicitly killed
 time_now=$(date +"%Y-%m-%d-%H-%M-%S")
 if [ "$is_save_rosbag" = "true" ]; then
-    rosbag record -a -x "/camera.*" -O /tmp/demo_$time_now.bag &
+    rosbag record -a -x "/camera.*" -O /tmp/demo_"$time_now".bag &
 fi
 
 # Publish a goal, assuming this is a once-off command and does not need to be explicitly killed
 rostopic pub -1 /move_base_simple/goal geometry_msgs/PoseStamped '{header: {stamp: now, frame_id: "map"}, pose: {position: {x: 30.0, y: 0.0, z: 0.0}, orientation: {w: 1.0}}}' &
 
 # Sleep for $max_target_find_time+5 to allow some processing after publishing the goal
-sleep $(($max_target_find_time+5))
+sleep $((max_target_find_time+5))
 
 # If there are any specific ROS nodes you want to ensure are stopped, you could also use rosnode kill here
 # Example (not typically necessary with proper terminal shutdown):

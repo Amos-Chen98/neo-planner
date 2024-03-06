@@ -39,17 +39,17 @@ min_test_unit() {
 }
 
 # change worlds from here
-min_test_unit $repeat_num "poles"
-min_test_unit $repeat_num "forest"
-min_test_unit $repeat_num "bricks"
-min_test_unit $repeat_num "rand_world_5"
-min_test_unit $repeat_num "rand_world_10"
-min_test_unit $repeat_num "rand_world_15"
-min_test_unit $repeat_num "rand_world_20"
-min_test_unit $repeat_num "rand_world_25"
-min_test_unit $repeat_num "rand_world_30"
-min_test_unit $repeat_num "rand_world_35"
-min_test_unit $repeat_num "rand_world_40"
+min_test_unit "$repeat_num" "poles"
+min_test_unit "$repeat_num" "forest"
+min_test_unit "$repeat_num" "bricks"
+min_test_unit "$repeat_num" "rand_world_5"
+min_test_unit "$repeat_num" "rand_world_10"
+min_test_unit "$repeat_num" "rand_world_15"
+min_test_unit "$repeat_num" "rand_world_20"
+min_test_unit "$repeat_num" "rand_world_25"
+min_test_unit "$repeat_num" "rand_world_30"
+min_test_unit "$repeat_num" "rand_world_35"
+min_test_unit "$repeat_num" "rand_world_40"
 
 # analysis
 python3 scripts/bash/analyze_data.py
