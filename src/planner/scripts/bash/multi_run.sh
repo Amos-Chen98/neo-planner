@@ -20,37 +20,30 @@ min_test_unit() {
         echo "++++++++++ Execution started. ++++++++++"
         ./scripts/bash/demo_auto_stop.sh "nn" "periodic" "$is_save_rosbag" "$world" "$num_models"
         echo "++++++++++ Execution finished. ++++++++++"
-        sleep 10
+        sleep 15
 
         echo "++++++++++ Execution started. ++++++++++"
         ./scripts/bash/demo_auto_stop.sh "basic" "periodic" "$is_save_rosbag" "$world" "$num_models"
         echo "++++++++++ Execution finished. ++++++++++"
-        sleep 10
+        sleep 15
 
         echo "++++++++++ Execution started. ++++++++++"
         ./scripts/bash/demo_auto_stop.sh "batch" "periodic" "$is_save_rosbag" "$world" "$num_models"
         echo "++++++++++ Execution finished. ++++++++++"
-        sleep 10
+        sleep 15
 
         echo "++++++++++ Execution started. ++++++++++"
         ./scripts/bash/demo_auto_stop.sh "enhanced" "periodic" "$is_save_rosbag" "$world" "$num_models"
         echo "++++++++++ Execution finished. ++++++++++"
-        sleep 10
+        sleep 15
     done
 }
 
 # change worlds from here
-min_test_unit "$repeat_num" "poles" 0
-min_test_unit "$repeat_num" "forest" 0
-min_test_unit "$repeat_num" "bricks" 0
-min_test_unit "$repeat_num" "rand_world_5" 5
-min_test_unit "$repeat_num" "rand_world_10" 10
-min_test_unit "$repeat_num" "rand_world_15" 15
-min_test_unit "$repeat_num" "rand_world_20" 20
-min_test_unit "$repeat_num" "rand_world_25" 25
-min_test_unit "$repeat_num" "rand_world_30" 30
-min_test_unit "$repeat_num" "rand_world_35" 35
-min_test_unit "$repeat_num" "rand_world_40" 40
+min_test_unit "$repeat_num" "rand_world_10(1)" 10
+min_test_unit "$repeat_num" "rand_world_10(2)" 10
+min_test_unit "$repeat_num" "rand_world_15(1)" 15
+min_test_unit "$repeat_num" "rand_world_20(1)" 20
 
 # analysis
 python3 scripts/bash/analyze_data.py
