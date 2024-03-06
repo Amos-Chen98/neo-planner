@@ -4,21 +4,24 @@ echo "=============================="
 selected_planner=${1:-"enhanced"}  # 'basic', 'batch', 'record', 'nn', 'enhanced', or 'warmstart'
 echo "The selected planner is $selected_planner"
 
-gazebo_world=${2:-"poles"}  # Default to empty world if no argument is provided
-echo "The gazebo world is $gazebo_world"
-
-replan_mode=${3:-"periodic"}  # 'global', 'online', or 'periodic'
+replan_mode=${2:-"periodic"}  # 'global', 'online', or 'periodic'
 echo "The replan mode is $replan_mode"
 
-is_save_rosbag=${4:-"false"}  # Default to true if no argument is provided
+is_save_rosbag=${3:-"false"}  # Default to true if no argument is provided
 echo "The is_save_rosbag is $is_save_rosbag"
+
+gazebo_world=${4:-"poles"}  # Default to empty world if no argument is provided
+echo "The gazebo world is $gazebo_world"
+
+num_models=${5:-"0"}  # the number of models in the world. 0 means not a random world.
+echo "The number of models in the world is $num_models"
 
 echo "=============================="
 
 max_target_find_time=45 # Maximum simulation time in seconds
 
 # Launch roslaunch in a new GNOME terminal tab and capture its PID
-gnome-terminal --tab --title="bring up" --command="roslaunch planner bringup.launch headless:=true is_save_metric:=true max_target_find_time:=$max_target_find_time gazebo_world:=$gazebo_world selected_planner:=$selected_planner replan_mode:=$replan_mode" &
+gnome-terminal --tab --title="bring up" --command="roslaunch planner bringup.launch headless:=true is_save_metric:=true max_target_find_time:=$max_target_find_time gazebo_world:=$gazebo_world world_num_models:=$num_models selected_planner:=$selected_planner replan_mode:=$replan_mode" &
 GNOME_PID=$!
 
 # Sleep for 25 seconds to allow roslaunch to start and stabilize
@@ -27,14 +30,14 @@ sleep 25
 # rosbag record in the background, assuming this is a once-off command and does not need to be explicitly killed
 time_now=$(date +"%Y-%m-%d-%H-%M-%S")
 if [ "$is_save_rosbag" = "true" ]; then
-    rosbag record -a -x "/camera.*" -O /tmp/demo_$time_now.bag &
+    rosbag record -a -x "/camera.*" -O /tmp/demo_"$time_now".bag &
 fi
 
 # Publish a goal, assuming this is a once-off command and does not need to be explicitly killed
 rostopic pub -1 /move_base_simple/goal geometry_msgs/PoseStamped '{header: {stamp: now, frame_id: "map"}, pose: {position: {x: 30.0, y: 0.0, z: 0.0}, orientation: {w: 1.0}}}' &
 
 # Sleep for $max_target_find_time+5 to allow some processing after publishing the goal
-sleep $(($max_target_find_time+5))
+sleep $((max_target_find_time+5))
 
 # If there are any specific ROS nodes you want to ensure are stopped, you could also use rosnode kill here
 # Example (not typically necessary with proper terminal shutdown):
