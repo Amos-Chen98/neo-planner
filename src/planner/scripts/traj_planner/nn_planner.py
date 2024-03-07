@@ -50,10 +50,8 @@ class NNPlanner(TrajUtils):
 
         if 'CUDAExecutionProvider' in providers_available:
             provider = ['CUDAExecutionProvider']
-            print("CUDAExecutionProvider is available")
         else:
             provider = ['CPUExecutionProvider']
-            print("CPUExecutionProvider is available")
 
         self.session = onnxruntime.InferenceSession(onnx_model_path,
                                                     providers=provider)
