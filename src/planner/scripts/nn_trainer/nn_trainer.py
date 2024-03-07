@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-03-03 16:12:24
+LastEditTime: 2024-03-07 22:43:14
 '''
 import torch
 import numpy as np
@@ -31,7 +31,6 @@ img_path = '/training_data/starred/depth_img'
 csv_path = '/training_data/starred/train.csv'
 pth_save_path = '/saved_net/planner_net.pth'
 onnx_save_path = '/saved_net/planner_net.onnx'
-trt_save_path = '/saved_net/planner_net.trt'
 
 
 def process_input_np(depth_img, motion_info):
@@ -180,7 +179,6 @@ class NNTrainer():
 
     def train_net(self):
 
-        self.build_dataset()
         self.init_net()
         optimizer = optim.Adam(self.planner_net.parameters(), lr=0.001)
 
@@ -220,11 +218,9 @@ class NNTrainer():
         h, m = divmod(m, 60)
         print("\nTraining time cost: %d:%02d:%02d\n" % (h, m, s))
 
-    def save_test_pth_model(self):
+    def save_pth_model(self):
         torch.save(self.planner_net.state_dict(), self.pth_save_path)
         print("pth model saved!")
-
-        self.test_pth_model()
 
     def test_pth_model(self):
         pth_model = PlannerNet()
@@ -245,7 +241,7 @@ class NNTrainer():
 
             print('Test loss of pth model: %.3f' % (total_loss / len(self.test_dataloader)))
 
-    def save_test_onnx_model(self):
+    def save_onnx_model(self):
         dummy_input = torch.randn(1, IMG_WIDTH*IMG_HEIGHT+VECTOR_SIZE)
         dummy_input = dummy_input.to(self.device)  # move the dummy input to GPU
         torch.onnx.export(self.planner_net,
@@ -255,8 +251,6 @@ class NNTrainer():
                           output_names=['output']
                           )
         print("onnx model saved!")
-
-        self.test_onnx_model()
 
     def test_onnx_model(self):
         # load the onnx model
@@ -273,8 +267,14 @@ if __name__ == '__main__':
 
     nn_trainer = NNTrainer()
 
+    nn_trainer.build_dataset()
+
     nn_trainer.train_net()
 
-    nn_trainer.save_test_pth_model()
+    nn_trainer.save_pth_model()
 
-    nn_trainer.save_test_onnx_model()
+    nn_trainer.save_onnx_model()
+
+    nn_trainer.test_pth_model()
+
+    nn_trainer.test_onnx_model()
