@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-03-03 15:39:34
+LastEditTime: 2024-03-07 17:22:04
 '''
 import os
 import sys
@@ -74,7 +74,7 @@ class RecordPlanner(MinJerkPlanner):
     def __init__(self, planner_config):
         super().__init__(planner_config)
 
-        rospkg_path = current_path[:-8]  # -8 remove '/scripts'
+        rospkg_path = current_path[:-21]  # -8 remove '/scripts', -13 remove '/traj_planner'
         self.csv_path = rospkg_path + '/training_data/train.csv'
         self.img_path = rospkg_path + '/training_data/depth_img'
 
