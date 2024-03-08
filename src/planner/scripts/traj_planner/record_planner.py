@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-03-07 17:22:04
+LastEditTime: 2024-03-08 22:29:45
 '''
 import os
 import sys
@@ -11,14 +11,13 @@ import cv2
 import numpy as np
 import pandas as pd
 import datetime
-
+from PIL import Image
 
 
 def form_nn_input(depth_img, drone_state, des_pos_z, plan_init_state, target_state):
-    # depth_image_norm = depth_img*255.0/np.max(depth_img)
-    # use cv2 to normalize depth image
-    depth_image_norm = cv2.normalize(depth_img, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
-
+    # make the max value of depth_img to be 255
+    depth_img_norm = (depth_img / np.max(depth_img) * 255).astype(np.uint8)
+    
     # current drone state
     drone_local_vel = drone_state.local_vel  # size: (3,)
     drone_quat = drone_state.attitude  # size: (4,)
@@ -53,7 +52,14 @@ def form_nn_input(depth_img, drone_state, des_pos_z, plan_init_state, target_sta
                                   plan_target_pos,
                                   plan_target_vel), axis=0)
 
-    return depth_image_norm, motion_info
+    # print("drone_local_vel: ", drone_local_vel)
+    # print("drone_attitude: ", drone_attitude)
+    # print("plan_init_pos_local: ", plan_init_pos)
+    # print("plan_init_vel_local: ", plan_init_vel)
+    # print("plan_target_pos_local: ", plan_target_pos)
+    # print("plan_target_vel_local: ", plan_target_vel)
+
+    return depth_img_norm, motion_info
 
 
 def form_nn_output(drone_state, des_pos_z, int_wpts):
@@ -121,6 +127,9 @@ class RecordPlanner(MinJerkPlanner):
         if not os.path.isfile(self.csv_path):
             df = pd.DataFrame(columns=self.table_header)
             df.to_csv(self.csv_path, index=False)
+        
+        if not os.path.exists(self.img_path):
+            os.makedirs(self.img_path)
 
     def record_traj_plan(self, map, depth_img, drone_state, plan_init_state, target_state):
         '''
@@ -142,9 +151,7 @@ class RecordPlanner(MinJerkPlanner):
         '''
         Record training data and write to csv file
         '''
-        # timestamp
-        now = datetime.datetime.now()
-        timestamp = int(now.strftime("%m%d%H%M%S%f")[:-3])
+        timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S%f")[:-3]
         # mon-day-hour-min-sec-ms, [:-3] because the last 3 digits are microsecond
 
         # process input data
@@ -153,13 +160,17 @@ class RecordPlanner(MinJerkPlanner):
         # process output result: int_wpts, in body frame
         int_wpts_local = form_nn_output(drone_state, self.des_pos_z, int_wpts)
 
-        train_data = np.concatenate((np.array([timestamp]),
-                                     motion_info,
-                                     int_wpts_local,
-                                     ts), axis=0)  # size: (1+3+9+3*4+3*int_wpts_num + int_wpts_num+1,)
+        new_line_df = pd.DataFrame(columns=self.table_header)
+        new_line_df.loc[0] = [None] * 34
+        new_line_df.loc[0][0] = 't' + timestamp
+        # the extra 't' is to ensure the id is a string, otherwise it will be stored as a num in the csv, even using str(timestamp)
+        new_line_df.loc[0][1:] = np.concatenate((motion_info, int_wpts_local, ts), axis=0).tolist()
+        new_line_df.to_csv(self.csv_path, mode='a', header=False, index=False)
 
-        df = pd.read_csv(self.csv_path)
-        df = pd.concat([df, pd.DataFrame(train_data.reshape(1, -1), columns=self.table_header)], ignore_index=True)
-        df.to_csv(self.csv_path, index=False)
-        cv2.imwrite(self.img_path + '/' + str(timestamp) + '.png', depth_image_norm)
-        print("Training data (ID: %d) saved!" % timestamp)
+        # create a gray image from depth_image_norm
+        depth_img_gray = Image.fromarray(depth_image_norm)
+
+        # store the depth image
+        depth_img_gray.save(self.img_path + '/' + str(timestamp) + '.png')
+        
+        print("Training data (ID: %s) saved!" % timestamp)
