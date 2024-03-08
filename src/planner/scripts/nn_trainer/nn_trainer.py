@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-03-07 22:43:14
+LastEditTime: 2024-03-08 22:37:35
 '''
 import torch
 import numpy as np
@@ -17,6 +17,7 @@ import torchvision.models as models
 import cv2
 import onnx
 import onnxruntime
+from matplotlib import pyplot as plt
 
 
 IMG_WIDTH = 480
@@ -24,11 +25,13 @@ IMG_HEIGHT = 360
 VECTOR_SIZE = 24
 OUTPUT_SIZE = 9
 BATCH_SIZE = 64
-EPOCHS = 30
+EPOCHS = 3
 
 current_path = os.path.dirname(os.path.abspath(__file__))[:-19]  # -8 removes '/scripts', -11 removes '/nn_trainer'
-img_path = '/training_data/starred/depth_img'
-csv_path = '/training_data/starred/train.csv'
+# img_path = '/training_data/starred/depth_img'
+# csv_path = '/training_data/starred/train.csv'
+img_path = '/training_data/depth_img'
+csv_path = '/training_data/train.csv'
 pth_save_path = '/saved_net/planner_net.pth'
 onnx_save_path = '/saved_net/planner_net.onnx'
 
@@ -58,11 +61,15 @@ class DataReader():
         inputs = []
         outputs = []
         for index, row in csv_data.iterrows():
-            timestamp = int(row['id'])
-
+            timestamp = int(row['id'][1:])  # the first character is 't'
             # form input
             img_file_name = os.path.join(self.img_path, f'{timestamp}.png')
             depth_img = cv2.imread(img_file_name, cv2.IMREAD_GRAYSCALE)
+
+            if depth_img is None:
+                print("Ignored mismatched image and motion data, id:", timestamp)
+                continue
+
             input_np = process_input_np(depth_img, row[1:-9].values)
             input = torch.tensor(input_np.astype(np.float32))
 
@@ -140,7 +147,8 @@ class NNTrainer():
     def __init__(self):
         print(f"PyTorch version: {torch.__version__}")
         print(f"torchvision version: {torchvision.__version__}")
-        self.criterion = nn.MSELoss()
+        # self.criterion = nn.MSELoss()
+        self.criterion = nn.SmoothL1Loss()
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         print("Device: ", self.device)
 
@@ -180,7 +188,8 @@ class NNTrainer():
     def train_net(self):
 
         self.init_net()
-        optimizer = optim.Adam(self.planner_net.parameters(), lr=0.001)
+        optimizer = optim.Adam(self.planner_net.parameters(), lr=0.0001)
+        self.loss_list = []
 
         print("Start training...")
         time_start = time.time()
@@ -207,6 +216,8 @@ class NNTrainer():
                 # training loss
                 running_loss += loss.item()
 
+            # record the training loss of each epoch, the loss is the average loss of each batch
+            self.loss_list.append(running_loss / len(self.train_dataloader))
             # print the training loss of each epoch
             print('Epoch %d loss: %.3f' % (epoch + 1, running_loss / len(self.train_dataloader)))
 
@@ -217,6 +228,15 @@ class NNTrainer():
         m, s = divmod(training_time, 60)
         h, m = divmod(m, 60)
         print("\nTraining time cost: %d:%02d:%02d\n" % (h, m, s))
+
+    def plot_training_loss(self):
+        plt.plot(self.loss_list)
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.title('Training loss')
+        # make the xlabel as integer
+        plt.xticks(np.arange(1, EPOCHS+1, 1))
+        plt.show()
 
     def save_pth_model(self):
         torch.save(self.planner_net.state_dict(), self.pth_save_path)
@@ -278,3 +298,5 @@ if __name__ == '__main__':
     nn_trainer.test_pth_model()
 
     nn_trainer.test_onnx_model()
+
+    # nn_trainer.plot_training_loss()
