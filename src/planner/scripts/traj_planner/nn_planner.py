@@ -1,27 +1,27 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-03-03 16:16:48
+LastEditTime: 2024-03-09 12:05:54
 '''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_path)
-import time
-from nn_trainer.nn_trainer import process_input_np
-from traj_utils import TrajUtils
-import numpy as np
-import torch
-import onnxruntime  # torch must be included before onnxruntime, ref:https://stackoverflow.com/questions/75267445/why-does-onnxruntime-fail-to-create-cudaexecutionprovider-in-linuxubuntu-20/75267493#75267493
 from record_planner import form_nn_input
+import onnxruntime  # torch must be included before onnxruntime, ref:https://stackoverflow.com/questions/75267445/why-does-onnxruntime-fail-to-create-cudaexecutionprovider-in-linuxubuntu-20/75267493#75267493
+import torch
+import numpy as np
+from traj_utils import TrajUtils
+from nn_trainer.nn_trainer import process_input_np
+import time
+
 
 # import pycuda.driver as cuda
 # import tensorrt as trt
 # import pycuda.autoinit # this must be included
 # import cv2
 
-
-IMG_WIDTH = 480
-IMG_HEIGHT = 360
+IMG_WIDTH = 640
+IMG_HEIGHT = 480
 VECTOR_SIZE = 24
 INPUT_SHAPE = (1, IMG_WIDTH*IMG_HEIGHT+VECTOR_SIZE)
 
@@ -91,7 +91,7 @@ class NNPlanner(TrajUtils):
             random_input_np = np.random.rand(*INPUT_SHAPE).astype(np.float32)
             ortvalue = onnxruntime.OrtValue.ortvalue_from_numpy(random_input_np)
             self.session.run([self.onnx_output_name],
-                            {self.onnx_input_name: ortvalue})[0]
+                             {self.onnx_input_name: ortvalue})[0]
 
     def onnx_predict(self, depth_image_norm, motion_info):
         '''

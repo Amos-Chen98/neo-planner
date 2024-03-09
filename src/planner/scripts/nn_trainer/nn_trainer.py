@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-03-08 22:37:35
+LastEditTime: 2024-03-09 12:04:46
 '''
 import torch
 import numpy as np
@@ -20,21 +20,29 @@ import onnxruntime
 from matplotlib import pyplot as plt
 
 
-IMG_WIDTH = 480
-IMG_HEIGHT = 360
+IMG_WIDTH = 640
+IMG_HEIGHT = 480
 VECTOR_SIZE = 24
 OUTPUT_SIZE = 9
-BATCH_SIZE = 64
-EPOCHS = 3
+BATCH_SIZE = 48
+EPOCHS = 35
 
 current_path = os.path.dirname(os.path.abspath(__file__))[:-19]  # -8 removes '/scripts', -11 removes '/nn_trainer'
-# img_path = '/training_data/starred/depth_img'
-# csv_path = '/training_data/starred/train.csv'
-img_path = '/training_data/depth_img'
-csv_path = '/training_data/train.csv'
+img_path = '/training_data/starred/depth_img'
+csv_path = '/training_data/starred/train.csv'
 pth_save_path = '/saved_net/planner_net.pth'
 onnx_save_path = '/saved_net/planner_net.onnx'
 
+
+# def process_input_np(depth_img, motion_info):
+#     '''
+#     :param depth_img: numpy array
+#     :param motion_info: numpy array
+#     :return: numpy array
+#     '''
+#     depth_img_resized = cv2.resize(depth_img, (IMG_WIDTH, IMG_HEIGHT))
+#     img_flatten = depth_img_resized.reshape(-1)
+#     return np.concatenate((img_flatten.astype(np.float32), motion_info.astype(np.float32)))
 
 def process_input_np(depth_img, motion_info):
     '''
@@ -42,8 +50,7 @@ def process_input_np(depth_img, motion_info):
     :param motion_info: numpy array
     :return: numpy array
     '''
-    depth_img_resized = cv2.resize(depth_img, (IMG_WIDTH, IMG_HEIGHT))
-    img_flatten = depth_img_resized.reshape(-1)
+    img_flatten = depth_img.reshape(-1)
     return np.concatenate((img_flatten.astype(np.float32), motion_info.astype(np.float32)))
 
 
@@ -131,7 +138,7 @@ class PlannerNet(nn.Module):
 
     def forward(self, input):
         # retrieve the image and vector from the input
-        img = input[:, :IMG_WIDTH * IMG_HEIGHT].reshape(-1, 1, IMG_WIDTH, IMG_HEIGHT)
+        img = input[:, :IMG_WIDTH * IMG_HEIGHT].reshape(-1, 1, IMG_HEIGHT, IMG_WIDTH)
         vector = input[:, IMG_WIDTH * IMG_HEIGHT:]
 
         img_feature = self.img_backbone(img)
@@ -279,7 +286,7 @@ class NNTrainer():
         print("onnx model checked.")
 
     def generate_a_random_input(self):
-        img = torch.randn(1, 1, IMG_WIDTH, IMG_HEIGHT)
+        img = torch.randn(1, 1, IMG_HEIGHT, IMG_WIDTH)
         vector = torch.randn(1, VECTOR_SIZE)
 
 
@@ -299,4 +306,4 @@ if __name__ == '__main__':
 
     nn_trainer.test_onnx_model()
 
-    # nn_trainer.plot_training_loss()
+    nn_trainer.plot_training_loss()
