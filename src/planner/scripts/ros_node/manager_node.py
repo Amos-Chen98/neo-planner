@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-03-03 21:20:24
+LastEditTime: 2024-03-09 11:38:13
 '''
 import os
 import sys
@@ -65,6 +65,7 @@ class Manager():
         self.rosbag_is_on = False
         self.goal_index = 0
         self.max_goal_index = len(self.predefined_goal) - 1
+        self.target_flap_flag = int(0)
 
         # Client / Service init
         self.arming_client = rospy.ServiceProxy("mavros/cmd/arming", CommandBool)
@@ -183,16 +184,9 @@ class Manager():
         '''
         randomly generate a goal
         '''
-        x_bounds = [-2, 28]
-        y_bounds = [-8, 8]
-        # randomly generate a goal
-        x = np.random.uniform(x_bounds[0], x_bounds[1])
-        y = np.random.uniform(y_bounds[0], y_bounds[1])
-
-        # if target is in obstale-rich aera, regenerate
-        while x > 0 and x < 26 and y > -6 and y < 6:
-            x = np.random.uniform(x_bounds[0], x_bounds[1])
-            y = np.random.uniform(y_bounds[0], y_bounds[1])
+        y = 4 * (np.random.rand() - 0.6)
+        x = -1 if self.target_flap_flag == 0 else 26
+        self.target_flap_flag = 1 - self.target_flap_flag
 
         target = PoseStamped()
         target.header.frame_id = "map"
@@ -201,6 +195,29 @@ class Manager():
         target.pose.position.z = self.hover_height
 
         self.next_goal_pub.publish(target)
+
+    # def set_random_goal(self):
+    #     '''
+    #     randomly generate a goal
+    #     '''
+    #     x_bounds = [-2, 28]
+    #     y_bounds = [-8, 8]
+    #     # randomly generate a goal
+    #     x = np.random.uniform(x_bounds[0], x_bounds[1])
+    #     y = np.random.uniform(y_bounds[0], y_bounds[1])
+
+    #     # if target is in obstale-rich aera, regenerate
+    #     while x > 0 and x < 26 and y > -6 and y < 6:
+    #         x = np.random.uniform(x_bounds[0], x_bounds[1])
+    #         y = np.random.uniform(y_bounds[0], y_bounds[1])
+
+    #     target = PoseStamped()
+    #     target.header.frame_id = "map"
+    #     target.pose.position.x = x
+    #     target.pose.position.y = y
+    #     target.pose.position.z = self.hover_height
+
+    #     self.next_goal_pub.publish(target)
 
     def vis_target(self):
         marker = Marker()
