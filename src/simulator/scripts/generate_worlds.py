@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-02-27 10:53:29
+LastEditTime: 2024-03-11 19:17:05
 This file has no connection to ROS. It is used to generate gazebo worlds.
 '''
 
@@ -40,6 +40,9 @@ class GeneratorConfig:
         self.model_size_y_max = config['model_size_y_max']
         self.model_size_z_min = config['model_size_z_min']
         self.model_size_z_max = config['model_size_z_max']
+
+        self.x_clearance = config['x_clearance']
+        self.y_clearance = config['y_clearance']
 
         self.new_world_num = len(self.new_model_num)  # the number of new worlds to be generated
 
@@ -133,8 +136,9 @@ class WorldGenerator:
             while True:
                 conflict = False
                 for j in range(i):
-                    if abs(new_model.pose[0] - self.new_models[j].pose[0]) < (new_model.size[0] + self.new_models[j].size[0]) / 2 and \
-                            abs(new_model.pose[1] - self.new_models[j].pose[1]) < (new_model.size[1] + self.new_models[j].size[1]) / 2:
+                    if (abs(new_model.pose[0] - self.new_models[j].pose[0]) < (new_model.size[0] + self.new_models[j].size[0]) / 2 + self.config.x_clearance
+                        and abs(new_model.pose[1] - self.new_models[j].pose[1]) < (new_model.size[1] + self.new_models[j].size[1]) / 2 + self.config.y_clearance
+                        ):
                         conflict = True
                         break
                 if conflict:

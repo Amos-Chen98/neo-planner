@@ -11,3 +11,6 @@ model_size_y_min: 0.5
 model_size_y_max: 1.5
 model_size_z_min: 3
 model_size_z_max: 6
+
+x_clearance: 1.8
+y_clearance: 1.8
