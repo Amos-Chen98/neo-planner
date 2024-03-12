@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-03-09 12:05:54
+LastEditTime: 2024-03-12 15:08:52
 '''
 import os
 import sys
@@ -22,8 +22,8 @@ import time
 
 IMG_WIDTH = 640
 IMG_HEIGHT = 480
-VECTOR_SIZE = 24
-INPUT_SHAPE = (1, IMG_WIDTH*IMG_HEIGHT+VECTOR_SIZE)
+MOTION_INPUT_SIZE = 24
+INPUT_SHAPE = (1, IMG_WIDTH*IMG_HEIGHT+MOTION_INPUT_SIZE)
 
 
 class NNPlanner(TrajUtils):
@@ -135,11 +135,11 @@ class NNPlanner(TrajUtils):
         '''
         # drone_attitude = motion_info[3:12].reshape(3, 3)  # as a rotation matrix
         drone_attitude = self.drone_state.attitude.rotation_matrix    # as a rotation matrix
-        drone_global_pos_2d = self.drone_state.global_pos
+        drone_global_pos = self.drone_state.global_pos
 
         int_wpts_world = np.zeros((self.nn_output_D, self.M-1))
         for i in range(self.M-1):
-            int_wpts_world[:, i] = drone_attitude @ int_wpts[:, i] + drone_global_pos_2d
+            int_wpts_world[:, i] = drone_attitude @ int_wpts[:, i] + drone_global_pos
 
         return int_wpts_world
 
