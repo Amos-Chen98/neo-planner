@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-03-06 21:04:49
+LastEditTime: 2024-03-12 15:12:39
 '''
 import os
 import sys
@@ -34,8 +34,12 @@ class EnhancedPlanner(MinJerkPlanner):
 
         # --------------------------------NN planner--------------------------------
         self.nn_planner.nn_traj_plan(depth_img, drone_state, plan_init_state, target_state)
-        int_wpts = self.nn_planner.int_wpts
+        int_wpts = self.nn_planner.int_wpts # col major
         ts = self.nn_planner.ts
+
+        # flatten the int_wpts and ts to form a vector of (9,)
+        nn_output_vector = np.concatenate((int_wpts.T.flatten(), ts))
+        # print("nn_output_vector: ", nn_output_vector)
 
         # to fill M, D, and boundary states into MinJerkPlanner
         self.read_planning_conditions(map, drone_state_2d, target_state, int_wpts, ts)
@@ -68,9 +72,15 @@ class EnhancedPlanner(MinJerkPlanner):
         self.planning_result["Enhanced"].pos_array = enhanced_pos_array
         self.planning_result["Enhanced"].traj_cost = enhanced_cost
 
+        enhanced_output_vector = np.concatenate((self.int_wpts.T.flatten(), self.ts))
+
+        loss = np.mean((enhanced_output_vector - nn_output_vector) ** 2)
+        
         # print the planning result (by emualting the dict planning_result)
         print("Planning result:")
         for key, result in self.planning_result.items():
             print("Planner: ", result.planner_name)
             print("Trajectory cost: ", result.traj_cost)
             print("")
+
+        print("loss: ", loss)
