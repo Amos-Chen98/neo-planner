@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-03-12 15:50:03
+LastEditTime: 2024-03-12 16:06:03
 '''
 import torch
 import numpy as np
@@ -23,8 +23,8 @@ from matplotlib import pyplot as plt
 IMG_WIDTH = 640
 IMG_HEIGHT = 480
 MOTION_INPUT_SIZE = 24
-IMG_FEATURE_SIZE = 24
-MOTION_FEATURE_SIZE = 24
+IMG_FEATURE_SIZE = 36
+MOTION_FEATURE_SIZE = 9
 OUTPUT_SIZE = 9
 BATCH_SIZE = 36
 EPOCHS = 20
@@ -118,35 +118,60 @@ class PlannerNet(nn.Module):
         # change the output size to IMG_FEATURE_SIZE, self.img_backbone.fc.in_features means the layer's original input size
         self.img_backbone.fc = nn.Linear(self.img_backbone.fc.in_features, IMG_FEATURE_SIZE)
 
+        # self.motion_backbone = nn.Sequential(
+        #     nn.Linear(MOTION_INPUT_SIZE, 48),
+        #     nn.LeakyReLU(),
+        #     nn.Linear(48, 24),
+        #     nn.LeakyReLU(),
+        #     nn.Linear(24, 24),
+        #     nn.LeakyReLU(),
+        #     nn.Linear(24, MOTION_FEATURE_SIZE)
+        # )
+
+        # self.mlp = nn.Sequential(
+        #     nn.Linear(IMG_FEATURE_SIZE + MOTION_FEATURE_SIZE, 48),
+        #     nn.LeakyReLU(),
+        #     nn.Linear(48, 96),
+        #     nn.LeakyReLU(),
+        #     nn.Linear(96, 96),
+        #     nn.LeakyReLU(),
+        #     nn.Linear(96, OUTPUT_SIZE)
+        # )
+
         self.motion_backbone = nn.Sequential(
-            nn.Linear(MOTION_INPUT_SIZE, 48),
+            nn.Conv1d(in_channels=1, out_channels=16, kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(),
-            nn.Linear(48, 24),
+            nn.Conv1d(in_channels=16, out_channels=32, kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(),
-            nn.Linear(24, 24),
+            nn.Conv1d(in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(),
-            nn.Linear(24, MOTION_FEATURE_SIZE)
+            # retrieve the output vector from the last layer
+            nn.Flatten(),
+            nn.Linear(64 * MOTION_INPUT_SIZE, MOTION_FEATURE_SIZE)
         )
 
         self.mlp = nn.Sequential(
-            nn.Linear(IMG_FEATURE_SIZE + MOTION_FEATURE_SIZE, 48),
+            nn.Conv1d(in_channels=1, out_channels=16, kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(),
-            nn.Linear(48, 96),
+            nn.Conv1d(in_channels=16, out_channels=32, kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(),
-            nn.Linear(96, 96),
+            nn.Conv1d(in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(),
-            nn.Linear(96, OUTPUT_SIZE)
+            # retrieve the output vector from the last layer
+            nn.Flatten(),
+            nn.Linear(64 * (IMG_FEATURE_SIZE + MOTION_FEATURE_SIZE), OUTPUT_SIZE)
         )
 
     def forward(self, input):
         # retrieve the image and vector from the input
         img = input[:, :IMG_WIDTH * IMG_HEIGHT].reshape(-1, 1, IMG_HEIGHT, IMG_WIDTH)
         vector = input[:, IMG_WIDTH * IMG_HEIGHT:]
-
+        vector = vector.unsqueeze(1)
         img_feature = self.img_backbone(img)
         motion_feature = self.motion_backbone(vector)
 
         x = torch.cat([img_feature, motion_feature], dim=1)
+        x = x.unsqueeze(1)
         x = self.mlp(x)
 
         return x
@@ -167,8 +192,6 @@ class NNTrainer():
         print("onnx_save_path: ", self.onnx_save_path)
 
     def build_dataset(self):
-        torch.manual_seed(42)
-
         # read data from local files
         data_reader = DataReader()
         inputs, outputs = data_reader.load_data()
@@ -178,7 +201,8 @@ class NNTrainer():
         print("Len of whole dataset: ", len(plan_dataset))
 
         # split the dataset into training set and test set
-        train_size = int(0.2 * len(plan_dataset))
+        torch.manual_seed(42)
+        train_size = int(0.8 * len(plan_dataset))
         test_size = len(plan_dataset) - train_size
         train_set, test_set = torch.utils.data.random_split(plan_dataset, [train_size, test_size])
         print("Len of train dataset: ", len(train_set))
