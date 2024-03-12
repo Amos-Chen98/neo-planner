@@ -403,7 +403,7 @@ class TrajPlanner():
     def try_first_plan(self):
         seed = 0
         self.set_local_target(seed)
-        self.visualize_local_target()
+        # self.visualize_local_target()
         while True:
             try:
                 self.first_plan()
@@ -432,7 +432,7 @@ class TrajPlanner():
     def try_local_planning(self):
         seed = 0
         self.set_local_target(seed)
-        self.visualize_local_target()
+        # self.visualize_local_target()
         while True:
             try:
                 self.replan()
@@ -487,6 +487,8 @@ class TrajPlanner():
                                  local_target_vel])
 
         self.target_state = local_target
+
+        self.visualize_local_target()
 
     def first_plan(self):
         drone_state = self.drone_state
