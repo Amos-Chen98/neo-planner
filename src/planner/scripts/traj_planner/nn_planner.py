@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-03-12 15:08:52
+LastEditTime: 2024-03-12 22:38:38
 '''
 import os
 import sys
@@ -14,11 +14,6 @@ from traj_utils import TrajUtils
 from nn_trainer.nn_trainer import process_input_np
 import time
 
-
-# import pycuda.driver as cuda
-# import tensorrt as trt
-# import pycuda.autoinit # this must be included
-# import cv2
 
 IMG_WIDTH = 640
 IMG_HEIGHT = 480
@@ -132,111 +127,12 @@ class NNPlanner(TrajUtils):
     def get_wpts_world(self, int_wpts):
         '''
         convert wpts from body frame to world frame
+        input: int_wpts: (nn_output_D, M-1)
         '''
-        # drone_attitude = motion_info[3:12].reshape(3, 3)  # as a rotation matrix
-        drone_attitude = self.drone_state.attitude.rotation_matrix    # as a rotation matrix
+        drone_attitude = self.drone_state.attitude # quat
         drone_global_pos = self.drone_state.global_pos
-
         int_wpts_world = np.zeros((self.nn_output_D, self.M-1))
         for i in range(self.M-1):
-            int_wpts_world[:, i] = drone_attitude @ int_wpts[:, i] + drone_global_pos
+            int_wpts_world[:, i] = drone_attitude.rotate(int_wpts[:, i]) + drone_global_pos
 
         return int_wpts_world
-
-    # def init_trt_model(self, trt_model_path):
-    #     print("TensorRT version: ", trt.__version__)
-    #     TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
-    #     with open(trt_model_path, "rb") as f, trt.Runtime(TRT_LOGGER) as runtime:
-    #         self.engine = runtime.deserialize_cuda_engine(f.read())
-
-    #     self.context = self.engine.create_execution_context()
-
-    #     input_index = self.engine.get_binding_index("input")
-    #     output_index = self.engine.get_binding_index("output")
-    #     input_shape = self.engine.get_binding_shape(input_index)
-    #     self.output_shape = self.engine.get_binding_shape(output_index)
-    #     print("input shape: ", input_shape)
-    #     print("output shape: ", self.output_shape)
-
-    #     input_dtype = trt.nptype(self.engine.get_binding_dtype(input_index))
-    #     self.output_dtype = trt.nptype(self.engine.get_binding_dtype(output_index))
-
-    #     input_size = np.product(input_shape) * np.dtype(input_dtype).itemsize
-    #     output_size = np.product(self.output_shape) * np.dtype(self.output_dtype).itemsize
-    #     # input_size = trt.volume(input_shape) * trt.float16.itemsize
-    #     # output_size = trt.volume(self.output_shape) * trt.float16.itemsize
-
-    #     # Allocate device memory for input and output
-    #     self.d_input = cuda.mem_alloc(int(input_size)) # allocate space in device (GPU)
-    #     self.d_output = cuda.mem_alloc(int(output_size))
-    #     # self.d_input = cuda.mem_alloc(int(input_size)) # allocate space in device (GPU)
-    #     # self.d_output = cuda.mem_alloc(int(output_size))
-
-    # def process_trt_input(self, depth_img, motion_info):
-    #     '''
-    #     :param depth_img: numpy array
-    #     :param motion_info: numpy array
-    #     :return: numpy array
-    #     '''
-    #     depth_img_resized = cv2.resize(depth_img, (IMG_WIDTH, IMG_HEIGHT))
-    #     img_flatten = depth_img_resized.reshape(-1)
-    #     return np.concatenate((img_flatten.astype(np.float16), motion_info.astype(np.float16)))
-
-    # def trt_predict(self, depth_image_norm, motion_info):
-    #     input = np.random.rand(*INPUT_SHAPE).astype(np.float16)
-    #     print("real input shape: ", input.shape)
-    #     cuda.memcpy_htod(self.d_input, input) # from host(memory) to device (GPU)
-
-    #     # Execute inference
-    #     self.context.execute_v2(bindings=[int(self.d_input), int(self.d_output)])
-
-    #     # Copy output from device memory
-    #     output = np.empty(self.output_shape, dtype=self.output_dtype)
-    #     cuda.memcpy_dtoh(output, self.d_output)
-
-    #     print("output: ", output)
-
-        # int_wpts_local = output[0][:self.nn_output_D*(self.M-1)].reshape(self.M-1, self.nn_output_D).T  # col major, so transpose
-        # self.ts = output[0][self.nn_output_D*(self.M-1):]
-
-        # int_wpts_3d = self.get_wpts_world(int_wpts_local)
-        # self.int_wpts = int_wpts_3d[:self.D, :]  # remove z axis
-
-    # def trt_predict(self, depth_image_norm, motion_info):
-    #     input = np.random.rand(*INPUT_SHAPE).astype(np.float16)
-
-    #     with self.engine.create_execution_context() as context:
-    #         # stream = cuda.Stream()
-    #         # # Copy input to device memory
-    #         # cuda.memcpy_htod_async(self.d_input, input, stream)
-    #         # # Execute inference
-    #         # context.execute_async_v2(bindings=[int(self.d_input), int(self.d_output)], stream_handle=stream.handle)
-    #         # # Copy output from device memory
-    #         # output = np.empty(self.output_shape, dtype=self.output_dtype)
-    #         # cuda.memcpy_dtoh_async(output, self.d_output, stream)
-    #         # # Synchronize the stream
-    #         # stream.synchronize()
-
-    #         # print("Current thread: ", threading.currentThread())
-    #         # with self.engine.create_execution_context() as context:
-
-    #         # Copy input to device memory
-    #         cuda.memcpy_htod(self.d_input, input) # from host(memory) to device (GPU)
-
-    #         # Execute inference
-    #         context.execute_v2(bindings=[int(self.d_input), int(self.d_output)])
-
-    #         # Copy output from device memory
-    #         output = np.empty(self.output_shape, dtype=self.output_dtype)
-    #         cuda.memcpy_dtoh(output, self.d_output)
-
-    #     print("output: ", output)
-
-    #     int_wpts_local = output[0][:self.nn_output_D*(self.M-1)].reshape(self.M-1, self.nn_output_D).T  # col major, so transpose
-    #     self.ts = output[0][self.nn_output_D*(self.M-1):]
-
-    #     int_wpts_3d = self.get_wpts_world(int_wpts_local)
-    #     self.int_wpts = int_wpts_3d[:self.D, :]  # remove z axis
-
-        # print("int_wpts: ", self.int_wpts)
-        # print("ts: ", self.ts)
