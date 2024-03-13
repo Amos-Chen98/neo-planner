@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-03-05 21:20:54
+LastEditTime: 2024-03-12 21:58:22
 '''
 import os
 import sys
@@ -168,7 +168,8 @@ class TrajPlanner():
         quat = Quaternion(data.pose.pose.orientation.w,
                           data.pose.pose.orientation.x,
                           data.pose.pose.orientation.y,
-                          data.pose.pose.orientation.z)  # from local to global
+                          data.pose.pose.orientation.z)
+        # quat rotation from FLU body frame (mavros) to reference frame: https://github.com/PX4/PX4-Autopilot/blob/main/msg/VehicleOdometry.msg
         global_vel = quat.rotate(local_vel)
         self.drone_state.global_pos = global_pos
         self.drone_state.global_vel = global_vel

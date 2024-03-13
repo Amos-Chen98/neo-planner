@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-03-06 20:59:53
+LastEditTime: 2024-03-12 22:35:10
 '''
 import os
 import sys
@@ -778,10 +778,8 @@ class TrajPlanner():
         pos_array = []
         for key, result in self.planner.planning_result.items():
             pos_array.append(result.int_wpts)
-            print("pos_array:", pos_array)
 
         pos_array = np.vstack((pos_array)).T
-        print("shape of pos_array:", pos_array.shape)
 
         pos_array = np.vstack((pos_array, self.des_pos_z * np.ones([1, pos_array.shape[1]]))).T
         self.wpts_markerarray = self.visualizer.modify_wpts_markerarray(

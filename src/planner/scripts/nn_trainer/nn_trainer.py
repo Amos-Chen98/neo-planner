@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-03-12 15:50:03
+LastEditTime: 2024-03-12 22:22:19
 '''
 import torch
 import numpy as np
@@ -27,7 +27,7 @@ IMG_FEATURE_SIZE = 24
 MOTION_FEATURE_SIZE = 24
 OUTPUT_SIZE = 9
 BATCH_SIZE = 36
-EPOCHS = 20
+EPOCHS = 30
 
 current_path = os.path.dirname(os.path.abspath(__file__))[:-19]  # -8 removes '/scripts', -11 removes '/nn_trainer'
 img_path = '/training_data/starred/depth_img'
@@ -178,15 +178,15 @@ class NNTrainer():
         print("Len of whole dataset: ", len(plan_dataset))
 
         # split the dataset into training set and test set
-        train_size = int(0.2 * len(plan_dataset))
+        train_size = int(0.8 * len(plan_dataset))
         test_size = len(plan_dataset) - train_size
         train_set, test_set = torch.utils.data.random_split(plan_dataset, [train_size, test_size])
         print("Len of train dataset: ", len(train_set))
         print("Len of test dataset: ", len(test_set))
 
         # generate the dataloader
-        self.train_dataloader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=False, num_workers=24)
-        self.test_dataloader = DataLoader(test_set, batch_size=BATCH_SIZE, shuffle=False, num_workers=24)
+        self.train_dataloader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=True, num_workers=24)
+        self.test_dataloader = DataLoader(test_set, batch_size=BATCH_SIZE, shuffle=True, num_workers=24)
         print("DataLoader generated.")
 
     def init_net(self):
