@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-03-12 16:06:03
+LastEditTime: 2024-03-13 15:15:32
 '''
 import torch
 import numpy as np
@@ -23,11 +23,17 @@ from matplotlib import pyplot as plt
 IMG_WIDTH = 640
 IMG_HEIGHT = 480
 MOTION_INPUT_SIZE = 24
-IMG_FEATURE_SIZE = 36
-MOTION_FEATURE_SIZE = 9
 OUTPUT_SIZE = 9
+
+# configurable parameters
+IMG_FEATURE_SIZE = 24
+MOTION_FEATURE_SIZE = 24
 BATCH_SIZE = 36
 EPOCHS = 20
+SHUFFLE = False
+TRAININ_SET_PERCENTAGE = 0.8
+LEARNING_RATE = 1e-3
+torch.manual_seed(42)
 
 current_path = os.path.dirname(os.path.abspath(__file__))[:-19]  # -8 removes '/scripts', -11 removes '/nn_trainer'
 img_path = '/training_data/starred/depth_img'
@@ -118,26 +124,6 @@ class PlannerNet(nn.Module):
         # change the output size to IMG_FEATURE_SIZE, self.img_backbone.fc.in_features means the layer's original input size
         self.img_backbone.fc = nn.Linear(self.img_backbone.fc.in_features, IMG_FEATURE_SIZE)
 
-        # self.motion_backbone = nn.Sequential(
-        #     nn.Linear(MOTION_INPUT_SIZE, 48),
-        #     nn.LeakyReLU(),
-        #     nn.Linear(48, 24),
-        #     nn.LeakyReLU(),
-        #     nn.Linear(24, 24),
-        #     nn.LeakyReLU(),
-        #     nn.Linear(24, MOTION_FEATURE_SIZE)
-        # )
-
-        # self.mlp = nn.Sequential(
-        #     nn.Linear(IMG_FEATURE_SIZE + MOTION_FEATURE_SIZE, 48),
-        #     nn.LeakyReLU(),
-        #     nn.Linear(48, 96),
-        #     nn.LeakyReLU(),
-        #     nn.Linear(96, 96),
-        #     nn.LeakyReLU(),
-        #     nn.Linear(96, OUTPUT_SIZE)
-        # )
-
         self.motion_backbone = nn.Sequential(
             nn.Conv1d(in_channels=1, out_channels=16, kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(),
@@ -166,7 +152,7 @@ class PlannerNet(nn.Module):
         # retrieve the image and vector from the input
         img = input[:, :IMG_WIDTH * IMG_HEIGHT].reshape(-1, 1, IMG_HEIGHT, IMG_WIDTH)
         vector = input[:, IMG_WIDTH * IMG_HEIGHT:]
-        vector = vector.unsqueeze(1)
+        vector = vector.unsqueeze(1)  # add the channel dimension
         img_feature = self.img_backbone(img)
         motion_feature = self.motion_backbone(vector)
 
@@ -201,16 +187,15 @@ class NNTrainer():
         print("Len of whole dataset: ", len(plan_dataset))
 
         # split the dataset into training set and test set
-        torch.manual_seed(42)
-        train_size = int(0.8 * len(plan_dataset))
+        train_size = int(TRAININ_SET_PERCENTAGE * len(plan_dataset))
         test_size = len(plan_dataset) - train_size
         train_set, test_set = torch.utils.data.random_split(plan_dataset, [train_size, test_size])
         print("Len of train dataset: ", len(train_set))
         print("Len of test dataset: ", len(test_set))
 
         # generate the dataloader
-        self.train_dataloader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=False, num_workers=24)
-        self.test_dataloader = DataLoader(test_set, batch_size=BATCH_SIZE, shuffle=False, num_workers=24)
+        self.train_dataloader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=SHUFFLE, num_workers=24)
+        self.test_dataloader = DataLoader(test_set, batch_size=BATCH_SIZE, shuffle=SHUFFLE, num_workers=24)
         print("DataLoader generated.")
 
     def init_net(self):
@@ -222,7 +207,7 @@ class NNTrainer():
     def train_net(self):
         # ref: https://pytorch.org/tutorials/beginner/blitz/cifar10_tutorial.html
         self.init_net()
-        optimizer = optim.Adam(self.planner_net.parameters(), lr=1e-3)
+        optimizer = optim.Adam(self.planner_net.parameters(), lr=LEARNING_RATE)
         self.loss_list = []
 
         print("Start training...")
