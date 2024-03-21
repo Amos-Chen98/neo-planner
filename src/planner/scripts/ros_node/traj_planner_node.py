@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-03-12 21:58:22
+LastEditTime: 2024-03-21 21:19:50
 '''
 import os
 import sys
@@ -512,12 +512,6 @@ class TrajPlanner():
         time_end = time.time()
         rospy.loginfo("Planning time: {}".format(time_end - time_start))
 
-        # collect metrics
-        if self.record_metric:
-            self.total_planning_duration += time_end - time_start
-            self.total_planning_times += 1
-            self.metric_timer = rospy.Timer(rospy.Duration(self.metric_eva_interval), self.record_metric_cb)
-
         # calculate the int_wpts regarding drone_state_ahead, for warmstart planning only
         self.int_wpts_local = self.get_int_wpts_local(drone_state, self.planner.int_wpts)
 
@@ -527,6 +521,12 @@ class TrajPlanner():
         # Set the des_state_array as des_state
         self.des_state_array = self.des_state
         self.des_state_length = self.des_state_array.shape[0]
+
+        # collect metrics
+        if self.record_metric:
+            self.total_planning_duration += time_end - time_start
+            self.total_planning_times += 1
+            self.metric_timer = rospy.Timer(rospy.Duration(self.metric_eva_interval), self.record_metric_cb)
 
     def get_drone_state_ahead(self):
         '''
