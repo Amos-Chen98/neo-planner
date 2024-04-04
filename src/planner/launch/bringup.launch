@@ -3,8 +3,8 @@
     <arg name="rviz_config" default="$(find planner)/rviz/rviz_config.rviz"/>
     <arg name="gazebo_world" default="poles"/>
     <arg name="world_num_models" default="0"/>
-    <arg name="is_save_metric" default="true"/>
-    <arg name="max_target_find_time" default="30"/>
+    <arg name="is_save_metric" default="false"/>
+    <arg name="max_target_find_time" default="1000"/>
     <arg name="selected_planner" default="enhanced"/>
     <arg name="replan_mode" default="periodic"/>
 
