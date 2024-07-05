@@ -6,27 +6,30 @@ This project (as a ROS workspace) provides a motion planning framework for drone
 
 ## **Installation**
 
+This project has been tested on Ubuntu 20.04
+
 ### **Prerequisites**
 
 Before using this project, please make sure the following dependencies have been successfully installed and configured.
 
 - ROS1 with Gazebo: https://wiki.ros.org/noetic/Installation/Ubuntu
-- PX4-Autopilot:
+
+- PX4-Autopilot: https://docs.px4.io/main/en/dev_setup/dev_env_linux_ubuntu.html
+
+  Follow the above official document, download PX4-Autopilot, install dependencies, and build the code.
+
+  Commands summary:
 
 ```bash
-git clone https://github.com/PX4/PX4-Autopilot.git
+git clone https://github.com/PX4/PX4-Autopilot.git --recursive
 cd PX4-Autopilot
-git reset --hard v1.13.2  # harder than git checkout
-git submodule update --init --recursive
 bash Tools/setup/ubuntu.sh
-make px4_sitl gazebo
+make px4_sitl gazebo-classic
 ```
 
-Ref:  https://docs.px4.io/main/en/dev_setup/dev_env_linux_ubuntu.html
+- Mavros: https://docs.px4.io/main/en/ros/mavros_installation.html#install-mavros
 
-- Mavros: https://docs.px4.io/main/en/ros/mavros_installation.html
-
-- QGC: https://docs.qgroundcontrol.com/master/en/getting_started/download_and_install.html
+- QGC: https://docs.qgroundcontrol.com/master/en/qgc-user-guide/getting_started/download_and_install.html#ubuntu
 
   **Note: Remember to enable Virtual Joystick in Application Settings in QGC, otherwise, the drone will refuse to enter OFFBOARD mode.**
 
@@ -48,18 +51,6 @@ pip install torchinfo
 pip install torchvision
 ```
 
-[Optional] Download all Gazebo models:
-
-```bash
-cd ~/.gazebo/
-mkdir models
-cd models
-wget http://file.ncnynl.com/ros/gazebo_models.txt
-wget -i gazebo_models.txt
-ls model.tar.g* | xargs -n1 tar xzvf
-rm model.tar.g*
-```
-
 ### **Install this project (as a ROS workspace)**
 
 1. Clone and build this repo:
@@ -74,11 +65,12 @@ catkin build
 
 ```bash
 alias drone_ws_go='source <path_to_drone_ws>/devel/setup.bash;
-source ~/PX4-Autopilot/Tools/setup_gazebo.bash ~/PX4-Autopilot ~/PX4-Autopilot/build/px4_sitl_default;
-export ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:~/PX4-Autopilot;
-export ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:~/PX4-Autopilot/Tools/sitl_gazebo;
-export GAZEBO_PLUGIN_PATH=$GAZEBO_PLUGIN_PATH:/usr/lib/x86_64-linux-gnu/gazebo-11/plugins'
+source ~/PX4-Autopilot/Tools/simulation/gazebo-classic/setup_gazebo.bash ~/PX4-Autopilot ~/PX4-Autopilot/build/px4_sitl_default
+export ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:~/PX4-Autopilot
+export ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:~/PX4-Autopilot/Tools/simulation/gazebo-classic/sitl_gazebo-classic
 ```
+
+Ref: https://docs.px4.io/main/en/simulation/ros_interface.html#launching-gazebo-classic-with-ros-wrappers
 
 Run `drone_ws_go`  in shell to activate.
 
