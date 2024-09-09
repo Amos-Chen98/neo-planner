@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-03-13 15:08:42
+LastEditTime: 2024-09-09 22:49:36
 '''
 import torch
 import numpy as np
@@ -28,8 +28,8 @@ OUTPUT_SIZE = 9
 # configurable parameters
 IMG_FEATURE_SIZE = 24
 MOTION_FEATURE_SIZE = 24
-BATCH_SIZE = 36
-EPOCHS = 30
+BATCH_SIZE = 2
+EPOCHS = 5
 SHUFFLE = False
 TRAININ_SET_PERCENTAGE = 0.8
 LEARNING_RATE = 1e-3
@@ -39,8 +39,8 @@ torch.manual_seed(42)
 current_path = os.path.dirname(os.path.abspath(__file__))[:-19]  # -8 removes '/scripts', -11 removes '/nn_trainer'
 img_path = '/training_data/starred/depth_img'
 csv_path = '/training_data/starred/train.csv'
-pth_save_path = '/saved_net/planner_net.pth'
-onnx_save_path = '/saved_net/planner_net.onnx'
+pth_save_path = '/saved_net/planner_net_20240804.pth'
+onnx_save_path = '/saved_net/planner_net_20240804.onnx'
 
 
 # def process_input_np(depth_img, motion_info):
@@ -162,7 +162,10 @@ class PlannerNet(nn.Module):
 class NNTrainer():
     def __init__(self):
         print(f"PyTorch version: {torch.__version__}")
+        print(f"PyTorch calling cuda: {torch.version.cuda}")
+        print(f"PyTorch calling cuDNN: {torch.backends.cudnn.version()}")
         print(f"torchvision version: {torchvision.__version__}")
+
         self.criterion = nn.MSELoss(reduction='mean')  # https://pytorch.org/docs/stable/generated/torch.nn.MSELoss.html
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         print("Device: ", self.device)
@@ -197,8 +200,8 @@ class NNTrainer():
     def init_net(self):
         self.planner_net = PlannerNet()
         self.planner_net.to(self.device)  # move the network to GPU
-        # print summary of the network
         summary(self.planner_net, (BATCH_SIZE, IMG_WIDTH * IMG_HEIGHT + MOTION_INPUT_SIZE), device=self.device)
+        print("Network initialized.")
 
     def train_net(self):
         # ref: https://pytorch.org/tutorials/beginner/blitz/cifar10_tutorial.html
@@ -292,6 +295,9 @@ class NNTrainer():
 
 
 if __name__ == '__main__':
+
+    # torch.backends.cudnn.enabled = False
+    # If encounting 'Segmentation Fault', try to disable cudnn to chek if it is the reason
 
     nn_trainer = NNTrainer()
 
