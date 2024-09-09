@@ -1,6 +1,6 @@
 '''
 Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-03-08 22:29:45
+LastEditTime: 2024-07-12 15:54:57
 '''
 import os
 import sys
@@ -160,11 +160,18 @@ class RecordPlanner(MinJerkPlanner):
         # process output result: int_wpts, in body frame
         int_wpts_local = form_nn_output(drone_state, self.des_pos_z, int_wpts)
 
-        new_line_df = pd.DataFrame(columns=self.table_header)
-        new_line_df.loc[0] = [None] * 34
-        new_line_df.loc[0][0] = 't' + timestamp
-        # the extra 't' is to ensure the id is a string, otherwise it will be stored as a num in the csv, even using str(timestamp)
-        new_line_df.loc[0][1:] = np.concatenate((motion_info, int_wpts_local, ts), axis=0).tolist()
+        # new_line_df = pd.DataFrame(columns=self.table_header)
+        # new_line_df.loc[0] = [None] * 34
+        # new_line_df.loc[0][0] = 't' + timestamp
+        # # the extra 't' is to ensure the id is a string, otherwise it will be stored as a num in the csv, even using str(timestamp)
+        # new_line_df.loc[0][1:] = np.concatenate((motion_info, int_wpts_local, ts), axis=0).tolist()
+
+        # Combine all data into a single list
+        id = 't' + timestamp
+        data_row = [id] + np.concatenate((motion_info, int_wpts_local, ts), axis=0).tolist()
+        new_line_df = pd.DataFrame([data_row], columns=self.table_header)
+
+        # Append the DataFrame to the CSV file
         new_line_df.to_csv(self.csv_path, mode='a', header=False, index=False)
 
         # create a gray image from depth_image_norm
