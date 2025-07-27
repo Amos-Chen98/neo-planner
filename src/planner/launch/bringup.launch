@@ -5,7 +5,7 @@
     <arg name="world_num_models" default="0"/>
     <arg name="is_save_metric" default="false"/>
     <arg name="max_target_find_time" default="1000"/>
-    <arg name="selected_planner" default="enhanced"/>
+    <arg name="selected_planner" default="neo"/>
     <arg name="replan_mode" default="periodic"/>
 
     <!-- Launch the simulator -->

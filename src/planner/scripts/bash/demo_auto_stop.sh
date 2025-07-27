@@ -1,7 +1,7 @@
 #!/bin/bash
 echo "=============================="
 
-selected_planner=${1:-"enhanced"}  # 'basic', 'batch', 'record', 'nn', 'enhanced', or 'warmstart'
+selected_planner=${1:-"neo"}  # 'basic', 'batch', 'record', 'nn', 'neo', or 'warmstart'
 echo "The selected planner is $selected_planner"
 
 replan_mode=${2:-"periodic"}  # 'global', 'online', or 'periodic'

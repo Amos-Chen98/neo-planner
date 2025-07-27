@@ -5,7 +5,7 @@ echo "The number of repeats for each experiments is $repeat_num"
 is_save_rosbag=${2:-"false"} # Default to true if no argument is provided
 echo "The is_save_rosbag is $is_save_rosbag"
 
-# selected_planner: 'basic', 'batch', 'record', 'nn', 'enhanced', or 'warmstart'
+# selected_planner: 'basic', 'batch', 'record', 'nn', 'neo', or 'warmstart'
 # replan_mode: 'global', 'online', or 'periodic'
 
 min_test_unit() {
@@ -33,7 +33,7 @@ min_test_unit() {
         sleep 15
 
         echo "++++++++++ Execution started. ++++++++++"
-        ./scripts/bash/demo_auto_stop.sh "enhanced" "periodic" "$is_save_rosbag" "$world" "$num_models"
+        ./scripts/bash/demo_auto_stop.sh "neo" "periodic" "$is_save_rosbag" "$world" "$num_models"
         echo "++++++++++ Execution finished. ++++++++++"
         sleep 15
     done

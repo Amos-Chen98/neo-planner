@@ -10,7 +10,7 @@ sys.path.insert(0, current_path)
 from geometry_msgs.msg import Point
 from std_msgs.msg import ColorRGBA
 from tf.transformations import euler_from_quaternion
-from traj_planner.all_planner_demo import EnhancedPlanner
+from traj_planner.all_planner_demo import NeoPlanner
 from traj_planner.geo_planner import GeoPlanner
 from traj_planner.record_planner import RecordPlanner
 from traj_planner.nn_planner import NNPlanner
@@ -89,7 +89,7 @@ class TrajPlanner():
         self.target_reach_threshold = rospy.get_param("~target_reach_threshold", 0.2)
         self.cmd_hz = rospy.get_param("~cmd_hz", 300)
         self.selected_planner = rospy.get_param("~selected_planner",
-                                                'basic')  # 'basic', 'batch', 'expert', 'record', 'nn', or 'enhanced'
+                                                'basic')  # 'basic', 'batch', 'expert', 'record', 'nn', or 'neo'
         self.replan_period = rospy.get_param("~replan_period",
                                              0.5)  # the interval between replanning， 0 means replan right after the previous plan
         self.move_vel = self.planner_config.v_max * 0.8
@@ -111,8 +111,8 @@ class TrajPlanner():
             self.planner = RecordPlanner(self.planner_config)
         elif self.selected_planner == 'nn':
             self.planner = NNPlanner(self.des_pos_z)
-        elif self.selected_planner == 'enhanced':
-            self.planner = EnhancedPlanner(self.planner_config)
+        elif self.selected_planner == 'neo':
+            self.planner = NeoPlanner(self.planner_config)
         else:
             rospy.logerr("Invalid planner mode!")
 
@@ -508,7 +508,7 @@ class TrajPlanner():
             self.record_traj_plan(self.map, self.depth_img, self.drone_state, self.drone_state, self.target_state)
         elif self.selected_planner == 'nn':
             self.nn_traj_plan(self.depth_img, self.drone_state, self.drone_state, self.target_state)
-        elif self.selected_planner == 'enhanced':
+        elif self.selected_planner == 'neo':
             self.enhanced_traj_plan(self.map, self.depth_img, self.drone_state, self.drone_state, self.target_state)
         else:
             rospy.logerr("Invalid planner mode!")
@@ -559,7 +559,7 @@ class TrajPlanner():
             self.record_traj_plan(self.map, self.depth_img, self.drone_state, drone_state_ahead, self.target_state)
         elif self.selected_planner == 'nn':
             self.nn_traj_plan(self.depth_img, self.drone_state, drone_state_ahead, self.target_state)
-        elif self.selected_planner == 'enhanced':
+        elif self.selected_planner == 'neo':
             self.enhanced_traj_plan(self.map, self.depth_img, self.drone_state, drone_state_ahead, self.target_state)
         elif self.selected_planner == 'warmstart':
             self.warmstart_traj_plan(self.map, drone_state_ahead, self.target_state, self.int_wpts_local,

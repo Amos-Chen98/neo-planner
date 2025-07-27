@@ -11,7 +11,7 @@ import numpy as np
 from nn_planner import NNPlanner
 
 
-class EnhancedPlanner(MinJerkPlanner):
+class NeoPlanner(MinJerkPlanner):
     def __init__(self, planner_config):
         super().__init__(planner_config)
         des_pos_z = planner_config.des_pos_z

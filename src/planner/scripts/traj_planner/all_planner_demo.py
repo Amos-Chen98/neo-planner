@@ -19,7 +19,7 @@ class PlanningResult():
         self.traj_cost = 0.0
 
 
-class EnhancedPlanner(MinJerkPlanner):
+class NeoPlanner(MinJerkPlanner):
     def __init__(self, planner_config):
         super().__init__(planner_config)
         des_pos_z = planner_config.des_pos_z
@@ -59,15 +59,15 @@ class EnhancedPlanner(MinJerkPlanner):
         self.planning_result["NN"].pos_array = nn_pos_array
         self.planning_result["NN"].traj_cost = nn_cost
 
-        # --------------------------------enhanced planner--------------------------------
+        # --------------------------------neo planner--------------------------------
         # plan from NN output
         self.warm_start_plan(map, drone_state_2d, target_state, int_wpts, ts)  # 2D planning, z is fixed
         enhanced_pos_array = self.get_pos_array()
 
-        # evaluate the cost of traj obtained by enhanced_planner
+        # evaluate the cost of traj obtained by neo_planner
         enhanced_cost = np.dot(self.costs, self.weights)
 
-        # Store the result of enhanced_planner
+        # Store the result of neo_planner
         self.planning_result["Enhanced"].int_wpts = self.int_wpts.T
         self.planning_result["Enhanced"].pos_array = enhanced_pos_array
         self.planning_result["Enhanced"].traj_cost = enhanced_cost

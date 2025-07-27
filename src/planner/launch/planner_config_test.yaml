@@ -20,7 +20,7 @@ longitu_step_dis: 4.0
 lateral_step_length: 1.0
 target_reach_threshold: 0.2
 cmd_hz: 60
-selected_planner: nn # 'basic', 'batch', 'record', 'nn', 'enhanced', or 'warmstart'
+selected_planner: nn # 'basic', 'batch', 'record', 'nn', 'neo', or 'warmstart'
 replan_period: 1.0
 record_metric: True
 yaw_shift_tol: 0.17453
