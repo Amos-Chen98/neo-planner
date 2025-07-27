@@ -1,7 +1,3 @@
-'''
-Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-09-09 22:49:36
-'''
 import torch
 import numpy as np
 import pandas as pd

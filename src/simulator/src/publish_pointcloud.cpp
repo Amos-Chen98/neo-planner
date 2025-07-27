@@ -1,9 +1,3 @@
-/*
- * @Author: Yicheng Chen (yicheng-chen@outlook.com)
- * @LastEditTime: 2023-02-10 10:47:55
- * @Modified from: https://github.com/RuPingCen/publish_pointcloud/blob/master/src/publish_pointcloud.cpp
- */
-
 #include <iostream>
 #include <string>
 #include <stdlib.h>

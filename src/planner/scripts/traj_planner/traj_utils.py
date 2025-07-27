@@ -1,8 +1,3 @@
-'''
-Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-31 16:01:38
-'''
-
 import numpy as np
 
 

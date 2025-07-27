@@ -1,9 +1,3 @@
-'''
-Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-03-11 19:17:05
-This file has no connection to ROS. It is used to generate gazebo worlds.
-'''
-
 import os
 import xml.etree.ElementTree as ET
 import copy

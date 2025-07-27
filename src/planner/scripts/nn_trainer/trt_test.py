@@ -1,7 +1,3 @@
-'''
-Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-08-07 17:46:53
-'''
 import numpy as np
 import tensorrt as trt
 import time

@@ -1,7 +1,3 @@
-'''
-Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-03-12 22:38:38
-'''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))

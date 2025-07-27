@@ -1,8 +1,3 @@
-'''
-Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-03-05 21:01:49
-'''
-
 import math
 import matplotlib.pyplot as plt
 import copy

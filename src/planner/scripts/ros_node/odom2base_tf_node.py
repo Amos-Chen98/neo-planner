@@ -1,8 +1,3 @@
-'''
-Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-08 20:59:34
-'''
-
 import rospy
 import tf2_ros
 from nav_msgs.msg import Odometry

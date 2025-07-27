@@ -1,7 +1,3 @@
-'''
-Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-03-03 17:25:31
-'''
 import os
 import sys
 current_path = os.path.abspath(os.path.dirname(__file__))[:-14] # -14 removes '/ros_node_test'

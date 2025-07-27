@@ -1,7 +1,3 @@
-'''
-Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2024-03-03 17:00:39
-'''
 import os
 import torch
 import onnx

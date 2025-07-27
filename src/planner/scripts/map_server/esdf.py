@@ -1,8 +1,3 @@
-'''
-Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-27 20:07:07
-'''
-
 import numpy as np
 from scipy import ndimage
 

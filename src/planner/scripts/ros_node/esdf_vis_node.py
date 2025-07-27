@@ -1,8 +1,3 @@
-'''
-Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-03-02 11:05:22
-'''
-
 import rospy
 import numpy as np
 from nav_msgs.msg import OccupancyGrid

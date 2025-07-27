@@ -1,8 +1,3 @@
-'''
-Author: Yicheng Chen (yicheng-chen@outlook.com)
-LastEditTime: 2023-07-31 19:04:31
-'''
-
 import rospy
 import numpy as np
 from matplotlib import cm
