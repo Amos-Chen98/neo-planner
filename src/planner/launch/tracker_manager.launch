@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <launch>
     <node pkg="planner" type="tracker_manager_node.py" name="manager" output="screen">
-        <rosparam file="$(find planner)/launch/manager_config.yaml" command="load"/>
+        <rosparam file="$(find planner)/launch/config/manager_config.yaml" command="load"/>
     </node>
 
 </launch>

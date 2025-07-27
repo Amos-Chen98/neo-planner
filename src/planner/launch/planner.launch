@@ -16,7 +16,7 @@
         <param name="max_target_find_time" value="$(arg max_target_find_time)"/>
         <param name="gazebo_world" value="$(arg gazebo_world)"/>
         <param name="world_num_models" value="$(arg world_num_models)"/>
-        <rosparam file="$(find planner)/launch/planner_config.yaml" command="load"/>
+        <rosparam file="$(find planner)/launch/config/planner_config.yaml" command="load"/>
         <remap from="camera/depth/image_raw" to="/iris/camera/depth/image_raw" />
     </node>
 

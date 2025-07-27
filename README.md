@@ -107,9 +107,9 @@ roscd planner
 
 **Configurable parameters**:
 
-The parameters of the planner node is defined in `src/planner/launch/planner_config.yaml`
+The parameters of the planner node is defined in `src/planner/launch/config/planner_config.yaml`
 
-The parameters of the manager node is defined in `src/planner/launch/manager_config.yaml`
+The parameters of the manager node is defined in `src/planner/launch/config/manager_config.yaml`
 
 The parameters of the octomap_server is defined in `src/planner/launch/map_server_onboard.launch`
 

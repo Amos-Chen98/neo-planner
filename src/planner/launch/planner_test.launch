@@ -2,7 +2,7 @@
 <launch>
     <node pkg="planner" type="traj_planner_test_node.py" name="planner" output="screen">
         <remap from="camera/depth/image_raw" to="camera/depth/image_rect_raw" />
-        <rosparam file="$(find planner)/launch/planner_config_test.yaml" command="load"/>
+        <rosparam file="$(find planner)/launch/config/planner_config_test.yaml" command="load"/>
     </node>
 
 </launch>

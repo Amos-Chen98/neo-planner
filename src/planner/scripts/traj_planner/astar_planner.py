@@ -35,7 +35,7 @@ class AstarPlanner():
         self.map_origin = copy.deepcopy(map.map_origin)  # in meter, the origin of the map is the west-south corner
 
         # expand the grid map to ensure that the target position is in the map
-        map_expand_radius = 10.0  # in meter, this should be larger than longitu_step_dis in src/planner/launch/planner_config.yaml
+        map_expand_radius = 10.0  # in meter, this should be larger than longitu_step_dis in src/planner/launch/config/planner_config.yaml
         self.map_width += int(map_expand_radius/self.resolution)
         self.map_height += int(map_expand_radius/self.resolution)
         self.map_origin.x -= map_expand_radius/2
