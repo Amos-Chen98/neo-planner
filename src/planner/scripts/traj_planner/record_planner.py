@@ -80,6 +80,15 @@ class RecordPlanner(MinJerkPlanner):
         self.csv_path = rospkg_path + '/training_data/train.csv'
         self.img_path = rospkg_path + '/training_data/depth_img'
 
+        # Ensure the training_data directory exists
+        training_data_dir = rospkg_path + '/training_data'
+        if not os.path.exists(training_data_dir):
+            os.makedirs(training_data_dir)
+
+        # Ensure the depth_img directory exists
+        if not os.path.exists(self.img_path):
+            os.makedirs(self.img_path)
+
         self.des_pos_z = planner_config.des_pos_z
 
         # Initialize the csv file collecting training data
@@ -123,9 +132,6 @@ class RecordPlanner(MinJerkPlanner):
         if not os.path.isfile(self.csv_path):
             df = pd.DataFrame(columns=self.table_header)
             df.to_csv(self.csv_path, index=False)
-        
-        if not os.path.exists(self.img_path):
-            os.makedirs(self.img_path)
 
     def record_traj_plan(self, map, depth_img, drone_state, plan_init_state, target_state):
         '''
