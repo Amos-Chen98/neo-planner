@@ -1,7 +1,11 @@
 <?xml version="1.0"?>
 <launch>
+    <arg name="mission_mode" default="manual"/>
+    <!-- mission_mode: 'manual', 'random', or 'predefined' -->
+
     <node pkg="planner" type="manager_node.py" name="manager" output="screen">
         <rosparam file="$(find planner)/launch/config/manager_config.yaml" command="load"/>
+        <param name="mission_mode" value="$(arg mission_mode)"/>
     </node>
 
 </launch>
