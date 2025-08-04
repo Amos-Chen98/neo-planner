@@ -1,70 +1,53 @@
-# **drone_ws**
+# **NEO-Planner**
 
-## **About**
+## 1 **About**
 
-This project (as a ROS workspace) provides a motion planning framework for drones based on ROS and PX4-SITL.
+This project (as a ROS workspace) provides a test environment for drone navigation based on ROS and PX4 software-in-the-loop (SITL).
 
-## **Installation**
+It includes the code for the IROS'25 paper:
 
-This project has been tested on Ubuntu 20.04
+**Learning to Initialize Trajectory Optimization for Vision-Based Autonomous Flight in Unknown Environments**
 
-### **Prerequisites**
+![Simulation Demo](media/sim.gif)
 
-Before using this project, please make sure the following dependencies have been successfully installed and configured.
+![Experiment Demo](media/exp.gif)
 
-- ROS1 with Gazebo: https://wiki.ros.org/noetic/Installation/Ubuntu
+## **2 Installation**
 
-- PX4-Autopilot: https://docs.px4.io/main/en/dev_setup/dev_env_linux_ubuntu.html
+This project has been tested on Ubuntu 20.04.
 
-  Follow the above official document, download PX4-Autopilot, install dependencies, and build the code.
+### 2.1 **Dependencies**
 
-  Commands summary:
+Please install the dependencies following each link.
 
-```bash
-git clone https://github.com/PX4/PX4-Autopilot.git --recursive
-cd PX4-Autopilot
-bash Tools/setup/ubuntu.sh
-make px4_sitl gazebo-classic
-```
-
-- Mavros: https://docs.px4.io/main/en/ros/mavros_installation.html#install-mavros
+* PX4, ROS1, and MAVROS: https://docs.px4.io/main/en/ros/mavros_installation.html
 
 - QGC: https://docs.qgroundcontrol.com/master/en/qgc-user-guide/getting_started/download_and_install.html#ubuntu
 
-  **Note: Remember to enable Virtual Joystick in Application Settings in QGC, otherwise, the drone will refuse to enter OFFBOARD mode.**
+  **Note:** Remember to enable Virtual Joystick in Application Settings in QGC, otherwise, the drone will refuse to enter OFFBOARD mode.
 
 - PyTorch (GPU): https://pytorch.org/get-started/locally/
 
 Besides, install the following dependencies.
 
-```bash
-sudo apt install ros-noetic-octomap*
-sudo apt install ros-noetic-octovis
-sudo apt install graphviz graphviz-dev
-pip install octomap-python
-pip install pyquaternion
-pip install scipy
-pip install transitions[diagrams]
-pip install onnx
-pip install onnxruntime-gpu
-pip install torchinfo
-pip install torchvision
+```
+sudo apt install ros-noetic-octomap* ros-noetic-octovis graphviz graphviz-dev
+pip install octomap-python pyquaternion scipy transitions[diagrams] onnx onnxruntime-gpu torchinfo torchvision
 ```
 
-### **Install this project (as a ROS workspace)**
+### 2.2 Install this project (as a ROS workspace)
 
 1. Clone and build this repo:
 
 ```bash
-git clone https://github.com/Amos-Chen98/drone_ws.git
-cd drone_ws
+git clone https://github.com/Amos-Chen98/neo-planner.git
+cd neo-planner
 catkin build
 ```
 
-1. Configure the environment variables: Add the following lines to `.bashrc`/`.zshrc`
+2. Configure the environment variables: Add the following lines to `.bashrc`/`.zshrc`
 
 ```bash
-alias drone_ws_go='source <path_to_drone_ws>/devel/setup.bash;
 source ~/PX4-Autopilot/Tools/simulation/gazebo-classic/setup_gazebo.bash ~/PX4-Autopilot ~/PX4-Autopilot/build/px4_sitl_default
 export ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:~/PX4-Autopilot
 export ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:~/PX4-Autopilot/Tools/simulation/gazebo-classic/sitl_gazebo-classic
@@ -72,15 +55,11 @@ export ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:~/PX4-Autopilot/Tools/simulation/gazeb
 
 Ref: https://docs.px4.io/main/en/simulation/ros_interface.html#launching-gazebo-classic-with-ros-wrappers
 
-Run `drone_ws_go`  in shell to activate.
+## 3 **Usage**
 
-## **Usage**
+### 3.1 Quick start
 
-## Quick start
-
-### 1. Trajectory planning and tracking
-
-updated 08/16/2023.
+#### 3.1.1 Autonomous navigation
 
 Step 1: launch QGC
 
@@ -90,15 +69,17 @@ Step 2: Launch the following file:
 roslaunch planner bringup.launch
 ```
 
+The drone will automatically take off and enter HOVER mode.
+
 Step 3: Set a goal point with `2D Nav Goal` in RViz. Or, if you want to set a precise goal point, use the ROS command:
 
 ```
 rostopic pub /move_base_simple/goal geometry_msgs/PoseStamped '{header: {stamp: now, frame_id: "map"}, pose: {position: {x: 30.0, y: 0.0, z: 0.0}, orientation: {w: 1.0}}}'
 ```
 
-Then you will see the drone perform trajectory planning and tracking.
+Then the drone will perform trajectory planning and tracking.
 
-The above Step 2-3 is equal to running the following command:
+The above Step 2-3 is equal to running the following commands:
 
 ```
 roscd planner
@@ -113,13 +94,11 @@ The parameters of the manager node is defined in `src/planner/launch/config/mana
 
 The parameters of the octomap_server is defined in `src/planner/launch/map_server_onboard.launch`
 
-### 2. Object tracking
+#### 3.1.2 Object tracking
 
-updated 08/20/2023
+This is an extended application of the planner: using the planner to perform object tracking while avoiding obstacles.
 
-This is an application of the planner: using the planner to perform object tracking while avoiding obstacles.
-
-Step 1: launch QGC
+Step 1: launch QGC.
 
 Step 2: Launch the following files:
 
@@ -132,41 +111,39 @@ roslaunch roslaunch planner tracker_manager.launch
 
 By default, the planner takes in the moving object's pose through the topic `/move_base_simple/goal`. You can dynamically send the target pose to this topic for tracking.
 
-## Customized development
+### 3.2 Customized development
 
-### 1. Batch random generation of Gazebo world
-
-updated 02/27/2024
+#### 3.2.1 Batch random generation of Gazebo world
 
 Run `src/simulator/scripts/generate_worlds.py`
 
+This command will automatically generate a batch of gazebo world files.
+
 The configurable parameters are listed in `src/simulator/scripts/generator_config.yaml`
 
-### **2. Generate octomap from Gazebo world**
+#### 3.2.2 Generate octomap from Gazebo world
 
-If you want to generate ground truth octomap for test or training, follow the instructions.
+Below are the instructions on how to generate ground truth pointcloud and octomap.
 
-updated 01/23/2023
-
-This function is based on package `sim_gazebo_plugins`. To use the plugin, you need to edit your desired .world file to recognize the plugin. Simply open your .world file in a text editor and add the following line just before the final `<world>` tag (i. e. in between the `<world>` tags):
+This function is based on the package `sim_gazebo_plugins`. To use the plugin, you need to edit your desired .world file to incorporate the plugin. Simply open your .world file in a text editor and add the following line just before the final `<world>` tag (i. e. in between the `<world>` tags):
 
 ```
 <plugin name='gazebo_octomap' filename='libBuildOctomapPlugin.so'/>
 ```
 
-To build an octomap .bt file, open three separate terminals:
+**Note:** If you are using the existing world files, or any worlds generated from `generate_worlds.py`, this step is not required because the plugin has already been included
 
-```
-In one terminal:
-$ roscore
+To generate a .pcd file and a .bt file , execute the following commands:
 
-In second terminal:
-$ rosrun gazebo_ros gazebo <your_world_file>.world
-**NOTE: replace <your_world_file> with the filename of the world you wish to build a map of**
+```bash
+roslaunch simulator load_world.launch gazebo_world:=<your_world_file>
+# Replace <your_world_file> with the filename of the world you wish to build a map from. This name should not not contain ".world"
 
-In third terminal, once Gazebo has loaded the world above:
-$ rosservice call /world/build_octomap '{bounding_box_origin: {x: 0, y: 0, z: 15}, bounding_box_lengths: {x: 30, y: 30, z: 30}, leaf_size: 0.5, filename: output_filename.bt}'
+rosservice call /world/build_octomap '{bounding_box_origin: {x: 0, y: 0, z: 15}, bounding_box_lengths: {x: 30, y: 30, z: 30}, leaf_size: 0.1, filename: output_filename.bt}'
 ```
 
-Note that the above rosservice call has a few adjustable variables. The bounding box origin can be set as desired (in meters) as well as the bounding box lengths (in meters) relative to the bounding box origin. The bounding box lengths are done in both (+/-) directions relative to the origin. For example, in the `rosservice` call above, from `(0, 0, 0)`, our bounding box will start at **-15 meters** and end at **+15 meters** in the X and Y directions. In the Z direction, we will start at **0 meters** and end at **30 meters**.
+Then the .pcd file and the .bt file will be generated in your .ros folder under the home folder.
 
+The `rosservice` call includes adjustable variables: the bounding box origin and lengths, both in meters. 
+
+The lengths extend symmetrically in both (+/-) directions from the origin. For example, with an origin at `(0, 0, 0)` and bounding_box_lengths `{x: 30, y: 30, z: 30}`, the bounding box spans **-15 to +15 meters** in the X and Y directions, and **0 to 30 meters** in the Z direction.
