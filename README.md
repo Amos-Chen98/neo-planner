@@ -6,13 +6,15 @@ This is the code repository for the IROS'25 paper:
 
 **Learning to Initialize Trajectory Optimization for Vision-Based Autonomous Flight in Unknown Environments**
 
+authored by [Yicheng Chen](https://yichengchen.com), [Jinjie Li](https://jinjie.li), Wenyuan Qin, Yongzhao Hua, Xiwang Dong, and Qingdong Li
+
 Video: https://youtu.be/UoroRe-euDk
 
 ![Simulation Demo](media/sim.gif)
 
 ![Experiment Demo](media/exp.gif)
 
-This repository (as a ROS workspace) provides a test environment for drone navigation based on ROS and PX4 software-in-the-loop (SITL).
+This repository (as a ROS workspace) provides a developing environment for drone navigation based on ROS and PX4 software-in-the-loop (SITL).
 
 ## **2 Installation**
 
@@ -20,7 +22,7 @@ This project has been tested on Ubuntu 20.04 with ROS Noetic.
 
 ### 2.1 **Dependencies**
 
-Please install the dependencies following each link.
+1. Install the dependencies following each link.
 
 * PX4, ROS1, and MAVROS: https://docs.px4.io/main/en/ros/mavros_installation.html
 
@@ -30,7 +32,7 @@ Please install the dependencies following each link.
 
 - PyTorch (GPU): https://pytorch.org/get-started/locally
 
-Besides, install the following dependencies.
+2. Install the following dependencies.
 
 ```
 sudo apt install ros-noetic-octomap* ros-noetic-octovis graphviz graphviz-dev
@@ -88,13 +90,7 @@ roscd planner
 ./scripts/bash/demo.sh
 ```
 
-**Configurable parameters**:
-
-The parameters of the planner node is defined in `src/planner/launch/config/planner_config.yaml`
-
-The parameters of the manager node is defined in `src/planner/launch/config/manager_config.yaml`
-
-The parameters of the octomap_server is defined in `src/planner/launch/map_server_onboard.launch`
+All primary parameters can be adjusted directly in the launch files and by editing the configurations under `src/planner/launch/config`.
 
 #### 3.1.2 Object tracking
 
