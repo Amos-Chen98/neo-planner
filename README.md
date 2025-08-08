@@ -6,9 +6,13 @@ This is the code repository for the IROS'25 paper:
 
 **Learning to Initialize Trajectory Optimization for Vision-Based Autonomous Flight in Unknown Environments**
 
-authored by [Yicheng Chen](https://yichengchen.com), [Jinjie Li](https://jinjie.li), Wenyuan Qin, Yongzhao Hua, Xiwang Dong, and Qingdong Li
+👥 Authors: [Yicheng Chen](https://yichengchen.com/), [Jinjie Li](https://jinjie.li/), Wenyuan Qin, Yongzhao Hua, Xiwang Dong, and Qingdong Li
 
-Video: https://youtu.be/UoroRe-euDk
+🔗 Paper: https://arxiv.org/abs/2309.10683
+
+🎥 Video: https://youtu.be/UoroRe-euDk
+
+🌐 Website: https://yichengchen.com/publication/neo-planner
 
 ![Simulation Demo](media/sim.gif)
 
