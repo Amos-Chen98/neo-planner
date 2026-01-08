@@ -8,7 +8,7 @@ This is the code repository for the IROS'25 paper:
 
 👥 Authors: [Yicheng Chen](https://yichengchen.com/), [Jinjie Li](https://jinjie.li/), Wenyuan Qin, Yongzhao Hua, Xiwang Dong, and Qingdong Li
 
-🔗 Paper: https://arxiv.org/abs/2309.10683
+📄 Paper: https://doi.org/10.1109/IROS60139.2025.11245869
 
 🎥 Video: https://youtu.be/UoroRe-euDk
 
