@@ -59,9 +59,16 @@ catkin build
 source ~/PX4-Autopilot/Tools/simulation/gazebo-classic/setup_gazebo.bash ~/PX4-Autopilot ~/PX4-Autopilot/build/px4_sitl_default
 export ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:~/PX4-Autopilot
 export ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:~/PX4-Autopilot/Tools/simulation/gazebo-classic/sitl_gazebo-classic
+export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:~/PX4-Autopilot/Tools/simulation/gazebo-classic/sitl_gazebo-classic/models
 ```
 
 Ref: https://docs.px4.io/main/en/simulation/ros_interface.html#launching-gazebo-classic-with-ros-wrappers
+
+**Troubleshooting:**
+If you encounter `Resource not found: ... mavlink_sitl_gazebo`, it indicates a package path mismatch. In newer PX4 versions, this package was renamed to `sitl_gazebo`. You can resolve this by:
+1. Ensuring the `GAZEBO_MODEL_PATH` above is set.
+2. Replacing `$(find mavlink_sitl_gazebo)` with `$(find sitl_gazebo)` in your local `.launch` or `.world` files.
+3. Or using a PX4 version prior to v1.13 where the original package name is still active.
 
 ## 3 **Usage**
 
